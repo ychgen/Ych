@@ -1,0 +1,32 @@
+BUILD_PATH  ?= Binaries
+BOOT_PATH   ?= Boot
+KERNEL_PATH ?= Kernel
+TOOLS_PATH  ?= Tools
+
+TOOL_ROUTINE_LIB_PATH ?= $(TOOLS_PATH)/RoutineLib
+TOOL_IMGTOOL_PATH ?= $(TOOLS_PATH)/Imgtool
+
+BOOT_BUILD_PATH   ?= $(BUILD_PATH)/$(BOOT_PATH)
+KERNEL_BUILD_PATH ?= $(BUILD_PATH)/$(KERNEL_PATH)
+TOOLS_BUILD_PATH  ?= $(BUILD_PATH)/$(TOOLS_PATH)
+
+TOOL_ROUTINELIB_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_ROUTINE_LIB_PATH)
+TOOL_IMGTOOL_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_IMGTOOL_PATH)
+
+RM   ?= rm
+ECHO ?= echo
+
+os-image: tools
+
+tools: routinelib imgtool
+
+routinelib:
+	@$(MAKE) -C $(TOOL_ROUTINE_LIB_PATH) BUILD_PATH=$(abspath $(TOOL_ROUTINELIB_BUILD_PATH)) ROUTINE_LIB_PATH=$(abspath $(TOOL_ROUTINE_LIB_PATH))
+
+imgtool: routinelib
+	@$(MAKE) -C $(TOOL_IMGTOOL_PATH) BUILD_PATH=$(abspath $(TOOL_IMGTOOL_BUILD_PATH)) \
+		ROUTINE_LIB_PATH=$(abspath $(TOOL_ROUTINE_LIB_PATH)) ROUTINE_LIB=$(abspath $(TOOL_ROUTINELIB_BUILD_PATH)/libRoutineLib.a)
+
+clean:
+	@$(ECHO) Removing build directory \"$(BUILD_PATH)\" recursively...
+	@$(RM) -r $(BUILD_PATH)
