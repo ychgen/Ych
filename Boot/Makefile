@@ -39,3 +39,9 @@ $(OBJECT): $(SOURCE)
 	@$(MKDIR) -p $(dir $@)
 	@$(ECHO) Boot.Build: Compiling \"$<\" to \"$@\"...
 	@$(CC) $< -c $(CFLAGS) -o $@
+
+clean:
+	@$(ECHO) Removing build directory \"$(BUILD_PATH)\" recursively...
+	@$(RM) -r $(BUILD_PATH)
+
+.PHONY: clean

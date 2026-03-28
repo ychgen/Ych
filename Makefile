@@ -15,6 +15,7 @@ TOOL_ROUTINELIB_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_ROUTINE_LIB_PATH)
 TOOL_IMGTOOL_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_IMGTOOL_PATH)
 
 BOOTLOADER_NAME  ?= YchBoot.efi
+KERNEL_NAME      ?= Kernelych.img
 OS_IMAGE_NAME    ?= Ych.img
 OS_IMAGE_SIZE    ?= 512 # MiB
 OS_IMAGE_BLKSZ   ?= 512 # bytes
@@ -39,7 +40,7 @@ run: os-image
 			 -device nvme,drive=nvme0,serial=nvme-0 \
 			 -net none
 
-$(OS_IMAGE_TARGET): boot tools
+$(OS_IMAGE_TARGET): tools boot kernel
 	@$(IMGTOOL) MakeStandard $@ $(OS_IMAGE_SIZE) $(OS_IMAGE_BLKSZ)
 # EFI System Partition on sector 2048 (1MiB mark)
 	@$(MKFSFAT) -F 32 --offset=2048 $@
@@ -48,11 +49,16 @@ $(OS_IMAGE_TARGET): boot tools
 	@$(MCPY) -i $@@@1M $(BOOT_BUILD_PATH)/$(BOOTLOADER_NAME) ::/EFI/Boot/Bootx64.efi
 # Ych Operating System on sector 206848 (post 100 MiB mark)
 	@$(MKFSFAT) -F 32 --offset=206848 $@
+	@$(MMD) -i $@@@101M ::/Ych
+	@$(MCPY) -i $@@@101M $(KERNEL_BUILD_PATH)/$(KERNEL_NAME) ::/Ych/Krnlych.img
+
+tools: routinelib imgtool
 
 boot:
 	@$(MAKE) -C $(BOOT_PATH) BUILD_PATH=$(abspath $(BOOT_BUILD_PATH)) TARGET_NAME=$(BOOTLOADER_NAME)
 
-tools: routinelib imgtool
+kernel:
+	@$(MAKE) -C $(KERNEL_PATH) BUILD_PATH=$(abspath $(KERNEL_BUILD_PATH)) TARGET_NAME=$(KERNEL_NAME)
 
 routinelib:
 	@$(MAKE) -C $(TOOL_ROUTINE_LIB_PATH) BUILD_PATH=$(abspath $(TOOL_ROUTINELIB_BUILD_PATH)) ROUTINE_LIB_PATH=$(abspath $(TOOL_ROUTINE_LIB_PATH))
