@@ -1,5 +1,6 @@
 BUILD_PATH  ?= Binaries
 BOOT_PATH   ?= Boot
+FIRMWARE    ?= FIRMWARE
 KERNEL_PATH ?= Kernel
 TOOLS_PATH  ?= Tools
 
@@ -13,10 +14,43 @@ TOOLS_BUILD_PATH  ?= $(BUILD_PATH)/$(TOOLS_PATH)
 TOOL_ROUTINELIB_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_ROUTINE_LIB_PATH)
 TOOL_IMGTOOL_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_IMGTOOL_PATH)
 
-RM   ?= rm
-ECHO ?= echo
+BOOTLOADER_NAME  ?= YchBoot.efi
+OS_IMAGE_NAME    ?= Ych.img
+OS_IMAGE_SIZE    ?= 512 # MiB
+OS_IMAGE_BLKSZ   ?= 512 # bytes
+OS_IMAGE_TARGET  := $(BUILD_PATH)/$(OS_IMAGE_NAME)
+OS_EMULATION_RAM ?= 512M
 
-os-image: tools
+RM      ?= rm
+ECHO    ?= echo
+MMD     ?= mmd
+MCPY    ?= mcopy
+QEMU    ?= qemu-system-x86_64
+IMGTOOL ?= $(TOOL_IMGTOOL_BUILD_PATH)/Imgtool
+MKFSFAT ?= mkfs.fat
+
+os-image: $(OS_IMAGE_TARGET)
+
+run: os-image
+	@$(QEMU) -cpu qemu64 -m $(OS_EMULATION_RAM) \
+			 -drive if=pflash,format=raw,unit=0,file=$(FIRMWARE)/OVMF_CODE.fd,readonly=on \
+			 -drive if=pflash,format=raw,unit=1,file=$(FIRMWARE)/OVMF_VARS.fd \
+			 -drive file=$(OS_IMAGE_TARGET),format=raw,if=none,id=nvme0 \
+			 -device nvme,drive=nvme0,serial=nvme-0 \
+			 -net none
+
+$(OS_IMAGE_TARGET): boot tools
+	@$(IMGTOOL) MakeStandard $@ $(OS_IMAGE_SIZE) $(OS_IMAGE_BLKSZ)
+# EFI System Partition on sector 2048 (1MiB mark)
+	@$(MKFSFAT) -F 32 --offset=2048 $@
+	@$(MMD) -i $@@@1M ::/EFI
+	@$(MMD) -i $@@@1M ::/EFI/Boot
+	@$(MCPY) -i $@@@1M $(BOOT_BUILD_PATH)/$(BOOTLOADER_NAME) ::/EFI/Boot/Bootx64.efi
+# Ych Operating System on sector 206848 (post 100 MiB mark)
+	@$(MKFSFAT) -F 32 --offset=206848 $@
+
+boot:
+	@$(MAKE) -C $(BOOT_PATH) BUILD_PATH=$(abspath $(BOOT_BUILD_PATH)) TARGET_NAME=$(BOOTLOADER_NAME)
 
 tools: routinelib imgtool
 
@@ -30,3 +64,5 @@ imgtool: routinelib
 clean:
 	@$(ECHO) Removing build directory \"$(BUILD_PATH)\" recursively...
 	@$(RM) -r $(BUILD_PATH)
+
+.PHONY: os-image run boot tools routinelib imgtool clean
