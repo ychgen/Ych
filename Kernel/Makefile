@@ -1,17 +1,21 @@
-BUILD_PATH  ?= Binaries
-SOURCE_PATH ?= Source
-TARGET_NAME ?= Kernelych.img
-TARGET      := $(BUILD_PATH)/$(TARGET_NAME)
+BUILD_PATH   ?= Binaries
+SOURCE_PATH  ?= Source
+INCLUDE_PATH ?= Include
+TARGET_NAME  ?= Kernelych.img
+TARGET       := $(BUILD_PATH)/$(TARGET_NAME)
 
-SOURCES := $(shell find $(SOURCE_PATH) -name *.c)
+SOURCES := $(shell find $(SOURCE_PATH) \( -name "*.c" -o -name "*.asm" \))
 OBJECTS := $(SOURCES:%=$(BUILD_PATH)/Int/%.o)
 
-CFLAGS ?= -O2 -ffreestanding -mno-red-zone -fno-pic -fno-stack-protector -Wall -Wextra
-LDFLAGS ?= -O2 -ffreestanding -nostdlib -mno-red-zone
+GUEST_CFLAGS ?=
+CFLAGS ?= -O2 -I$(INCLUDE_PATH) -ffreestanding -mno-red-zone -fno-pic -fno-stack-protector -Wall -Wextra $(GUEST_CFLAGS)
+LDFLAGS ?= -nostdlib
+ASMFLAGS ?= -f elf64
 
 RM    ?= rm
 CC     = x86_64-elf-gcc
 ECHO  ?= echo
+NASM  ?= nasm
 MKDIR ?= mkdir
 
 $(TARGET): $(OBJECTS)
@@ -23,6 +27,11 @@ $(BUILD_PATH)/Int/%.c.o: %.c
 	@$(MKDIR) -p $(dir $@)
 	@$(ECHO) Compiling \"$<\" to \"$@\"...
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_PATH)/Int/%.asm.o: %.asm
+	@$(MKDIR) -p $(dir $@)
+	@$(ECHO) Assembling \"$<\" to \"$@\"...
+	@$(NASM) $(ASMFLAGS) $< -o $@
 
 clean:
 	@$(ECHO) Removing build directory \"$(BUILD_PATH)\" recursively...

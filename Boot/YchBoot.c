@@ -1,23 +1,7 @@
+#include "PactOfInit.h"
+
 #include <efi.h>
 #include <efilib.h>
-
-#define KERNEL_FILE_NAME    L"\\Ych\\Krnlych.img"
-#define KERNEL_LOAD_ADDRESS   0x100000
-#define KERNEL_PARAM_ADDRESS  0x4000000 // 64 MiB
-
-typedef struct __attribute__((packed))
-{
-    UINT64 PhysicalFrameBufferAddress;
-    UINT64 FramebufferSize;
-    UINT32 FramebufferWidth;
-    UINT32 FramebufferHeight;
-    UINT32 PixelsPerScanLine;
-} KrGraphicsInfo;
-
-typedef struct __attribute__((packed))
-{
-    KrGraphicsInfo GraphicsInfo;
-} KrBootInfo;
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTable)
 {
@@ -62,7 +46,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     }
 
     EFI_FILE_PROTOCOL* krnl;
-    status = uefi_call_wrapper(root->Open, 5, root, &krnl, KERNEL_FILE_NAME, EFI_FILE_MODE_READ, 0);
+    status = uefi_call_wrapper(root->Open, 5, root, &krnl, KERNEL_FILE_NAME_ON_DISK_U16LE, EFI_FILE_MODE_READ, 0);
     if (EFI_ERROR(status))
     {
         Print(L"Failed to open kernel file: %r\n", status);
@@ -106,24 +90,63 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         return status;
     }
 
-    KrBootInfo* pBootInfo = (KrBootInfo*) KERNEL_PARAM_ADDRESS;
-    pBootInfo->GraphicsInfo.PhysicalFrameBufferAddress = pGOP->Mode->FrameBufferBase;
-    pBootInfo->GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
-    pBootInfo->GraphicsInfo.FramebufferWidth = pGOP->Mode->Info->HorizontalResolution;
-    pBootInfo->GraphicsInfo.FramebufferHeight = pGOP->Mode->Info->VerticalResolution;
-    pBootInfo->GraphicsInfo.PixelsPerScanLine = pGOP->Mode->Info->PixelsPerScanLine;
+    KrSystemInfoPack bootInfo;
+    bootInfo.Magic = SYSTEM_INFO_PACK_MAGIC;
+    bootInfo.KernelBinarySize = (uint64_t) szKernel;
 
-    UINTN memMapSize = 0;
-    EFI_MEMORY_DESCRIPTOR* memMap = NULL;
-    UINTN mapKey;
-    UINTN descriptorSize;
-    UINT32 descriptorVersion;
+    bootInfo.GraphicsInfo.PhysicalFramebufferAddress = pGOP->Mode->FrameBufferBase;
+    bootInfo.GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
+    bootInfo.GraphicsInfo.FramebufferWidth = pGOP->Mode->Info->HorizontalResolution;
+    bootInfo.GraphicsInfo.FramebufferHeight = pGOP->Mode->Info->VerticalResolution;
+    bootInfo.GraphicsInfo.PixelsPerScanLine = pGOP->Mode->Info->PixelsPerScanLine;
 
-    uefi_call_wrapper(gBS->GetMemoryMap, 5, &memMapSize, memMap, &mapKey, &descriptorSize, &descriptorVersion);
-    // allocate memMap buffer, call again
-    uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, mapKey);
+    UINTN szMemoryMap = 0;
+    EFI_MEMORY_DESCRIPTOR* pMemoryMap = NULL;
+    UINTN kMapKey;      // Memory map key (ExitBootServices must be called with this)
+    UINTN szDescriptor; // Descriptor size
+    UINT32 vDescriptor; // Descriptor version
 
-    __asm__ __volatile__("jmp *%0" : : "r"(ldAddrKernel));
+    status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
+    if (status != EFI_BUFFER_TOO_SMALL) // status is expected to be EFI_BUFFER_TOO_SMALL.
+    {
+        Print(L"Failed to acquire the memory map: %r\n", status);
+        return status;
+    }
+
+    szMemoryMap += szDescriptor * 2;
+    pMemoryMap   = AllocatePool(szMemoryMap);
+
+    status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
+    if (EFI_ERROR(status))
+    {
+        Print(L"Failed to acquire the memory map2: %r\n", status);
+        return status;
+    }
+
+    bootInfo.MemoryMapInfo.PhysicalAddress = (uint64_t) pMemoryMap;
+    bootInfo.MemoryMapInfo.MemoryMapSize = szMemoryMap;
+    bootInfo.MemoryMapInfo.DescriptorSize = szDescriptor;
+    bootInfo.MemoryMapInfo.NumberOfEntries = szMemoryMap / szDescriptor;
+    bootInfo.MemoryMapInfo.DescriptorVersion = vDescriptor;
+    
+    // Call ExitBootServices, exiting UEFI Firmware completely. OS now has full control over memory hereafter.
+    uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, kMapKey);
+
+    // 2MiB above reserved kernel area
+    uint64_t addrStack = KERNEL_RESERVED_AREA_END + 0x200000;
+
+    // Clear interrupts and jump to kernel.
+    __asm__ __volatile__ (
+        "cli\n\t"
+        "mov %[stack], %%rsp\n\t"
+        "mov %[bootinfo], %%rdi\n\t"
+        "jmp *%[kernel]\n\t"
+         :
+         : [stack]    "r"(addrStack),
+           [bootinfo] "r"(&bootInfo),
+           [kernel]   "r"(ldAddrKernel)
+         : "rdi"
+    );
     
     while (1);
     return EFI_SUCCESS;

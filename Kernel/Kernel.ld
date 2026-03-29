@@ -1,15 +1,29 @@
 OUTPUT_FORMAT("binary")
-ENTRY(KrStart)
+ENTRY(KrKernelStart)
 
 SECTIONS
 {
-    . = 0x0;           /* start address of the binary */
-    .text :
+    . = 0x100000;
+    
+    .text ALIGN(16) :
     {
-        KEEP(*(.text.KrStart))
-        *(.text*)       /* all other code */
+        KEEP(*(.text.KrKernelStart))
+        *(.text*)
     }
-    .rodata : { *(.rodata*) }
-    .data : { *(.data*) }
-    .bss : { *(.bss*) }
+
+    .rodata ALIGN(16) :
+    {
+        *(.rodata*)
+    }
+
+    .data ALIGN(16) :
+    {
+        *(.data*)
+    }
+
+    .bss ALIGN(16) :
+    {
+        *(COMMON)
+        *(.bss*)
+    }
 }

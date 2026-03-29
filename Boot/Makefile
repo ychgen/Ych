@@ -6,7 +6,8 @@ SOURCE        ?= YchBoot.c
 OBJECT        ?= $(BUILD_PATH)/Int/YchBoot.o
 SHARED_OBJECT ?= $(BUILD_PATH)/Int/YchBoot.so
 
-CFLAGS ?= -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -I/usr/include/efi -I/usr/include/efi/x86_64 -DEFI_FUNCTION_WRAPPER
+GUEST_CFLAGS ?=
+CFLAGS ?= -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -I/usr/include/efi -I/usr/include/efi/x86_64 -DEFI_FUNCTION_WRAPPER $(GUEST_CFLAGS)
 LDFLAGS ?= -nostdlib -znocombreloc -T /usr/lib/elf_x86_64_efi.lds -shared -Bsymbolic -L/usr/lib -lefi -lgnuefi
 
 CC    ?= gcc
