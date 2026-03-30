@@ -27,3 +27,10 @@ void* KrContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, si
 
     return pDest;
 }
+
+size_t KrCountCharacters(const char* pString)
+{
+    const char* pIt = pString;
+    while (*++pIt);
+    return (size_t)(pIt - pString);
+}

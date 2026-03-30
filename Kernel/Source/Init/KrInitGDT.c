@@ -4,6 +4,9 @@
 
 __attribute__((aligned(16))) uint8_t g_KrSegmentDescriptorsGDT[KR_STANDARD_GPT_SIZE];
 
+uint16_t g_sslCode;
+uint16_t g_sslData;
+
 void KrInitGDT(void)
 {
     KrGlobalDescriptorTableSegmentDescriptor  pDescs[KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES];
@@ -48,11 +51,21 @@ void KrInitGDT(void)
     {
         KrEncodeSegmentDescriptor((void*) g_KrSegmentDescriptorsGDT + GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE * i, pDescs + i);
     }
-    uint16_t sslCode = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 1); // Ring 0
-    uint16_t sslData = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 2); // Ring 0
+    g_sslCode = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 1); // 1st Entry, Ring 0
+    g_sslData = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 2); // 2nd Entry, Ring 0
 
     KrGlobalDescriptorTableRegister GDTR;
     GDTR.Limit = KR_STANDARD_GPT_SIZE - 1;
     GDTR.Base = (uint64_t) g_KrSegmentDescriptorsGDT;
-    KrLoadGlobalDescriptorTable(&GDTR, sslCode, sslData);
+    KrLoadGlobalDescriptorTable(&GDTR, g_sslCode, g_sslData);
+}
+
+uint16_t KrGetKernelCodeSegmentSelector(void)
+{
+    return g_sslCode;
+}
+
+uint16_t KrGetKernelDataSegmentSelector(void)
+{
+    return g_sslData;
 }

@@ -1,7 +1,7 @@
 #ifndef YCK_KERNEL_INIT_KR_KERNEL_START_H
 #define YCK_KERNEL_INIT_KR_KERNEL_START_H
 
-#include "PactOfInit.h" // Contract between KRNL and BOOTLDR.
+#include "YchBootContract.h" // Contract between KRNL and BOOTLDR.
 
 extern KrSystemInfoPack* g_pSystemInfoPack;
 

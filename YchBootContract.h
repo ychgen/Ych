@@ -1,18 +1,15 @@
 /**
  * 
- * PactOfInit.h, standing for `Pact of Initialization` is the shared expectations
- * between the Bootloader YchBoot and the Kernel Kernelych.
- * This header carries shared types and shared values.
+ * BootContract is the shared expectations between
+ * the Bootloader YchBoot and the Kernel Kernelych.
+ * This header carries shared types and shared values such as memory addresses.
  * 
  */
 
-#ifndef YCH_PACT_OF_INIT_H
-#define YCH_PACT_OF_INIT_H
+#ifndef YCH_BOOT_CONTRACT_H
+#define YCH_BOOT_CONTRACT_H
 
 #include <stdint.h>
-
-#define POI_CONCAT_INNER(x,y) x##y
-#define POI_CONCAT(x,y)       POI_CONCAT_INNER(x,y)
 
 /** The physical address that the Bootloader will load the kernel to. */
 #define KERNEL_LOAD_ADDRESS      0x100000 // 1MiBs
@@ -20,8 +17,8 @@
 /** KrSystemInfoPack.Magic must equal this. */
 #define SYSTEM_INFO_PACK_MAGIC   0x4B594348 // "KYCH"
 
-#define KERNEL_FILE_NAME_ON_DISK       "\\Ych\\Krnlych.kr"
-#define KERNEL_FILE_NAME_ON_DISK_U16LE  POI_CONCAT(L, KERNEL_FILE_NAME_ON_DISK)
+#define KERNEL_FILE_NAME_ON_DISK        "\\Ych\\Krnlych.kr"
+#define KERNEL_FILE_NAME_ON_DISK_U16LE L"\\Ych\\Krnlych.kr"
 
 typedef struct __attribute__((packed))
 {

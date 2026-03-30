@@ -1,0 +1,59 @@
+#ifndef YCH_KERNEL_CPU_INTERRUPT_H
+#define YCH_KERNEL_CPU_INTERRUPT_H
+
+#include "CPU/ProcessorSnapshot.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#define KR_PROCESSOR_RESERVED_INTERRUPT_COUNT           32
+#define KR_INTERRUPTNO_DIVIDE_BY_ZERO                   0
+#define KR_INTERRUPTNO_DEBUG_EXCEPTION                  1
+#define KR_INTERRUPTNO_NON_MASKABLE_INTERRUPT           2
+#define KR_INTERRUPTNO_BREAKPOINT                       3
+#define KR_INTERRUPTNO_OVERFLOW                         4
+#define KR_INTERRUPTNO_BOUND_RANGE_EXCEEDED             5
+#define KR_INTERRUPTNO_INVALID_OPCODE                   6
+#define KR_INTERRUPTNO_DEVICE_NOT_AVAILABLE             7
+#define KR_INTERRUPTNO_DOUBLE_FAULT                     8
+#define KR_INTERRUPTNO_COPROCESSOR_SEGMENT_OVERRUN      9
+#define KR_INTERRUPTNO_INVALID_TSS                      10
+#define KR_INTERRUPTNO_SEGMENT_NOT_PRESENT              11
+#define KR_INTERRUPTNO_STACK_SEGMENT_FAULT              12
+#define KR_INTERRUPTNO_GENERAL_PROTECTION_FAULT         13
+#define KR_INTERRUPTNO_PAGE_FAULT                       14
+// reserved 15
+#define KR_INTERRUPTNO_X87_FPU_FLOATING_POINT_ERROR     16
+#define KR_INTERRUPTNO_ALIGNMENT_CHECK                  17
+#define KR_INTERRUPTNO_MACHINE_CHECK                    18
+#define KR_INTERRUPTNO_SIMD_FLOATING_POINT_EXCEPTION    19
+#define KR_INTERRUPTNO_VIRTUALIZATION_EXCEPTION         20
+#define KR_INTERRUPTNO_CONTROL_PROTECTION_EXCEPTION     21
+
+typedef struct
+{
+    uint64_t R15, R14, R13, R12, R11, R10, R9, R8;
+    uint64_t RDI, RSI, RBP, RDX, RCX, RBX, RAX;
+
+    uint64_t InterruptNo;
+    uint64_t ErrorCode;
+
+    uint64_t RIP;
+    uint64_t CS;
+    uint64_t RFLAGS;
+    uint64_t RSP;
+    uint64_t SS;
+} KrInterruptFrame;
+KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame);
+
+typedef void(*KrInterruptHandler)(const KrInterruptFrame* pInterruptFrame);
+
+void KrInitializeInterruptSystem(void);
+// Called by ISRs after setting up iFrame.
+void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame);
+
+bool KrRegisterInterruptHandler(uint8_t interruptNo, KrInterruptHandler pHandler);
+// USE CAREFULLY!
+bool KrUnregisterInterruptHandler(uint8_t interruptNo);
+
+#endif // !YCH_KERNEL_CPU_INTERRUPT_H

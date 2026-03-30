@@ -1,0 +1,100 @@
+#include "Init/KrInitIDT.h"
+#include "Init/KrInitGDT.h"
+#include "Init/KrKernelStart.h" // Used in KrBreakpointInterrupt for now, will remove later
+#include "ISRs.h"
+
+#include "Core/KrProcessorHalt.h"
+#include "Core/Krnlmeltdown.h"
+#include "Memory/Krnlmem.h"
+#include "CPU/Interrupt.h"
+
+__attribute__((aligned(16))) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
+
+static const char* g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
+{
+    "Divide-by-Zero",
+    "Debug Exception",
+    "Non-Maskable Interrupt",
+    "Breakpoint",
+    "Overflow",
+    "BOUND Range Exceeded",
+    "Invalid Opcode",
+    "Device Not Available",
+    "Double Fault",
+    "Coprocessor Segment Overrun",
+    "Invalid TSS",
+    "Segment Not Present",
+    "Stack-Segment Fault",
+    "General Protection Fault",
+    "Page Fault",
+    "Reserved",
+    "x87 FPU Floating-Point Error",
+    "Alignment Check",
+    "Machine Check",
+    "SIMD Floating-Point Exception",
+    "Virtualization Exception",
+    "Control Protection Exception",
+    // complete up to 32, these are reserved for possible future use by architecture
+    "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved"
+};
+
+void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
+void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
+
+void KrInitIDT(void)
+{
+    uint16_t sslKrnlCode = KrGetKernelCodeSegmentSelector();
+
+    EncodeAllISRs(); // 0 to 2 and 4 to 255
+    KrEncodeInterruptDescriptor(g_krInterruptDescriptorTable + 3, (uint64_t) KrInterruptServiceRoutine_3, sslKrnlCode, 0, KR_GATE_TYPE_TRAP, 0);
+
+    KrInterruptDescriptorTableRegister IDTR =
+    {
+        .Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1,
+        .Base  = (uint64_t) g_krInterruptDescriptorTable
+    };
+    
+    KrLoadInterruptDescriptorTable(&IDTR);
+    KrInitializeInterruptSystem();
+    
+    KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt);
+
+    // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
+    // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,
+    // so our original ones are intact.
+    for (int i = 0; i < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT; i++)
+    {
+        KrRegisterInterruptHandler(i, KrCriticalProcessorInterrupt);
+    }
+}
+
+void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    // TODO: Log
+    
+    const char pDescMsg[] = "A critical processor interrupt was issued - ";
+    const char* pDescKod = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
+    
+    const size_t szMsg = sizeof(pDescMsg) - 1;
+    const size_t szKod = KrCountCharacters(pDescKod);
+    
+    char pDesc[128];
+    KrContiguousCopyBuffer(pDesc, pDescMsg, szMsg);
+    KrContiguousCopyBuffer(pDesc + szMsg, pDescKod, szKod+1); // copy null terminator too
+    
+    // Kernel meltdown (panic)
+    KrProcessorSnapshot snapshot = KrInterruptFrameToProcessorSnapshot(pInterruptFrame);
+    Krnlmeltdown(KR_MELTDOWN_CODE_CRITICAL_PROCESSOR_INTERRUPT, pDesc, &snapshot);
+}
+
+void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    // TODO: Log, for now fill screen yellow.
+
+    KrGraphicsInfo* pGraphicsInfo = &g_pSystemInfoPack->GraphicsInfo;
+    uint32_t* pFramebuffer = (uint32_t*) pGraphicsInfo->PhysicalFramebufferAddress;
+    for (uint32_t i = 0; i < pGraphicsInfo->FramebufferSize; i++)
+    {
+        pFramebuffer[i] = 0x00FFFF00;
+    }
+}

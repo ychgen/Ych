@@ -10,4 +10,7 @@ extern __attribute__((aligned(16))) uint8_t g_KrSegmentDescriptorsGDT[KR_STANDAR
 
 void KrInitGDT(void);
 
+uint16_t KrGetKernelCodeSegmentSelector(void);
+uint16_t KrGetKernelDataSegmentSelector(void);
+
 #endif // !YCH_KERNEL_INIT_KR_INIT_GDT_H
