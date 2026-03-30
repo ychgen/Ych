@@ -5,6 +5,14 @@
 
 #include <stdint.h>
 
+typedef enum
+{
+    KR_VIDEO_OUTPUT_PROTOCOL_NULL,
+    KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL,
+    KR_VIDEO_OUTPUT_PROTOCOL_FRAMEBUFFER,
+    KR_VIDEO_OUTPUT_PROTOCOL_DRIVER
+} KrVideoOutputProtocol;
+
 typedef struct
 {
     uintptr_t AddrDescriptorTable;       // Address to GDT entries array
@@ -33,6 +41,10 @@ typedef struct
 
     /** Local APIC Information */
     KrLocalAPICState StateLocalAPIC;
+
+    /** Video Output Information */
+    KrVideoOutputProtocol VideoOutputProtocol;
+    void* VideoOutputContext;
 } KrKernelState;
 
 extern KrKernelState g_KernelState;

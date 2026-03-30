@@ -1,0 +1,8 @@
+#ifndef YCH_KERNEL_EARLYVIDEO_DWTPFONTS_H
+#define YCH_KERNEL_EARLYVIDEO_DWTPFONTS_H
+
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
+extern KrDisplaywideTextProtocolFontCharacter g_KrdwtpDefaultCharacterSet[KR_DISPLAYWIDE_TEXT_PROTOCOL_FONT_CHARSET_SIZE];
+
+#endif // !YCH_KERNEL_EARLYVIDEO_DWTPFONTS_H

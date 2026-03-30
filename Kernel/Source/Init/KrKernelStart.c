@@ -9,12 +9,15 @@
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+#include "Earlyvideo/Dwtpfonts.h"
+
 #include "Memory/Krnlmem.h"
 
 __attribute__((section(".text.KrKernelStart"), noreturn))
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
-{    
+{
     __asm__ __volatile__("cli"); // Just to be safe, clear interrupts (YchBoot does this anyway, but, still.)
 
     if (pSystemInfoPack->Magic != SYSTEM_INFO_PACK_MAGIC)
@@ -29,21 +32,58 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
     g_KernelState.SystemInfoPack = *pSystemInfoPack; // Copy over
 
+    // Clear framebuffer
+    KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
+    for (uint64_t off = 0; off < pGraphicsInfo->FramebufferSize; off++)
+    {
+        ((uint32_t*) pGraphicsInfo->PhysicalFramebufferAddress)[off] = 0x00;
+    }
+
+    // Init DisplaywideTextProtocol
+    {
+        KrDisplaywideTextProtocolFont font;
+        font.CharacterSet = g_KrdwtpDefaultCharacterSet;
+        font.ScaleFactor = 2;
+
+        KrdwtpInitialize(font, pGraphicsInfo->PhysicalFramebufferAddress, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
+        g_KernelState.VideoOutputProtocol = KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL;
+        g_KernelState.VideoOutputContext  = (void*) KrdwtpGetProtocolState();
+
+        KrdwtpOutColoredText("Initialized Display-Wide Text Protocol\n", KRDWTP_COLOR_GREEN);
+    }
+    // Print some useful information
+    KrdwtpOutFormatText("[KRNLYCH] Kernel Post-Load Self Information:\n"
+        " -> Kernel Binary Size = %u KiB\n"
+        " -> Load Address       = %p\n"
+        " -> Reserved Area End  = %p\n"
+        " -> Total Reserved     = %u MiB\n",
+        (uint32_t) g_KernelState.SystemInfoPack.KernelBinarySize / 1024,
+        (void*) g_KernelState.SystemInfoPack.AddrKernelLoad,
+        (void*) g_KernelState.SystemInfoPack.AddrKernelSpaceEnd,
+        (uint32_t)(g_KernelState.SystemInfoPack.AddrKernelSpaceEnd - g_KernelState.SystemInfoPack.AddrKernelLoad) / 1024 / 1024);
+    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) pGraphicsInfo->PhysicalFramebufferAddress);
+
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
+    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN);
+    
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     KrInitInt();
-
+    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN);
+    
     // Enable APIC (best safe to do this after interrupt setup as it might fire interrupts before we fully initialize the interrupt subsystem)
     KrEnableAPIC();
+    {
+        g_KernelState.StateLocalAPIC.BaseAddrPhysical = KrGetAPICPhysicalBase();
+        g_KernelState.StateLocalAPIC.BaseAddr = g_KernelState.StateLocalAPIC.BaseAddrPhysical;
+    }
+    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN);
+    KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (void*) g_KernelState.StateLocalAPIC.BaseAddrPhysical);
 
-    // breakpoint
-    __asm__ __volatile__ ("int $3");
+    __asm__ __volatile__("ud2\n\t");
 
-    // test meltdown
-    meltdowncode_t code = KR_MELTDOWN_CODE_GENERAL_DEBUG;
-    const char* desc = NULL;
-    Krnlmeltdownimm(code, desc);
-    
+    // NEVER RETURN FROM KrKernelStart!!!
+    // Bootloader `JMP`s to KrKernelStart, not `CALL`ing.
+    // CPU WILL OTHERWISE EXECUTE GARBAGE OR INSTRUCTIONS IT'S DEFINITELY NOT MEANT TO BY NOW!
     KrProcessorHalt();
 }

@@ -93,6 +93,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     KrSystemInfoPack bootInfo;
     bootInfo.Magic = SYSTEM_INFO_PACK_MAGIC;
     bootInfo.KernelBinarySize = (uint64_t) szKernel;
+    bootInfo.AddrKernelLoad = (uintptr_t) ldAddrKernel;
+    bootInfo.AddrKernelSpaceEnd = bootInfo.AddrKernelLoad + KERNEL_RESERVE_SIZE;
+    bootInfo.AddrInitialStack = bootInfo.AddrKernelSpaceEnd;
 
     bootInfo.GraphicsInfo.PhysicalFramebufferAddress = pGOP->Mode->FrameBufferBase;
     bootInfo.GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
@@ -132,9 +135,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     // Call ExitBootServices, exiting UEFI Firmware completely. OS now has full control over memory hereafter.
     uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, kMapKey);
 
-    // 2MiB above reserved kernel area
-    uint64_t addrStack = KERNEL_RESERVED_AREA_END + 0x200000;
-
     // Clear interrupts and jump to kernel.
     __asm__ __volatile__ (
         "cli\n\t"
@@ -142,7 +142,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         "mov %[bootinfo], %%rdi\n\t"
         "jmp *%[kernel]\n\t"
          :
-         : [stack]    "r"(addrStack),
+         : [stack]    "r"(bootInfo.AddrInitialStack),
            [bootinfo] "r"(&bootInfo),
            [kernel]   "r"(ldAddrKernel)
          : "rdi"

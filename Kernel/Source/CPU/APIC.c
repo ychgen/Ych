@@ -20,7 +20,5 @@ void KrEnableAPIC(void)
 uint64_t KrGetAPICPhysicalBase(void)
 {
     uint64_t msr = KrReadModelSpecificRegister(KR_APIC_BASE_MSR);
-    // bits 8-11  base [high]
-    // bits 12-35 base [low ]
-    return (((msr >> 8) & 0xF) << 20) | ((msr >> 12) & 0xFFFFFF);
+    return msr & 0xFFFFF000;
 }

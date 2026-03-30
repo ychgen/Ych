@@ -7,8 +7,8 @@
 #include "CPU/Halt.h"
 #include "CPU/IDT.h"
 
-#include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
+#include "Core/Krnlmeltdown.h"
 
 #include "Memory/Krnlmem.h"
 
@@ -74,10 +74,8 @@ void KrInitInt(void)
 
 void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
-    // TODO: Log
-    
-    const char pDescMsg[] = "A critical processor interrupt was issued - ";
-    const char* pDescKod = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
+    const char  pDescMsg[] = "Unhandled critical processor exception: ";
+    const char* pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
     
     const size_t szMsg = sizeof(pDescMsg) - 1;
     const size_t szKod = KrCountCharacters(pDescKod);
@@ -93,12 +91,5 @@ void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
 
 void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
-    // TODO: Log, for now fill screen yellow.
-
-    KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
-    uint32_t* pFramebuffer = (uint32_t*) pGraphicsInfo->PhysicalFramebufferAddress;
-    for (uint32_t i = 0; i < pGraphicsInfo->FramebufferSize; i++)
-    {
-        pFramebuffer[i] = 0x00FFFF00;
-    }
+    // TODO: Log
 }
