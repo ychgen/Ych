@@ -1,4 +1,4 @@
-#include "Core/KrProcessorHalt.h"
+#include "CPU/Halt.h"
 
 __attribute__((noreturn))
 void KrProcessorHalt(void)

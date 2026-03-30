@@ -1,15 +1,22 @@
 #include "Init/KrInitGDT.h"
 
+#include "Core/KernelState.h"
 #include "Memory/Krnlmem.h"
+#include "CPU/GDT.h"
+
+/** Adjust accordingly if GDT layout changes. */
+#define KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES 3 // NULL        Segment Descriptor
+                                                       // Kernel Code Segment Descriptor
+                                                       // Kernel Data Segment Descriptor
+
+#define KR_STANDARD_GPT_SIZE ( KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES * GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE )
 
 __attribute__((aligned(16))) uint8_t g_KrSegmentDescriptorsGDT[KR_STANDARD_GPT_SIZE];
-
-uint16_t g_sslCode;
-uint16_t g_sslData;
 
 void KrInitGDT(void)
 {
     KrGlobalDescriptorTableSegmentDescriptor  pDescs[KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES];
+    
     KrGlobalDescriptorTableSegmentDescriptor* pNullDesc     = pDescs;
     KrGlobalDescriptorTableSegmentDescriptor* pKrnlCodeDesc = pDescs + 1;
     KrGlobalDescriptorTableSegmentDescriptor* pKrnlDataDesc = pDescs + 2;
@@ -51,21 +58,16 @@ void KrInitGDT(void)
     {
         KrEncodeSegmentDescriptor((void*) g_KrSegmentDescriptorsGDT + GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE * i, pDescs + i);
     }
-    g_sslCode = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 1); // 1st Entry, Ring 0
-    g_sslData = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 2); // 2nd Entry, Ring 0
+    uint16_t sslKrnlCode = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 1); // 1st Entry, Ring 0
+    uint16_t sslKrnlData = KrConstructSegmentSelector(GDT_ACCESS_DPL_HIGHEST_PRIVILEGE, 2); // 2nd Entry, Ring 0
 
     KrGlobalDescriptorTableRegister GDTR;
     GDTR.Limit = KR_STANDARD_GPT_SIZE - 1;
     GDTR.Base = (uint64_t) g_KrSegmentDescriptorsGDT;
-    KrLoadGlobalDescriptorTable(&GDTR, g_sslCode, g_sslData);
-}
+    KrLoadGlobalDescriptorTable(&GDTR, sslKrnlCode, sslKrnlData);
 
-uint16_t KrGetKernelCodeSegmentSelector(void)
-{
-    return g_sslCode;
-}
-
-uint16_t KrGetKernelDataSegmentSelector(void)
-{
-    return g_sslData;
+    g_KernelState.StateGDT.AddrDescriptorTable       = (uintptr_t) g_KrSegmentDescriptorsGDT;
+    g_KernelState.StateGDT.NumberOfDescriptorEntries = KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES;
+    g_KernelState.StateGDT.KernelCodeSegmentSelector = sslKrnlCode;
+    g_KernelState.StateGDT.KernelDataSegmentSelector = sslKrnlData;
 }

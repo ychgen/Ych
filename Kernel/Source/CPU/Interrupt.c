@@ -1,7 +1,10 @@
 #include "CPU/Interrupt.h"
+
+#include "CPU/Halt.h"
+#include "CPU/APIC.h"
 #include "CPU/IDT.h"
 
-#include "Init/KrKernelStart.h"
+#include "Core/KernelState.h"
 #include "Memory/Krnlmem.h"
 
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
@@ -20,6 +23,14 @@ KrInterruptHandler g_pInterruptHandlers[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIE
 
 void KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
+    // First 32 are reserved by CPU
+    // KrInitInt normally registers these to KrCriticalProcessorInterrupt, but just in case, HLT.
+    // Exclude int $3, it is breakpoint, also normally handled by KrBreakpointInterrupt.
+    if (pInterruptFrame->InterruptNo < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT || pInterruptFrame->InterruptNo != 3)
+    {
+        KrProcessorHalt();
+    }
+    // After this point, we are sure this is IRS >31, so a non-CPU reserved IRQ.
 }
 
 void KrInitializeInterruptSystem(void)
@@ -30,18 +41,23 @@ void KrInitializeInterruptSystem(void)
 
 void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
-    if (pInterruptFrame->InterruptNo >= KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES)
+    if (pInterruptFrame->InterruptNo < KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES)
     {
-        return;
+        KrInterruptHandler handler = g_pInterruptHandlers[pInterruptFrame->InterruptNo];
+        if (handler)
+        {
+            handler(pInterruptFrame);
+        }
+        else
+        {
+            KrUnhandledInterrupt(pInterruptFrame);
+        }
     }
-    KrInterruptHandler handler = g_pInterruptHandlers[pInterruptFrame->InterruptNo];
-    if (handler)
+
+    if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
-        handler(pInterruptFrame);
-    }
-    else
-    {
-        KrUnhandledInterrupt(pInterruptFrame);
+        // Send EOI signal to APIC. Writing anything works, 0 is traditional.
+        *(uint32_t*)(((uint8_t*) g_KernelState.StateLocalAPIC.BaseAddr) + KR_LOCAL_APIC_REGISTER_EOI) = 0;
     }
 }
 

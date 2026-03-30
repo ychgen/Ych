@@ -1,12 +1,16 @@
-#include "Init/KrInitIDT.h"
+#include "Init/KrInitInt.h"
+
 #include "Init/KrInitGDT.h"
-#include "Init/KrKernelStart.h" // Used in KrBreakpointInterrupt for now, will remove later
 #include "ISRs.h"
 
-#include "Core/KrProcessorHalt.h"
-#include "Core/Krnlmeltdown.h"
-#include "Memory/Krnlmem.h"
 #include "CPU/Interrupt.h"
+#include "CPU/Halt.h"
+#include "CPU/IDT.h"
+
+#include "Core/Krnlmeltdown.h"
+#include "Core/KernelState.h"
+
+#include "Memory/Krnlmem.h"
 
 __attribute__((aligned(16))) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
@@ -41,22 +45,22 @@ static const char* g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTE
 void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
 void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
-void KrInitIDT(void)
+void KrInitInt(void)
 {
-    uint16_t sslKrnlCode = KrGetKernelCodeSegmentSelector();
-
     EncodeAllISRs(); // 0 to 2 and 4 to 255
-    KrEncodeInterruptDescriptor(g_krInterruptDescriptorTable + 3, (uint64_t) KrInterruptServiceRoutine_3, sslKrnlCode, 0, KR_GATE_TYPE_TRAP, 0);
+    KrEncodeInterruptDescriptor(g_krInterruptDescriptorTable + 3, (uint64_t) KrInterruptServiceRoutine_3, g_KernelState.StateGDT.KernelCodeSegmentSelector, 0, KR_GATE_TYPE_TRAP, 0);
 
     KrInterruptDescriptorTableRegister IDTR =
     {
         .Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1,
         .Base  = (uint64_t) g_krInterruptDescriptorTable
     };
+    KrLoadInterruptDescriptorTable(&IDTR); // LIDT
     
-    KrLoadInterruptDescriptorTable(&IDTR);
+    // Update kernel state
+    g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;
+
     KrInitializeInterruptSystem();
-    
     KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
@@ -91,7 +95,7 @@ void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     // TODO: Log, for now fill screen yellow.
 
-    KrGraphicsInfo* pGraphicsInfo = &g_pSystemInfoPack->GraphicsInfo;
+    KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
     uint32_t* pFramebuffer = (uint32_t*) pGraphicsInfo->PhysicalFramebufferAddress;
     for (uint32_t i = 0; i < pGraphicsInfo->FramebufferSize; i++)
     {

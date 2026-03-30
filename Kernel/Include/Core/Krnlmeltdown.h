@@ -8,13 +8,8 @@
 #ifndef YCH_KERNEL_CORE_KRNLMELTDOWN_H
 #define YCH_KERNEL_CORE_KRNLMELTDOWN_H
 
+#include "Core/Private/meltdowncodes.h"
 #include "CPU/ProcessorSnapshot.h"
-
-#define KR_CATEGORY_MELTDOWN_CODE_PROCESSOR 0x1000
-#define KR_CATEGORY_MELTDOWN_CODE_MEMORY    0x2000
-#define KR_CATEGORY_MELTDOWN_CODE_IO        0x3000
-
-#define KR_MELTDOWN_CODE_CRITICAL_PROCESSOR_INTERRUPT (KR_CATEGORY_MELTDOWN_CODE_PROCESSOR + 1)
 
 /**
  * @brief Triggers a kernel meltdown (kernel panic), ceasing all normal kernel functionality.
@@ -24,7 +19,7 @@
  * @param pDesc Detailed description about this crash. Leave as NULL for kernel to populate it if `code` is a standard meltdown code.
  * @param pSnapshot The snapshot of the processor at the moment of error.
  */
-void Krnlmeltdown(uint64_t code, const char* pDesc, const KrProcessorSnapshot* pSnapshot) __attribute__((noreturn));
+void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnapshot* pSnapshot) __attribute__((noreturn));
 
 /**
  * This macro takes an instant snapshot of the processor and invokes Krnlmeltdown, causing a kernel meltdown.
