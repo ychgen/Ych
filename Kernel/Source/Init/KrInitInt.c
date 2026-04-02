@@ -92,4 +92,5 @@ void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
 void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     // TODO: Log
+    (void)(pInterruptFrame);
 }

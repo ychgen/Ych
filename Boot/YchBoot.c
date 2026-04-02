@@ -90,6 +90,44 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         return status;
     }
 
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION pBestModeCache = {0};
+    UINT32 iBestVideoModeCandidate = 0;
+
+    for (UINT32 i = 0; i < pGOP->Mode->MaxMode; i++)
+    {
+        EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* pModeInfo;
+        UINTN sz;
+
+        status = uefi_call_wrapper(pGOP->QueryMode, 4, pGOP, i, &sz, &pModeInfo);
+        if (EFI_ERROR(status))
+        {
+            continue;
+        }
+        if ((pModeInfo->HorizontalResolution * 9) / 16 != pModeInfo->VerticalResolution)
+        {
+            continue;
+        }
+
+        if (pModeInfo->PixelFormat == PixelRedGreenBlueReserved8BitPerColor)
+        {
+            if ( pModeInfo->VerticalResolution > pBestModeCache.VerticalResolution ||
+                (pModeInfo->VerticalResolution == pBestModeCache.VerticalResolution && pModeInfo->HorizontalResolution > pBestModeCache.HorizontalResolution))
+            {
+                iBestVideoModeCandidate = i;
+                pBestModeCache = *pModeInfo;
+            }
+        }
+    }
+
+    if (iBestVideoModeCandidate && pBestModeCache.VerticalResolution && pBestModeCache.HorizontalResolution)
+    {
+        status = uefi_call_wrapper(pGOP->SetMode, 2, pGOP, iBestVideoModeCandidate);
+        if (EFI_ERROR(status))
+        {
+            Print(L"WARN: GOP SetVideoMode failed: %r. Boot-time default video mode will be used.\n", status);
+        }
+    }
+
     KrSystemInfoPack bootInfo;
     bootInfo.Magic = SYSTEM_INFO_PACK_MAGIC;
     bootInfo.KernelBinarySize = (uint64_t) szKernel;

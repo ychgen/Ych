@@ -8,8 +8,8 @@ SOURCES := $(shell find $(SOURCE_PATH) \( -name "*.c" -o -name "*.asm" \))
 OBJECTS := $(SOURCES:%=$(BUILD_PATH)/Int/%.o)
 
 GUEST_CFLAGS ?=
-CFLAGS ?= -O2 -I$(INCLUDE_PATH) -m64 -ffreestanding -mno-red-zone -fno-pic -fno-stack-protector -Wall -Wextra $(GUEST_CFLAGS)
-LDFLAGS ?= -nostdlib
+CFLAGS ?= -O2 -I$(INCLUDE_PATH) -m64 -mcmodel=kernel -ffreestanding -mno-red-zone -fno-pie -fno-pic -fno-stack-protector -Wall -Wextra $(GUEST_CFLAGS)
+LDFLAGS ?= -nostdlib -no-pie
 ASMFLAGS ?= -f elf64
 
 RM    ?= rm

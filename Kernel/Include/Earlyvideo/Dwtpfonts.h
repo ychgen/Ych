@@ -3,6 +3,9 @@
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
-extern KrDisplaywideTextProtocolFontCharacter g_KrdwtpDefaultCharacterSet[KR_DISPLAYWIDE_TEXT_PROTOCOL_FONT_CHARSET_SIZE];
+extern KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x8;
+extern KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x16;
+
+void KrdwtpInitializeDefaultFonts(void);
 
 #endif // !YCH_KERNEL_EARLYVIDEO_DWTPFONTS_H

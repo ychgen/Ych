@@ -19,7 +19,7 @@ __attribute__((section(".text.KrKernelStart"), noreturn))
 void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 {
     __asm__ __volatile__("cli"); // Just to be safe, clear interrupts (YchBoot does this anyway, but, still.)
-
+    
     if (pSystemInfoPack->Magic != SYSTEM_INFO_PACK_MAGIC)
     {
         // We can't really report errors as the integrity of the struct is compromised.
@@ -32,23 +32,26 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
     g_KernelState.SystemInfoPack = *pSystemInfoPack; // Copy over
 
-    // Clear framebuffer
-    KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
-    for (uint64_t off = 0; off < pGraphicsInfo->FramebufferSize; off++)
-    {
-        ((uint32_t*) pGraphicsInfo->PhysicalFramebufferAddress)[off] = 0x00;
-    }
-
     // Init DisplaywideTextProtocol
     {
-        KrDisplaywideTextProtocolFont font;
-        font.CharacterSet = g_KrdwtpDefaultCharacterSet;
-        font.ScaleFactor = 2;
+        KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
 
-        KrdwtpInitialize(font, pGraphicsInfo->PhysicalFramebufferAddress, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
+        KrdwtpInitializeDefaultFonts();
+        if (pGraphicsInfo->FramebufferWidth >= 1280 && pGraphicsInfo->FramebufferHeight >= 720)
+        {
+            // 4K... But why would you, anyway...
+            if (pGraphicsInfo->FramebufferWidth >= 3840 || pGraphicsInfo->FramebufferHeight >= 2160)
+            {
+                g_KrdwtpDefaultFont_8x16.ScaleFactor = 4;
+            }
+            g_KrdwtpDefaultFont_8x16.ScaleFactor = 2;
+        }
+
+        KrdwtpInitialize(g_KrdwtpDefaultFont_8x16, pGraphicsInfo->PhysicalFramebufferAddress, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
         g_KernelState.VideoOutputProtocol = KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL;
         g_KernelState.VideoOutputContext  = (void*) KrdwtpGetProtocolState();
 
+        KrdwtpResetState(KRDWTP_COLOR_BLACK);
         KrdwtpOutColoredText("Initialized Display-Wide Text Protocol\n", KRDWTP_COLOR_GREEN);
     }
     // Print some useful information
@@ -61,7 +64,8 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         (void*) g_KernelState.SystemInfoPack.AddrKernelLoad,
         (void*) g_KernelState.SystemInfoPack.AddrKernelSpaceEnd,
         (uint32_t)(g_KernelState.SystemInfoPack.AddrKernelSpaceEnd - g_KernelState.SystemInfoPack.AddrKernelLoad) / 1024 / 1024);
-    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) pGraphicsInfo->PhysicalFramebufferAddress);
+    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) g_KernelState.SystemInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
+    KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", g_KernelState.SystemInfoPack.GraphicsInfo.FramebufferWidth, g_KernelState.SystemInfoPack.GraphicsInfo.FramebufferHeight);
 
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
@@ -80,7 +84,6 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN);
     KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (void*) g_KernelState.StateLocalAPIC.BaseAddrPhysical);
 
-    __asm__ __volatile__("ud2\n\t");
 
     // NEVER RETURN FROM KrKernelStart!!!
     // Bootloader `JMP`s to KrKernelStart, not `CALL`ing.

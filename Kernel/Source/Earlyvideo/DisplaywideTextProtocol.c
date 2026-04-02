@@ -6,11 +6,18 @@
 
 KrDisplaywideTextProtocolState g_ProtocolState;
 
-void KrdwtpInitialize(KrDisplaywideTextProtocolFont font, uintptr_t addrFrameBuffer, uint32_t xszFrameBuffer, uint32_t yszFrameBuffer, uint32_t rowStride)
+KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, uint8_t factor)
+{
+    KrDisplaywideTextProtocolFont result = *pFont;
+    result.ScaleFactor *= factor;
+    return result;
+}
+
+void KrdwtpInitialize(KrDisplaywideTextProtocolFont font, uintptr_t addrFrameBuffer, uint32_t xszFrameBuffer, uint32_t yszFrameBuffer, uint32_t pxlsPerScanline)
 {
     g_ProtocolState.FrameBufferWidth  = xszFrameBuffer;
     g_ProtocolState.FrameBufferHeight = yszFrameBuffer;
-    g_ProtocolState.RowStride         = rowStride;
+    g_ProtocolState.PixelsPerScanLine = pxlsPerScanline;
     g_ProtocolState.CursorX           = 0;
     g_ProtocolState.CursorY           = 0;
     g_ProtocolState.AddrFrameBuffer   = addrFrameBuffer;
@@ -32,14 +39,14 @@ void KrdwtpResetState(uint32_t fbcolor)
     {
         for (uint32_t x = 0; x < g_ProtocolState.FrameBufferWidth; x++)
         {
-            ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.RowStride + x] = fbcolor;
+            ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = fbcolor;
         }
     }
 }
 
 void KrdwtpOutColoredCharacter(char character, uint32_t color)
 {
-    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet)
+    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || character >= 128)
     {
         return;
     }
@@ -53,36 +60,46 @@ void KrdwtpOutColoredCharacter(char character, uint32_t color)
     {
         character -= ('a' - 'A');
     }
-    KrDisplaywideTextProtocolFontCharacter* pCharFontBitmap = &g_ProtocolState.Font.CharacterSet[(uint8_t) character];
-    uint8_t scale = g_ProtocolState.Font.ScaleFactor;
-    uint32_t stx = g_ProtocolState.CursorX * 8 * scale;
-    uint32_t sty = g_ProtocolState.CursorY * KR_DISPLAYWIDE_TEXT_PROTOCOL_FONT_CHAR_ROW_COUNT * scale;
 
-    for (uint32_t row = 0; row < KR_DISPLAYWIDE_TEXT_PROTOCOL_FONT_CHAR_ROW_COUNT; row++)
+    const KrDisplaywideTextProtocolFont* pFont = &g_ProtocolState.Font;
+    uint32_t BPR = (pFont->ColumnsPerEntry + 7) / 8; // bytes per row
+    uint32_t glyphSize = pFont->RowsPerEntry * BPR;
+    uint8_t* pGlyph = &pFont->CharacterSet[character * glyphSize];
+
+    uint32_t STX = g_ProtocolState.CursorX * pFont->ColumnsPerEntry * pFont->ScaleFactor; // startx
+    uint32_t STY = g_ProtocolState.CursorY * pFont->RowsPerEntry    * pFont->ScaleFactor; // starty
+
+    for (uint32_t row = 0; row < pFont->RowsPerEntry; row++)
     {
-        uint8_t rowBits = (*pCharFontBitmap)[row];
-        for (uint8_t bit = 0; bit < 8; bit++)
+        uint8_t* pRow = &pGlyph[row * BPR];
+
+        for (uint8_t bit = 0; bit < pFont->ColumnsPerEntry; bit++)
         {
-            bool pxlit = (rowBits & (1 << bit));
+            uint8_t iBit = bit % 8;
+            if (pFont->bDirectionBit)
+            {
+                iBit = 7 - bit;
+            }
+            bool pxlit = pRow[bit / 8] & (1 << iBit);
             if (!pxlit)
             {
                 continue;
             }
 
-            for (uint32_t dy = 0; dy < scale; dy++)
+            for (uint32_t dy = 0; dy < pFont->ScaleFactor; dy++)
             {
-                for (uint32_t dx = 0; dx < scale; dx++)
+                for (uint32_t dx = 0; dx < pFont->ScaleFactor; dx++)
                 {
-                    uint32_t xFB = stx + bit * scale + dx;
-                    uint32_t yFB = sty + row * scale + dy;
-                    ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[yFB * g_ProtocolState.RowStride + xFB] = color;
+                    uint32_t xFB = STX + bit * pFont->ScaleFactor + dx;
+                    uint32_t yFB = STY + row * pFont->ScaleFactor + dy;
+                    ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[yFB * g_ProtocolState.PixelsPerScanLine + xFB] = color;
                 }
             }
         }
     }
 
     g_ProtocolState.CursorX++;
-    if (g_ProtocolState.CursorX >= g_ProtocolState.FrameBufferWidth / (8 * scale))
+    if (g_ProtocolState.CursorX >= g_ProtocolState.FrameBufferWidth / (pFont->ColumnsPerEntry * pFont->ScaleFactor))
     {
         g_ProtocolState.CursorX = 0;
         g_ProtocolState.CursorY++;
