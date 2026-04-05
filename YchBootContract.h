@@ -11,15 +11,21 @@
 
 #include <stdint.h>
 
+// Non-kernel, for Bootelvt
+#define BOOTELVT_LOAD_ADDRESS    0x100000
 /** The physical address that the Bootloader will load the kernel to. */
-#define KERNEL_LOAD_ADDRESS      0x100000 // 1MiBs
+#define KERNEL_LOAD_ADDRESS      0x200000 // 2MiBs
 /** This much memory area will be completely reserved to kernel at all times */
-#define KERNEL_RESERVE_SIZE      0x4000000 // 64MiBs
+#define KERNEL_RESERVE_SIZE      0x8000000 // 128MiBs
 /** KrSystemInfoPack.Magic must equal this. */
 #define SYSTEM_INFO_PACK_MAGIC   0x4B594348 // "KYCH"
 
-#define KERNEL_FILE_NAME_ON_DISK        "\\Ych\\Krnlych.kr"
-#define KERNEL_FILE_NAME_ON_DISK_U16LE L"\\Ych\\Krnlych.kr"
+#define MEMORY_MAP_PHYSADDR      0x4000
+#define FRAMEBUFFER_VIRTUAL_ADDR 0xFFFFFFFFC0000000
+
+#define BOOTELVT_FILE_NAME_ON_DISK_U16LE L"\\Ych\\Bootelvt.bin"
+#define KERNEL_FILE_NAME_ON_DISK          "\\Ych\\Krnlych.kr"
+#define KERNEL_FILE_NAME_ON_DISK_U16LE   L"\\Ych\\Krnlych.kr"
 
 typedef struct __attribute__((packed))
 {
@@ -48,6 +54,9 @@ typedef struct __attribute__((packed))
     uint32_t DescriptorVersion;
 } KrMemoryMapInfo;
 
+/** ALWAYS EXPAND THIS STRUCT STARTING AT THE END, DON'T INSERT ANYTHING ABOVE CURRENT ONES
+ *  BOOTELVT DEPENDS ON CERTAIN OFFSETS OF FIELDS!
+ */
 typedef struct __attribute__((packed))
 {
     uint32_t        Magic;

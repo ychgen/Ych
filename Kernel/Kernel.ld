@@ -3,8 +3,8 @@ ENTRY(KrKernelStart)
 
 SECTIONS
 {
-    . = 0x100000;
-    
+    . = 0xFFFFFFFF80000000;
+
     .text ALIGN(16) :
     {
         KEEP(*(.text.KrKernelStart))

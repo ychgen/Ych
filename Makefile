@@ -15,6 +15,7 @@ TOOL_ROUTINELIB_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_ROUTINE_LIB_PATH)
 TOOL_IMGTOOL_BUILD_PATH ?= $(BUILD_PATH)/$(TOOL_IMGTOOL_PATH)
 
 BOOTLOADER_NAME  ?= YchBoot.efi
+BOOTELVT_NAME    ?= Bootelvt.bin
 KERNEL_NAME      ?= Kernelych.bin
 OS_IMAGE_NAME    ?= Ych.img
 OS_IMAGE_SIZE    ?= 256 # MiB
@@ -33,7 +34,7 @@ MKFSFAT ?= mkfs.fat
 os-image: $(OS_IMAGE_TARGET)
 
 run: os-image
-	@$(QEMU) -cpu qemu64 -m $(OS_EMULATION_RAM) \
+	@$(QEMU) -monitor stdio -d int,cpu_reset,unimp -cpu qemu64 -m $(OS_EMULATION_RAM) \
 			 -drive if=pflash,format=raw,unit=0,file=$(FIRMWARE)/OVMF_CODE.fd,readonly=on \
 			 -drive if=pflash,format=raw,unit=1,file=$(FIRMWARE)/OVMF_VARS.fd \
 			 -drive file=$(OS_IMAGE_TARGET),format=raw,if=none,id=nvme0 \
@@ -51,6 +52,7 @@ $(OS_IMAGE_TARGET): tools boot kernel
 	@$(MKFSFAT) -F 32 --offset=206848 $@
 	@$(MMD) -i $@@@101M ::/Ych
 	@$(MCPY) -i $@@@101M $(KERNEL_BUILD_PATH)/$(KERNEL_NAME) ::/Ych/Krnlych.kr
+	@$(MCPY) -i $@@@101M $(BOOT_BUILD_PATH)/$(BOOTELVT_NAME) ::/Ych/Bootelvt.bin
 
 tools: routinelib imgtool
 

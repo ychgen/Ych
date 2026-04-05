@@ -2,6 +2,54 @@
 
 #include <efi.h>
 #include <efilib.h>
+#include "strstr.h"
+
+EFI_STATUS YchReadFile(EFI_FILE_PROTOCOL* root, const CHAR16* filepath, VOID* ldAddr, UINT64* pOutFileSize)
+{
+    EFI_FILE_PROTOCOL* file;
+    EFI_STATUS status = uefi_call_wrapper(root->Open, 5, root, &file, filepath, EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(status))
+    {
+        Print(L"Failed to open file `%s`: %r\n", filepath, status);
+        return status;
+    }
+
+    EFI_FILE_INFO* fileInfo;
+    UINTN fileInfoSize = sizeof(EFI_FILE_INFO) + 1024;
+    fileInfo = (EFI_FILE_INFO*) uefi_call_wrapper(AllocatePool, 1, fileInfoSize);
+    status = uefi_call_wrapper(file->GetInfo, 4, file, &gEfiFileInfoGuid, &fileInfoSize, fileInfo);
+    if (EFI_ERROR(status))
+    {
+        Print(L"Failed to get file size `%s`: %r\n", filepath, status);
+        return status;
+    }
+    UINTN szFile = (UINTN) fileInfo->FileSize;
+    uefi_call_wrapper(FreePool, 1, fileInfo);
+
+    status = uefi_call_wrapper(file->Read, 3, file, &szFile, ldAddr);
+    if (EFI_ERROR(status))
+    {
+        Print(L"Failed to load file into memory `%s`: %r\n", filepath, status);
+        return status;
+    }
+    uefi_call_wrapper(file->Close, 1, file);
+    if(pOutFileSize)
+    {
+        *pOutFileSize = szFile;
+    }
+    return status;
+}
+
+BOOLEAN IsOVMF(void)
+{
+    CHAR16 *fwVendor = ST->FirmwareVendor;
+    if (fwVendor == NULL) return FALSE;
+
+    if (StrStr(fwVendor, L"EDK II") != NULL) {
+        return TRUE;
+    }
+    return FALSE;
+}
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTable)
 {
@@ -45,34 +93,22 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         return status;
     }
 
-    EFI_FILE_PROTOCOL* krnl;
-    status = uefi_call_wrapper(root->Open, 5, root, &krnl, KERNEL_FILE_NAME_ON_DISK_U16LE, EFI_FILE_MODE_READ, 0);
-    if (EFI_ERROR(status))
-    {
-        Print(L"Failed to open kernel file: %r\n", status);
-        return status;
-    }
+    VOID* ldAddrBootelvt = (VOID*) BOOTELVT_LOAD_ADDRESS;
+    VOID* ldAddrKrnl     = (VOID*) KERNEL_LOAD_ADDRESS;
+    UINT64 szKrnl;
 
-    EFI_FILE_INFO* fileInfo;
-    UINTN fileInfoSize = sizeof(EFI_FILE_INFO) + 1024;
-    fileInfo = (EFI_FILE_INFO*) uefi_call_wrapper(AllocatePool, 1, fileInfoSize);
-    status = uefi_call_wrapper(krnl->GetInfo, 4, krnl, &gEfiFileInfoGuid, &fileInfoSize, fileInfo);
+    status = YchReadFile(root, BOOTELVT_FILE_NAME_ON_DISK_U16LE, ldAddrBootelvt, NULL);
     if (EFI_ERROR(status))
     {
-        Print(L"Failed to get kernel size: %r\n", status);
+        Print(L"CRITICAL BOOT CHAIN ERROR: BOOT ELEVATE (BOOTELVT.BIN) NOT FOUND!\n");
         return status;
     }
-    UINTN szKernel = (UINTN) fileInfo->FileSize;
-    uefi_call_wrapper(FreePool, 1, fileInfo);
-
-    void* ldAddrKernel = (void*) KERNEL_LOAD_ADDRESS;
-    status = uefi_call_wrapper(krnl->Read, 3, krnl, &szKernel, ldAddrKernel);
+    status = YchReadFile(root, KERNEL_FILE_NAME_ON_DISK_U16LE, ldAddrKrnl, &szKrnl);
     if (EFI_ERROR(status))
     {
-        Print(L"Failed to load kernel into memory: %r\n", status);
+        Print(L"CRITICAL BOOT CHAIN ERROR: KERNEL (KRNLYCH.KR) NOT FOUND!\n");
         return status;
     }
-    uefi_call_wrapper(krnl->Close, 1, krnl);
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL* pGOP;
     status = uefi_call_wrapper
@@ -93,6 +129,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION pBestModeCache = {0};
     UINT32 iBestVideoModeCandidate = 0;
 
+    BOOLEAN bIsOVMF = IsOVMF();
     for (UINT32 i = 0; i < pGOP->Mode->MaxMode; i++)
     {
         EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* pModeInfo;
@@ -108,13 +145,18 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
             continue;
         }
 
-        if (pModeInfo->PixelFormat == PixelRedGreenBlueReserved8BitPerColor)
+        if (pModeInfo->PixelFormat == PixelBlueGreenRedReserved8BitPerColor)
         {
             if ( pModeInfo->VerticalResolution > pBestModeCache.VerticalResolution ||
                 (pModeInfo->VerticalResolution == pBestModeCache.VerticalResolution && pModeInfo->HorizontalResolution > pBestModeCache.HorizontalResolution))
             {
                 iBestVideoModeCandidate = i;
                 pBestModeCache = *pModeInfo;
+            }
+            // On VM choose smaller resolution.
+            if (bIsOVMF && pModeInfo->HorizontalResolution == 1280 && pModeInfo->VerticalResolution == 720)
+            {
+                break;
             }
         }
     }
@@ -130,8 +172,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
 
     KrSystemInfoPack bootInfo;
     bootInfo.Magic = SYSTEM_INFO_PACK_MAGIC;
-    bootInfo.KernelBinarySize = (uint64_t) szKernel;
-    bootInfo.AddrKernelLoad = (uintptr_t) ldAddrKernel;
+    bootInfo.KernelBinarySize = (uint64_t) szKrnl;
+    bootInfo.AddrKernelLoad = (uintptr_t) ldAddrKrnl;
     bootInfo.AddrKernelSpaceEnd = bootInfo.AddrKernelLoad + KERNEL_RESERVE_SIZE;
     bootInfo.AddrInitialStack = bootInfo.AddrKernelSpaceEnd;
 
@@ -173,19 +215,30 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     // Call ExitBootServices, exiting UEFI Firmware completely. OS now has full control over memory hereafter.
     uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, kMapKey);
 
-    // Clear interrupts and jump to kernel.
+    // Copy memory map to 4KiB physical
+    KrMemoryDescriptor* pDest = (KrMemoryDescriptor*) MEMORY_MAP_PHYSADDR;
+    for (uint64_t i = 0; i < bootInfo.MemoryMapInfo.NumberOfEntries; i++)
+    {
+        KrMemoryDescriptor* pDescriptor = ((KrMemoryDescriptor*) bootInfo.MemoryMapInfo.PhysicalAddress) + i;
+        *pDest++ = *pDescriptor;
+    }
+
+    // Clear interrupts and jump to BOOTELVT.
+    uint64_t szstruct=sizeof(KrSystemInfoPack);
     __asm__ __volatile__ (
         "cli\n\t"
         "mov %[stack], %%rsp\n\t"
-        "mov %[bootinfo], %%rdi\n\t"
-        "jmp *%[kernel]\n\t"
+        "mov %[bootinfosize], %%rcx\n\t"
+        "mov %[bootinfo], %%rsi\n\t"
+        "jmp *%[bootelvt]\n\t"
          :
          : [stack]    "r"(bootInfo.AddrInitialStack),
+           [bootinfosize] "r"(szstruct),
            [bootinfo] "r"(&bootInfo),
-           [kernel]   "r"(ldAddrKernel)
-         : "rdi"
+           [bootelvt]   "r"(ldAddrBootelvt)
+         : "rdi", "rcx"
     );
-    
+
     while (1);
     return EFI_SUCCESS;
 }

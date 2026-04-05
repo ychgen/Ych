@@ -30,6 +30,7 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
  */
 #define Krnlmeltdownimm(code, pDesc) (void)(&code); (void)(&pDesc); /*if in mem, noop. if not in mem, compile error. small enforcement to catch literal and NULL passes*/ \
     __asm__ __volatile__ (                       \
+    "cli\n\t"                                    \
     "call 1f\n\t"                                \
     "1:\n\t"                                     \
     "pushq %%rsp\n\t"                            \
@@ -49,17 +50,21 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
     "pushq %%r13\n\t"                            \
     "pushq %%r14\n\t"                            \
     "pushq %%r15\n\t"                            \
-    "movq 136(%%rsp), %%rax\n\t"                 \
+    "movq 128(%%rsp), %%rax\n\t"                 \
     "addq $8, %%rax\n\t"                         \
-    "movq %%rax, 136(%%rsp)\n\t"                 \
-    "movq 144(%%rsp), %%rax\n\t"                 \
+    "movq %%rax, 128(%%rsp)\n\t"                 \
+    "movq 136(%%rsp), %%rax\n\t"                 \
     "subq $5, %%rax\n\t"                         \
-    "movq %%rax, 144(%%rsp)\n\t"                 \
+    "movq %%rax, 136(%%rsp)\n\t"                 \
     "movq %0, %%rdi\n\t"                         \
     "movq %1, %%rsi\n\t"                         \
-    "leaq 144(%%rsp), %%rdx\n\t"                 \
-    "call Krnlmeltdown\n\t"                      \
-    : : "r"(code), "r"(pDesc) : "memory");       \
+    "movq %%rsp, %%rdx\n\t"                      \
+    "jmp Krnlmeltdown\n\t"                       \
+    : : "m"(code), "m"(pDesc) :                  \
+    "rax", "rbx", "rcx", "rdx",        "rsi",   \
+    "rdi", "r8", "r9", "r10", "r11", "r12",      \
+    "r13", "r14", "r15", "memory"                \
+    );                                           \
     __builtin_unreachable()
 
 #endif // !YCH_KERNEL_CORE_KRNLMELTDOWN_H

@@ -2,6 +2,10 @@ BUILD_PATH  ?= Binaries
 TARGET_NAME ?= YchBoot.efi
 TARGET      := $(BUILD_PATH)/$(TARGET_NAME)
 
+ELEVATE_TARGET_NAME ?= Bootelvt.bin
+ELEVATE_TARGET      := $(BUILD_PATH)/$(ELEVATE_TARGET_NAME)
+ELEVATE_SOURCE      ?= Bootelvt.asm
+
 SOURCE        ?= YchBoot.c
 OBJECT        ?= $(BUILD_PATH)/Int/YchBoot.o
 SHARED_OBJECT ?= $(BUILD_PATH)/Int/YchBoot.so
@@ -13,11 +17,12 @@ LDFLAGS ?= -nostdlib -znocombreloc -T /usr/lib/elf_x86_64_efi.lds -shared -Bsymb
 CC    ?= gcc
 LD    ?= ld
 RM    ?= rm
+NASM  ?= nasm
 ECHO  ?= echo
 MKDIR ?= mkdir
 OCPY  ?= objcopy
 
-$(TARGET): $(SHARED_OBJECT)
+$(TARGET): $(SHARED_OBJECT) $(ELEVATE_TARGET)
 	@$(MKDIR) -p $(dir $@)
 	@$(ECHO) Converting \"$<\" to \"$@\"...
 	@$(OCPY) -j .text    \
@@ -30,6 +35,11 @@ $(TARGET): $(SHARED_OBJECT)
 			 -j .rela    \
 			 -j .reloc   \
 			 --output-target=efi-app-x86_64 $< $@
+
+$(ELEVATE_TARGET): $(ELEVATE_SOURCE)
+	@$(MKDIR) -p $(dir $@)
+	@$(ECHO) Assembling \"$<\" to \"$@\"
+	@$(NASM) -f bin $(ASMFLAGS) $< -o $@
 
 $(SHARED_OBJECT): $(OBJECT)
 	@$(MKDIR) -p $(dir $@)
