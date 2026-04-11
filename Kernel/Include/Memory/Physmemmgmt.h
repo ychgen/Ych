@@ -20,7 +20,7 @@ typedef USIZE PAGEID;
 #define KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE ((BYTE)1)
 
 /// @brief Initializes the PMM (Physical Memory Management).
-/// @return TRUE if just initialized, FALSE if it was already initialized.
+/// @return TRUE if just initialized, FALSE if it was already initialized or initialization failed.
 BOOL KrInitPhysmemmgmt(void);
 
 /// @brief Acquires a physical page.
@@ -31,5 +31,10 @@ PAGEID KrAcquirePhysicalPage(PAGEID idHint);
 /// @brief Releases a physical page.
 /// @param idPage The physical page to release.
 BOOL KrReleasePhysicalPage(PAGEID idPage);
+
+/// @brief Gets the physical address of a page.
+/// @param idPage ID of the page to get the physical address of.
+/// @return Physical address of the page.
+void* KrGetPhysicalPageAddress(PAGEID idPage);
 
 #endif // !YCH_KERNEL_MEMORY_MEMMGMT_H

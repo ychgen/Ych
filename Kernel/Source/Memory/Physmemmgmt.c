@@ -1,3 +1,4 @@
+// TODO: Implement 2nd bitmap that stays constant and advisory, so checks about releasing reserved pages can be done.
 #include "Memory/Physmemmgmt.h"
 
 #include "Core/KernelState.h"
@@ -5,11 +6,12 @@
 #include "Memory/BootstrapArena.h"
 #include "KRTL/Krnlmem.h"
 
-BYTE* g_pBitmap  = NULLPTR;
-USIZE g_szBitmap = 0;
-USIZE g_idPageAcqHint = KR_INVALID_PAGEID;
+BYTE*   g_pBitmap               = NULLPTR;
+USIZE   g_szBitmap              = 0;
+USIZE   g_idPageAcqHint         = KR_INVALID_PAGEID;
 UINTPTR g_AddrHighestDiscovered = 0;
 
+// Starting from page idStart, it sets N pages to Status.
 BOOL KrSetPhysicalPageStatus(PAGEID idStart, USIZE N, BYTE Status);
 
 BOOL KrInitPhysmemmgmt(void)
@@ -59,6 +61,11 @@ BOOL KrInitPhysmemmgmt(void)
     g_szBitmap = (g_KernelState.StatePMM.TotalPages + 7) / 8;
     g_pBitmap  = KrBootstrapArenaAcquire(g_szBitmap);
 
+    if (!g_pBitmap)
+    {
+        return FALSE;
+    }
+
     // Initialize all pages as unavailable first, this way we are less likely to mess up.
     // 0xFF = All bits =1 which is what UNAVAILABLE is set to, =1.
     KrtlContiguousSetBuffer(g_pBitmap, 0xFF, g_szBitmap);
@@ -98,6 +105,12 @@ BOOL KrInitPhysmemmgmt(void)
         KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE
     );
 
+    // Mark all memory under 1MiB as unavailable.
+    // There are two reasons for this:
+    //   - We should always reserve the first page, so we can have sane null pointer semantics.
+    //   - Under 1MiB is IBM PC legacy mess. Better to not wake up the 1980s ghosts.
+    KrSetPhysicalPageStatus(0, (1024 * 1024) / g_KernelState.StatePMM.PageSize, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
+
     return TRUE;
 }
 
@@ -116,18 +129,22 @@ Hunt:
     for (USIZE i = PageID / 8; i < g_szBitmap && (bIsReroll ? PageID < InitialSearchID : TRUE); i++)
     {
         BYTE* pRegion = g_pBitmap + i;
-        BYTE  RegionData = *pRegion;
         for (BYTE BitOffset = PageID % 8; BitOffset < 8; BitOffset++, PageID++)
         {
+            BYTE RegionData = *pRegion;
             if (!(RegionData & (1 << BitOffset)))
             {
-                BOOL bResult = KrSetPhysicalPageStatus(PageID, 1, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
-                return bResult ? PageID : KR_INVALID_PAGEID;
+                if (KrSetPhysicalPageStatus(PageID, 1, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE))
+                {
+                    g_idPageAcqHint = PageID + 1;
+                    return PageID;
+                }
+                // continue seeking if this one couldnt be acquired
             }
         }
     }
 
-    if (InitialSearchID)
+    if (!bIsReroll)
     {
         PageID = 0;
         bIsReroll = TRUE;
@@ -212,4 +229,13 @@ BOOL KrSetPhysicalPageStatus(PAGEID idStart, USIZE N, BYTE Status)
     }
 
     return TRUE;
+}
+
+void* KrGetPhysicalPageAddress(PAGEID idPage)
+{
+    if (idPage == KR_INVALID_PAGEID || idPage >= g_KernelState.StatePMM.TotalPages)
+    {
+        return NULLPTR;
+    }
+    return (void*)(idPage * g_KernelState.StatePMM.PageSize);
 }

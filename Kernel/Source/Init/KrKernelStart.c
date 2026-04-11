@@ -115,7 +115,7 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         const char* pDesc = NULL;
         Krnlmeltdownimm(code, pDesc);
     }
-    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
 
     // ======= STOP HERE =========== //
     KrProcessorHalt();
