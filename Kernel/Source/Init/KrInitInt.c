@@ -10,7 +10,8 @@
 #include "Core/KernelState.h"
 #include "Core/Krnlmeltdown.h"
 
-#include "Memory/Krnlmem.h"
+#include "KRTL/Krnlstring.h"
+#include "KRTL/Krnlmem.h"
 
 __attribute__((aligned(16))) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
@@ -55,8 +56,10 @@ void KrInitInt(void)
         .Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1,
         .Base  = (uint64_t) g_krInterruptDescriptorTable
     };
+
     KrLoadInterruptDescriptorTable(&IDTR); // LIDT
-    
+    KrEnableInterrupts(); // STI
+
     // Update kernel state
     g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;
 
@@ -78,11 +81,11 @@ void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
     const char* pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
     
     const size_t szMsg = sizeof(pDescMsg) - 1;
-    const size_t szKod = KrCountCharacters(pDescKod);
+    const size_t szKod = KrtlStringLength(pDescKod);
     
     char pDesc[128];
-    KrContiguousCopyBuffer(pDesc, pDescMsg, szMsg);
-    KrContiguousCopyBuffer(pDesc + szMsg, pDescKod, szKod+1); // copy null terminator too
+    KrtlContiguousCopyBuffer(pDesc, pDescMsg, szMsg);
+    KrtlContiguousCopyBuffer(pDesc + szMsg, pDescKod, szKod+1); // copy null terminator too
     
     // Kernel meltdown (panic)
     KrProcessorSnapshot snapshot = KrInterruptFrameToProcessorSnapshot(pInterruptFrame);

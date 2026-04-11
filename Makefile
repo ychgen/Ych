@@ -1,11 +1,13 @@
-BUILD_PATH  ?= Binaries
-BOOT_PATH   ?= Boot
-FIRMWARE    ?= FIRMWARE
-KERNEL_PATH ?= Kernel
-TOOLS_PATH  ?= Tools
+BUILD_PATH    ?= Binaries
+BOOT_PATH     ?= Boot
+FIRMWARE      ?= FIRMWARE
+KERNEL_PATH   ?= Kernel
+TOOLS_PATH    ?= Tools
+CONTRACT_PATH ?= BootContract/
 
 TOOL_ROUTINE_LIB_PATH ?= $(TOOLS_PATH)/RoutineLib
 TOOL_IMGTOOL_PATH ?= $(TOOLS_PATH)/Imgtool
+TOOL_MKCONTRACT_PATH ?= $(TOOLS_PATH)/MakeContract
 
 BOOT_BUILD_PATH   ?= $(BUILD_PATH)/$(BOOT_PATH)
 KERNEL_BUILD_PATH ?= $(BUILD_PATH)/$(KERNEL_PATH)
@@ -23,9 +25,13 @@ OS_IMAGE_BLKSZ   ?= 512 # bytes
 OS_IMAGE_TARGET  := $(BUILD_PATH)/$(OS_IMAGE_NAME)
 OS_EMULATION_RAM ?= 512M
 
+CONTRACT_NAME    ?= BootContract.json
+CONTRACT         := $(CONTRACT_PATH)/$(CONTRACT_NAME)
+
 RM      ?= rm
-ECHO    ?= echo
+PY      ?= python
 MMD     ?= mmd
+ECHO    ?= echo
 MCPY    ?= mcopy
 QEMU    ?= qemu-system-x86_64
 IMGTOOL ?= $(TOOL_IMGTOOL_BUILD_PATH)/Imgtool
@@ -54,13 +60,17 @@ $(OS_IMAGE_TARGET): tools boot kernel
 	@$(MCPY) -i $@@@101M $(KERNEL_BUILD_PATH)/$(KERNEL_NAME) ::/Ych/Krnlych.kr
 	@$(MCPY) -i $@@@101M $(BOOT_BUILD_PATH)/$(BOOTELVT_NAME) ::/Ych/Bootelvt.bin
 
+contract: $(TOOL_MKCONTRACT_PATH)/MakeContract.py $(CONTRACT)
+	@$(ECHO) Generating Boot Contract...
+	@$(PY) $< $(CONTRACT)
+
 tools: routinelib imgtool
 
-boot:
-	@$(MAKE) -C $(BOOT_PATH) BUILD_PATH=$(abspath $(BOOT_BUILD_PATH)) TARGET_NAME=$(BOOTLOADER_NAME) GUEST_CFLAGS="-I$(abspath .)"
+boot: contract
+	@$(MAKE) -C $(BOOT_PATH) BUILD_PATH=$(abspath $(BOOT_BUILD_PATH)) TARGET_NAME=$(BOOTLOADER_NAME) GUEST_CFLAGS="-I$(abspath .)/BootContract/Include"
 
-kernel:
-	@$(MAKE) -C $(KERNEL_PATH) BUILD_PATH=$(abspath $(KERNEL_BUILD_PATH)) TARGET_NAME=$(KERNEL_NAME) GUEST_CFLAGS="-I$(abspath .)"
+kernel: contract
+	@$(MAKE) -C $(KERNEL_PATH) BUILD_PATH=$(abspath $(KERNEL_BUILD_PATH)) TARGET_NAME=$(KERNEL_NAME) GUEST_CFLAGS="-I$(abspath .)/BootContract/Include"
 
 routinelib:
 	@$(MAKE) -C $(TOOL_ROUTINE_LIB_PATH) BUILD_PATH=$(abspath $(TOOL_ROUTINELIB_BUILD_PATH)) ROUTINE_LIB_PATH=$(abspath $(TOOL_ROUTINE_LIB_PATH))
@@ -73,4 +83,4 @@ clean:
 	@$(ECHO) Removing build directory \"$(BUILD_PATH)\" recursively...
 	@$(RM) -r $(BUILD_PATH)
 
-.PHONY: os-image run boot tools routinelib imgtool clean
+.PHONY: os-image run contract boot tools routinelib imgtool clean

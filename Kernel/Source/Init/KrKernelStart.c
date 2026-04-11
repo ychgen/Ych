@@ -12,7 +12,9 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "Earlyvideo/Dwtpfonts.h"
 
-#include "Memory/Krnlmem.h"
+#include "Memory/BootstrapArena.h"
+#include "Memory/Physmemmgmt.h"
+#include "KRTL/Krnlmem.h"
 
 __attribute__((section(".text.KrKernelStart"), noreturn))
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
@@ -29,12 +31,29 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     }
 
     // Initialize g_KernelState
-    KrContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
-    g_KernelState.SystemInfoPack = *pSystemInfoPack; // Copy over, otherwise will be lost when we unmap the 0MiB to 2MiB area.
+    KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
+    // Copy pSystemInfoPack so we don't lose it when we unmap the ID-mapped lower 2MiB.
+    KrSystemInfoPack SysInfoPack;
+    KrtlContiguousCopyBuffer(&SysInfoPack, pSystemInfoPack, sizeof(KrSystemInfoPack));
+
+    g_KernelState.LoadInfo.BinarySize = SysInfoPack.KernelBinarySize;
+    g_KernelState.LoadInfo.ReserveSize = SysInfoPack.KernelReserveSize;
+    g_KernelState.LoadInfo.AddrPhysicalBase = SysInfoPack.KernelPhysicalBase;
+    g_KernelState.LoadInfo.AddrVirtualBase = SysInfoPack.KernelVirtualBase;
+
+    // Initialize Bootstrap Arena
+    KrInitBootstrapArena((void*) SysInfoPack.KernelBootstrapArenaBase, SysInfoPack.KernelBootstrapArenaSize);
+
+    // Copy over the memory map
+    {
+        g_KernelState.MemoryMapInfo = SysInfoPack.MemoryMapInfo;
+        g_KernelState.MemoryMap = KrBootstrapArenaAcquire(g_KernelState.MemoryMapInfo.MemoryMapSize);
+        KrtlContiguousCopyBuffer(g_KernelState.MemoryMap, (void*) SysInfoPack.MemoryMapInfo.PhysicalAddress, g_KernelState.MemoryMapInfo.MemoryMapSize);
+    }
 
     // Init DisplaywideTextProtocol
     {
-        KrGraphicsInfo* pGraphicsInfo = &g_KernelState.SystemInfoPack.GraphicsInfo;
+        KrGraphicsInfo* pGraphicsInfo = &SysInfoPack.GraphicsInfo;
 
         KrdwtpInitializeDefaultFonts();
         if (pGraphicsInfo->FramebufferWidth >= 1920 && pGraphicsInfo->FramebufferHeight >= 1080)
@@ -51,46 +70,55 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         }
 
         KrdwtpInitialize(g_KrdwtpDefaultFont_8x16, FRAMEBUFFER_VIRTUAL_ADDR, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
-        g_KernelState.VideoOutputProtocol = KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL;
+        g_KernelState.VideoOutputProtocol = KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT;
         g_KernelState.VideoOutputContext  = (void*) KrdwtpGetProtocolState();
 
         KrdwtpResetState(KRDWTP_COLOR_BLACK);
-        KrdwtpOutColoredText("Initialized Display-Wide Text Protocol\n", KRDWTP_COLOR_GREEN);
+        KrdwtpOutColoredText("Initialized Displaywide Text Protocol\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
     }
 
     // Print some useful information
     KrdwtpOutFormatText("[KRNLYCH] Kernel Post-Load Self Information:\n"
         " -> Kernel Binary Size       = %u KiB\n"
         " -> Load Address (PHYS)      = %p\n"
-        " -> Reserved Area End (PHYS) = %p\n"
-        " -> Total Reserved           = %u MiB\n",
-        (uint32_t) g_KernelState.SystemInfoPack.KernelBinarySize / 1024,
-        (void*) g_KernelState.SystemInfoPack.AddrKernelLoad,
-        (void*) g_KernelState.SystemInfoPack.AddrKernelSpaceEnd,
-        (uint32_t)(g_KernelState.SystemInfoPack.AddrKernelSpaceEnd - g_KernelState.SystemInfoPack.AddrKernelLoad) / 1024 / 1024);
-    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) g_KernelState.SystemInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
-    KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", g_KernelState.SystemInfoPack.GraphicsInfo.FramebufferWidth, g_KernelState.SystemInfoPack.GraphicsInfo.FramebufferHeight);
+        " -> Load Address (VIRT)      = %p\n"
+        " -> Total Reserved           = %Ru MiB\n",
+        (uint32_t) g_KernelState.LoadInfo.BinarySize / 1024,
+        (void*) g_KernelState.LoadInfo.AddrPhysicalBase,
+        (void*) g_KernelState.LoadInfo.AddrVirtualBase,
+        (uint64_t)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
+    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
+    KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
-    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN);
+    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
     
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     KrInitInt();
-    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN);
+    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
     
     // Enable APIC (best safe to do this after interrupt setup as it might fire interrupts before we fully initialize the interrupt subsystem)
     KrEnableAPIC();
     {
         g_KernelState.StateLocalAPIC.BaseAddrPhysical = KrGetAPICPhysicalBase();
-        //Cant use, unmapped. need to set StateLocalAPIC.BaseAddrVirtual
+        //Cant use, unmapped. need to set StateLocalAPIC.BaseAddrVirtual. Will be done when kernel sets up proper paging!
         //g_KernelState.StateLocalAPIC.BaseAddr = g_KernelState.StateLocalAPIC.BaseAddrPhysical;
     }
-    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN);
+    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
     KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (void*) g_KernelState.StateLocalAPIC.BaseAddrPhysical);
+
+    if (!KrInitPhysmemmgmt())
+    {
+        KrdwtpOutColoredText("Failed to initialize Physmemmgmt!", KRDWTP_COLOR_RED, KRDWTP_FOREGROUND);
+        meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_INIT_FAILURE;
+        const char* pDesc = NULL;
+        Krnlmeltdownimm(code, pDesc);
+    }
+    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
 
     // ======= STOP HERE =========== //
     KrProcessorHalt();
 
-#include "krstend.h" /* ! Always keep this at the very end of the function ! */
+#include "krstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */
 }

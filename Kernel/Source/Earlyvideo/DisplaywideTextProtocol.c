@@ -1,98 +1,128 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 #include "KRTL/Krnlstring.h"
-
-// TODO: Add scrolling!
+#include "KRTL/Krnlmem.h"
 
 KrDisplaywideTextProtocolState g_ProtocolState;
 
-KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, uint8_t factor)
+KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, BYTE factor)
 {
     KrDisplaywideTextProtocolFont result = *pFont;
     result.ScaleFactor *= factor;
     return result;
 }
 
-void KrdwtpInitialize(KrDisplaywideTextProtocolFont font, uintptr_t addrFrameBuffer, uint32_t xszFrameBuffer, uint32_t yszFrameBuffer, uint32_t pxlsPerScanline)
+void KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, DWORD FramebufferWidth, DWORD FramebufferHeight, DWORD PixelsPerScanLine)
 {
-    g_ProtocolState.FrameBufferWidth  = xszFrameBuffer;
-    g_ProtocolState.FrameBufferHeight = yszFrameBuffer;
-    g_ProtocolState.PixelsPerScanLine = pxlsPerScanline;
+    g_ProtocolState.FrameBufferWidth  = FramebufferWidth;
+    g_ProtocolState.FrameBufferHeight = FramebufferHeight;
+    g_ProtocolState.PixelsPerScanLine = PixelsPerScanLine;
     g_ProtocolState.CursorX           = 0;
     g_ProtocolState.CursorY           = 0;
-    g_ProtocolState.AddrFrameBuffer   = addrFrameBuffer;
-    g_ProtocolState.Font              = font;
-    g_ProtocolState.bUppercaseMode    = false;
+    g_ProtocolState.AddrFrameBuffer   = AddrFrameBuffer;
+    g_ProtocolState.BytesPerPixel     = 4; // We have 4 fields per pixel: red green blue reserved
+    g_ProtocolState.Font              = Font;
+    g_ProtocolState.bUppercaseMode    = FALSE;
 }
 
-void KrdwtpReloadFrameBuffer(uintptr_t addrFrameBuffer)
+void KrdwtpReloadFrameBuffer(UINTPTR AddrFrameBuffer)
 {
-    g_ProtocolState.AddrFrameBuffer = addrFrameBuffer;
+    g_ProtocolState.AddrFrameBuffer = AddrFrameBuffer;
 }
 
-void KrdwtpResetState(uint32_t fbcolor)
+void KrdwtpResetState(DWORD ClearColor)
 {
     g_ProtocolState.CursorX = 0;
     g_ProtocolState.CursorY = 0;
 
-    for (uint32_t y = 0; y < g_ProtocolState.FrameBufferHeight; y++)
+    for (DWORD y = 0; y < g_ProtocolState.FrameBufferHeight; y++)
     {
-        for (uint32_t x = 0; x < g_ProtocolState.FrameBufferWidth; x++)
+        for (DWORD x = 0; x < g_ProtocolState.FrameBufferWidth; x++)
         {
-            ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = fbcolor;
+            ((DWORD*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = ClearColor;
         }
     }
 }
 
-void KrdwtpOutColoredCharacter(char character, uint32_t color)
+void KrdwtpScroll(void)
 {
-    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || character >= 128)
+    // Cannot scroll while CursorY=0 i.e. still on 0th row.
+    if (!g_ProtocolState.CursorY)
     {
         return;
     }
-    if (character == '\n')
+
+    // No bytes skip to get to the next physical row (1px down)
+    DWORD dwPhysStride = g_ProtocolState.PixelsPerScanLine * g_ProtocolState.BytesPerPixel;
+    // Size that each entry occupies
+    DWORD dwEntrySize     = g_ProtocolState.Font.RowsPerEntry * g_ProtocolState.Font.ScaleFactor;
+    // Logical row stride
+    DWORD dwLogicalStride = dwEntrySize * dwPhysStride;
+
+    KrtlContiguousMoveBuffer
+    (
+        // 0th row
+        (void*) g_ProtocolState.AddrFrameBuffer,
+        // 1st row
+        (void*)(g_ProtocolState.AddrFrameBuffer + dwLogicalStride),
+        // no. rows
+        (g_ProtocolState.CursorY) * dwLogicalStride
+    );
+    KrtlContiguousZeroBuffer((void*) g_ProtocolState.AddrFrameBuffer + ((g_ProtocolState.CursorY) * dwLogicalStride), dwLogicalStride);
+
+    g_ProtocolState.CursorY--;
+    g_ProtocolState.CursorX = 0;
+}
+
+void KrdwtpOutColoredCharacter(char Char, DWORD ForegroundColor, DWORD BackgroundColor)
+{
+    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || Char >= 128)
+    {
+        return;
+    }
+    if (Char == '\n')
     {
         g_ProtocolState.CursorX = 0;
-        g_ProtocolState.CursorY++;
+        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (g_ProtocolState.Font.RowsPerEntry * g_ProtocolState.Font.ScaleFactor))
+        {
+            KrdwtpScroll();
+        }
         return;
     }
-    if (g_ProtocolState.bUppercaseMode && (character >= 'a' && character <= 'z'))
+    if (g_ProtocolState.bUppercaseMode && (Char >= 'a' && Char <= 'z'))
     {
-        character -= ('a' - 'A');
+        Char -= ('a' - 'A');
     }
 
     const KrDisplaywideTextProtocolFont* pFont = &g_ProtocolState.Font;
-    uint32_t BPR = (pFont->ColumnsPerEntry + 7) / 8; // bytes per row
-    uint32_t glyphSize = pFont->RowsPerEntry * BPR;
-    uint8_t* pGlyph = &pFont->CharacterSet[character * glyphSize];
+    DWORD dwBytesPerGlyph = (pFont->ColumnsPerEntry + 7) / 8;
+    DWORD dwGlyphSize = pFont->RowsPerEntry * dwBytesPerGlyph;
+    BYTE* pGlyph = &pFont->CharacterSet[Char * dwGlyphSize];
 
-    uint32_t STX = g_ProtocolState.CursorX * pFont->ColumnsPerEntry * pFont->ScaleFactor; // startx
-    uint32_t STY = g_ProtocolState.CursorY * pFont->RowsPerEntry    * pFont->ScaleFactor; // starty
+    DWORD dwStartX = g_ProtocolState.CursorX * pFont->ColumnsPerEntry * pFont->ScaleFactor;
+    DWORD dwStartY = g_ProtocolState.CursorY * pFont->RowsPerEntry    * pFont->ScaleFactor;
 
-    for (uint32_t row = 0; row < pFont->RowsPerEntry; row++)
+    for (DWORD dwRow = 0; dwRow < pFont->RowsPerEntry; dwRow++)
     {
-        uint8_t* pRow = &pGlyph[row * BPR];
+        BYTE* pRow = &pGlyph[dwRow * dwBytesPerGlyph];
 
-        for (uint8_t bit = 0; bit < pFont->ColumnsPerEntry; bit++)
+        for (BYTE bit = 0; bit < pFont->ColumnsPerEntry; bit++)
         {
-            uint8_t iBit = bit % 8;
+            BYTE iBit = bit % 8;
             if (pFont->bDirectionBit)
             {
                 iBit = 7 - bit;
             }
-            bool pxlit = pRow[bit / 8] & (1 << iBit);
-            if (!pxlit)
-            {
-                continue;
-            }
+            BOOL pxlit = pRow[bit / 8] & (1 << iBit);
 
-            for (uint32_t dy = 0; dy < pFont->ScaleFactor; dy++)
+            for (DWORD dwScalarY = 0; dwScalarY < pFont->ScaleFactor; dwScalarY++)
             {
-                for (uint32_t dx = 0; dx < pFont->ScaleFactor; dx++)
+                for (DWORD dwScalarX = 0; dwScalarX < pFont->ScaleFactor; dwScalarX++)
                 {
-                    uint32_t xFB = STX + bit * pFont->ScaleFactor + dx;
-                    uint32_t yFB = STY + row * pFont->ScaleFactor + dy;
-                    ((uint32_t*) g_ProtocolState.AddrFrameBuffer)[yFB * g_ProtocolState.PixelsPerScanLine + xFB] = color;
+                    DWORD dwFramebufferOffsetY = dwStartY + dwRow * pFont->ScaleFactor + dwScalarY;
+                    DWORD dwFramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + dwScalarX;
+                    ((DWORD*) g_ProtocolState.AddrFrameBuffer)[dwFramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + dwFramebufferOffsetX]
+                        = pxlit ? ForegroundColor : BackgroundColor;
                 }
             }
         }
@@ -102,29 +132,32 @@ void KrdwtpOutColoredCharacter(char character, uint32_t color)
     if (g_ProtocolState.CursorX >= g_ProtocolState.FrameBufferWidth / (pFont->ColumnsPerEntry * pFont->ScaleFactor))
     {
         g_ProtocolState.CursorX = 0;
-        g_ProtocolState.CursorY++;
+        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
+        {
+            KrdwtpScroll();
+        }
     }
 }
 
-void KrdwtpOutCharacter(char character)
+void KrdwtpOutCharacter(char Char)
 {
-    KrdwtpOutColoredCharacter(character, KRDWTP_COLOR_WHITE);
+    KrdwtpOutColoredCharacter(Char, KRDWTP_COLOR_WHITE, KRDWTP_FOREGROUND);
 }
 
-int KrdwtpOutColoredText(const char* pText, uint32_t color)
+int KrdwtpOutColoredText(const char* pText, DWORD ForegroundColor, DWORD BackgroundColor)
 {
-    int nwritten = 0;
+    int nWritten = 0;
     while (*pText)
     {
-        KrdwtpOutColoredCharacter(*pText++, color);
-        nwritten++;
+        KrdwtpOutColoredCharacter(*pText++, ForegroundColor, BackgroundColor);
+        nWritten++;
     }
-    return nwritten;
+    return nWritten;
 }
 
 int KrdwtpOutText(const char* pText)
 {
-    return KrdwtpOutColoredText(pText, KRDWTP_COLOR_WHITE);
+    return KrdwtpOutColoredText(pText, KRDWTP_COLOR_WHITE, KRDWTP_FOREGROUND);
 }
 
 int KrdwtpOutFormatTextVariadic(const char* pFmt, va_list args)
@@ -197,7 +230,7 @@ int KrdwtpOutFormatTextVariadic(const char* pFmt, va_list args)
         }
         case 'X':
         {
-            KrtlPushHexCasePreference(KRTL_CASE_PREFERENCE_UPPER);
+            KrtlPushHexCasePreference(KRTL_HEX_CASE_PREFERENCE_UPPER);
         }
         // falls through...
         case 'x':
@@ -212,8 +245,8 @@ int KrdwtpOutFormatTextVariadic(const char* pFmt, va_list args)
         {
             void* val = va_arg(args, void*);
             char buf[128];
-            KrtlPushHexCasePreference(KRTL_CASE_PREFERENCE_UPPER);
-            KrtlUnsignedIntegerToString(buf, (uint64_t) val, KRTL_RADIX_HEXADECIMAL);
+            KrtlPushHexCasePreference(KRTL_HEX_CASE_PREFERENCE_UPPER);
+            KrtlUnsignedIntegerToString(buf, (QWORD) val, KRTL_RADIX_HEXADECIMAL);
             nwritten += KrdwtpOutText("0x");
             nwritten += KrdwtpOutText(buf);
             break;
@@ -229,7 +262,7 @@ int KrdwtpOutFormatTextVariadic(const char* pFmt, va_list args)
             {
             case 'u':
             {
-                uint64_t val = va_arg(args, uint64_t);
+                QWORD val = va_arg(args, QWORD);
                 char buf[128];
                 KrtlUnsignedIntegerToString(buf, val, KRTL_RADIX_DECIMAL);
                 nwritten += KrdwtpOutText(buf);
@@ -237,12 +270,12 @@ int KrdwtpOutFormatTextVariadic(const char* pFmt, va_list args)
             }
             case 'X':
             {
-                KrtlPushHexCasePreference(KRTL_CASE_PREFERENCE_UPPER);
+                KrtlPushHexCasePreference(KRTL_HEX_CASE_PREFERENCE_UPPER);
             }
             // falls through...
             case 'x':
             {
-                uint64_t val = va_arg(args, uint64_t);
+                QWORD val = va_arg(args, QWORD);
                 char buf[128];
                 KrtlUnsignedIntegerToString(buf, val, KRTL_RADIX_HEXADECIMAL);
                 nwritten += KrdwtpOutText(buf);
@@ -274,7 +307,7 @@ int KrdwtpOutFormatText(const char* pFmt, ...)
     return result;
 }
 
-void KrdwtpSetUppercaseMode(bool bUppercaseModeEnabled)
+void KrdwtpSetUppercaseMode(BOOL bUppercaseModeEnabled)
 {
     g_ProtocolState.bUppercaseMode = bUppercaseModeEnabled;
 }

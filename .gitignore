@@ -3,3 +3,7 @@
 
 # Outputs
 Binaries/
+
+# MakeContract outputs
+/BootContract/Defines.asm
+/BootContract/Include/BootContract/Defines.h

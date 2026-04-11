@@ -1,7 +1,7 @@
 #include "Init/KrInitGDT.h"
 
 #include "Core/KernelState.h"
-#include "Memory/Krnlmem.h"
+#include "KRTL/Krnlmem.h"
 #include "CPU/GDT.h"
 
 /** Adjust accordingly if GDT layout changes. */
@@ -22,7 +22,7 @@ void KrInitGDT(void)
     KrGlobalDescriptorTableSegmentDescriptor* pKrnlDataDesc = pDescs + 2;
 
     // NULL entry (0th entry is always null)
-    KrContiguousZeroBuffer(pNullDesc, sizeof(KrGlobalDescriptorTableSegmentDescriptor));
+    KrtlContiguousZeroBuffer(pNullDesc, sizeof(KrGlobalDescriptorTableSegmentDescriptor));
     
     // Code segment entry
     pKrnlCodeDesc->Base  = 0x00000000;

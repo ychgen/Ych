@@ -5,7 +5,7 @@
 #include "CPU/IDT.h"
 
 #include "Core/KernelState.h"
-#include "Memory/Krnlmem.h"
+#include "KRTL/Krnlmem.h"
 
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
 {
@@ -36,7 +36,7 @@ void KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
 void KrInitializeInterruptSystem(void)
 {
     // Zero array
-    KrContiguousZeroBuffer(g_pInterruptHandlers, KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES * sizeof(KrInterruptHandler));
+    KrtlContiguousZeroBuffer(g_pInterruptHandlers, KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES * sizeof(KrInterruptHandler));
 }
 
 void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)

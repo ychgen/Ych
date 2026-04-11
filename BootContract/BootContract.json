@@ -1,0 +1,88 @@
+{
+    "Memory Map Physical Address":
+    {
+        "Name":  "MEMORY_MAP_ADDRESS",
+        "Type":  "QWORD",
+        "Value": "0x4000"
+    },
+    "Boot Elevate Physical Load Address":
+    {
+        "Name":   "BOOTELVT_LOAD_ADDRESS",
+        "Type":   "QWORD",
+        "Value":  "0x100000"
+    },
+    "Kernel Physical Load Address":
+    {
+        "Name":   "KERNEL_LOAD_ADDRESS",
+        "Type":   "QWORD",
+        "Value":  "0x200000"
+    },
+    "Kernel Amount of Memory to Reserve":
+    {
+        "Name":   "KERNEL_RESERVE_SIZE",
+        "Type":   "QWORD",
+        "Value":  "0x8000000"
+    },
+    "Kernel Virtual Address Mapping":
+    {
+        "Name":   "KERNEL_VIRTUAL_ADDRESS",
+        "Type":   "QWORD",
+        "Value":  "0xFFFFFFFF80000000"
+    },
+    "Frame Buffer Virtual Address Mapping":
+    {
+        "Name":   "FRAMEBUFFER_VIRTUAL_ADDR",
+        "Type":   "QWORD",
+        "Value":  "0xFFFFFFFFC0000000"
+    },
+    "System Information Pack Structure Magic Field Value":
+    {
+        "Name":   "SYSTEM_INFO_PACK_MAGIC",
+        "Type":   "DWORD",
+        "Value":  "0x424F4F54"
+    },
+
+    "Kernel Reserved Area End":
+    {
+        "Name": "KERNEL_RESERVED_END",
+        "Type": "QWORD",
+        "Value": "(KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE)"
+    },
+    "Kernel Stack Size":
+    {
+        "Name": "KERNEL_STACK_SIZE",
+        "Type": "QWORD",
+        "Value": "0x200000"
+    },
+    "Kernel Stack Start":
+    {
+        "Name": "KERNEL_STACK_START",
+        "Type": "QWORD",
+        "Value": "(KERNEL_RESERVED_END - KERNEL_STACK_SIZE)"
+    },
+    "Bootstrap Kernel Area Size":
+    {
+        "Name": "BOOTSTRAP_KERNEL_AREA_SIZE",
+        "Type": "QWORD",
+        "Value": "0x1A00000"
+    },
+    "Bootstrap Kernel Arena Begin":
+    {
+        "Name": "BOOTSTRAP_KERNEL_AREA_BEGIN",
+        "Type": "QWORD",
+        "Value": "(KERNEL_STACK_START - BOOTSTRAP_KERNEL_AREA_SIZE)"
+    },
+
+    "Boot Elevate File Name on OS File System":
+    {
+        "Name":  "BOOTELVT_FILE_NAME",
+        "Type":  "STRING",
+        "Value": "\"\\Ych\\Bootelvt.bin\""
+    },
+    "Kernel File Name on OS File System":
+    {
+        "Name":  "KERNEL_FILE_NAME",
+        "Type":  "STRING",
+        "Value": "\"\\Ych\\Krnlych.kr\""
+    }
+}

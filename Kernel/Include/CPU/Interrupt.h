@@ -30,6 +30,11 @@
 #define KR_INTERRUPTNO_VIRTUALIZATION_EXCEPTION         20
 #define KR_INTERRUPTNO_CONTROL_PROTECTION_EXCEPTION     21
 
+// Disables maskable interrupts.
+#define KrDisableInterrupts() __asm__ __volatile__("cli\n\t")
+// Enables interrupts.
+#define KrEnableInterrupts()  __asm__ __volatile__("sti\n\t")
+
 typedef struct
 {
     uint64_t R15, R14, R13, R12, R11, R10, R9, R8;

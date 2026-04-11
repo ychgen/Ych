@@ -1,0 +1,35 @@
+/**
+ * 
+ * Physmemmgmt is the part of the kernel responsible for managing physical memory.
+ * It handles acquisition and releasing of physical pages.
+ * Bookkeeping of `conventional` system memory, basically.
+ * 
+ */
+
+#ifndef YCH_KERNEL_MEMORY_MEMMGMT_H
+#define YCH_KERNEL_MEMORY_MEMMGMT_H
+
+#include "Core/Fundtypes.h"
+
+/* Physical Page ID */
+typedef USIZE PAGEID;
+
+#define KR_INVALID_PAGEID ((PAGEID)-1)
+
+#define KR_PHYSICAL_PAGE_STATUS_AVAILABLE   ((BYTE)0)
+#define KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE ((BYTE)1)
+
+/// @brief Initializes the PMM (Physical Memory Management).
+/// @return TRUE if just initialized, FALSE if it was already initialized.
+BOOL KrInitPhysmemmgmt(void);
+
+/// @brief Acquires a physical page.
+/// @param idHint Hint for the search algorithm. Will try to find a page near this one.
+/// @return Information struct about the acquired physical page.
+PAGEID KrAcquirePhysicalPage(PAGEID idHint);
+
+/// @brief Releases a physical page.
+/// @param idPage The physical page to release.
+BOOL KrReleasePhysicalPage(PAGEID idPage);
+
+#endif // !YCH_KERNEL_MEMORY_MEMMGMT_H

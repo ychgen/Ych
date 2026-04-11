@@ -3,7 +3,7 @@
 KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x8;
 KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x16;
 
-uint8_t g_KrdwtpDefaultFont_8x8_Charset[128][8] =
+BYTE g_KrdwtpDefaultFont_8x8_Charset[128][8] =
 {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0000 (nul)
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0001
@@ -135,7 +135,7 @@ uint8_t g_KrdwtpDefaultFont_8x8_Charset[128][8] =
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}    // U+007F
 };
 
-uint8_t g_KrdwtpDefaultFont_8x16_Charset[128][16] = {
+BYTE g_KrdwtpDefaultFont_8x16_Charset[128][16] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  },       //0x00, 
     { 0x00, 0x00, 0x7E, 0x81, 0xA5, 0x81, 0x81, 0xBD, 0x99, 0x81, 0x81, 0x7E, 0x00, 0x00, 0x00, 0x00,  },       //0x01, 
     { 0x00, 0x00, 0x7E, 0xFF, 0xDB, 0xFF, 0xFF, 0xC3, 0xE7, 0xFF, 0xFF, 0x7E, 0x00, 0x00, 0x00, 0x00,  },       //0x02, 
@@ -268,15 +268,15 @@ uint8_t g_KrdwtpDefaultFont_8x16_Charset[128][16] = {
 
 void KrdwtpInitializeDefaultFonts(void)
 {
-    g_KrdwtpDefaultFont_8x8.CharacterSet = (uint8_t*) g_KrdwtpDefaultFont_8x8_Charset;
+    g_KrdwtpDefaultFont_8x8.CharacterSet = (BYTE*) g_KrdwtpDefaultFont_8x8_Charset;
     g_KrdwtpDefaultFont_8x8.ColumnsPerEntry = 8;
     g_KrdwtpDefaultFont_8x8.RowsPerEntry = 8;
     g_KrdwtpDefaultFont_8x8.ScaleFactor = 1;
-    g_KrdwtpDefaultFont_8x8.bDirectionBit = false;
+    g_KrdwtpDefaultFont_8x8.bDirectionBit = FALSE;
     
-    g_KrdwtpDefaultFont_8x16.CharacterSet = (uint8_t*) g_KrdwtpDefaultFont_8x16_Charset;
+    g_KrdwtpDefaultFont_8x16.CharacterSet = (BYTE*) g_KrdwtpDefaultFont_8x16_Charset;
     g_KrdwtpDefaultFont_8x16.ColumnsPerEntry = 8;
     g_KrdwtpDefaultFont_8x16.RowsPerEntry = 16;
     g_KrdwtpDefaultFont_8x16.ScaleFactor = 1;
-    g_KrdwtpDefaultFont_8x16.bDirectionBit = true;
+    g_KrdwtpDefaultFont_8x16.bDirectionBit = TRUE;
 }

@@ -32,7 +32,7 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
         pDesc = Krnlmddesc(code);
     }
 
-    if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL)
+    if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
         // Clear fbuf and move cursor to start.
         KrdwtpResetState(KRDWTP_COLOR_RED);

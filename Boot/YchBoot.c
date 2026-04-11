@@ -1,8 +1,14 @@
-#include "YchBootContract.h"
+#include "BootContract/BootContract.h"
 
 #include <efi.h>
 #include <efilib.h>
-#include "strstr.h"
+#include "blstd.h"
+
+#define YCH_COMBINE_INNER(x, y) x##y
+#define YCH_COMBINE(x, y) YCH_COMBINE_INNER(x, y)
+
+#define BOOTELVT_FILE_NAME_ON_DISK_U16LE YCH_COMBINE(L, BOOTELVT_FILE_NAME)
+#define KERNEL_FILE_NAME_ON_DISK_U16LE YCH_COMBINE(L, KERNEL_FILE_NAME)
 
 EFI_STATUS YchReadFile(EFI_FILE_PROTOCOL* root, const CHAR16* filepath, VOID* ldAddr, UINT64* pOutFileSize)
 {
@@ -170,12 +176,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         }
     }
 
-    KrSystemInfoPack bootInfo;
-    bootInfo.Magic = SYSTEM_INFO_PACK_MAGIC;
-    bootInfo.KernelBinarySize = (uint64_t) szKrnl;
-    bootInfo.AddrKernelLoad = (uintptr_t) ldAddrKrnl;
-    bootInfo.AddrKernelSpaceEnd = bootInfo.AddrKernelLoad + KERNEL_RESERVE_SIZE;
-    bootInfo.AddrInitialStack = bootInfo.AddrKernelSpaceEnd;
+    KrSystemInfoPack bootInfo = {0};
+
+    bootInfo.Magic                    = SYSTEM_INFO_PACK_MAGIC;
+    bootInfo.KernelReserveSize        = KERNEL_RESERVE_SIZE;
+    bootInfo.KernelBinarySize         = (uint64_t) szKrnl;
+    bootInfo.KernelPhysicalBase       = (uintptr_t) ldAddrKrnl;
+    bootInfo.KernelVirtualBase        = KERNEL_VIRTUAL_ADDRESS;
+    bootInfo.KernelStackPhysicalBase  = bootInfo.KernelPhysicalBase + bootInfo.KernelReserveSize;
+    bootInfo.KernelStackVirtualBase   = bootInfo.KernelVirtualBase + bootInfo.KernelReserveSize;
+    bootInfo.KernelBootstrapArenaBase = BOOTSTRAP_KERNEL_AREA_BEGIN;
+    bootInfo.KernelBootstrapArenaSize = BOOTSTRAP_KERNEL_AREA_SIZE;
 
     bootInfo.GraphicsInfo.PhysicalFramebufferAddress = pGOP->Mode->FrameBufferBase;
     bootInfo.GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
@@ -202,29 +213,33 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
     if (EFI_ERROR(status))
     {
-        Print(L"Failed to acquire the memory map2: %r\n", status);
+        Print(L"Failed to acquire the memory map(2nd pass): %r\n", status);
         return status;
     }
-
-    bootInfo.MemoryMapInfo.PhysicalAddress = (uint64_t) pMemoryMap;
-    bootInfo.MemoryMapInfo.MemoryMapSize = szMemoryMap;
-    bootInfo.MemoryMapInfo.DescriptorSize = szDescriptor;
-    bootInfo.MemoryMapInfo.NumberOfEntries = szMemoryMap / szDescriptor;
-    bootInfo.MemoryMapInfo.DescriptorVersion = vDescriptor;
     
     // Call ExitBootServices, exiting UEFI Firmware completely. OS now has full control over memory hereafter.
     uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, kMapKey);
 
-    // Copy memory map to 4KiB physical
-    KrMemoryDescriptor* pDest = (KrMemoryDescriptor*) MEMORY_MAP_PHYSADDR;
-    for (uint64_t i = 0; i < bootInfo.MemoryMapInfo.NumberOfEntries; i++)
+    bootInfo.MemoryMapInfo.PhysicalAddress = MEMORY_MAP_ADDRESS;
+    bootInfo.MemoryMapInfo.EntryCount = szMemoryMap / szDescriptor;
+    bootInfo.MemoryMapInfo.MemoryMapSize = bootInfo.MemoryMapInfo.EntryCount * sizeof(KrMemoryDescriptor);
+    bootInfo.MemoryMapInfo.PageSize = 4096; // per UEFI MEMORY_DESCRIPTOR standard
+    bootInfo.MemoryMapInfo.Pad = 0;
+
+    KrMemoryDescriptor* pDescEntries = (KrMemoryDescriptor*) bootInfo.MemoryMapInfo.PhysicalAddress;
+    for (UINT64 i = 0; i < szMemoryMap / szDescriptor; i++)
     {
-        KrMemoryDescriptor* pDescriptor = ((KrMemoryDescriptor*) bootInfo.MemoryMapInfo.PhysicalAddress) + i;
-        *pDest++ = *pDescriptor;
+        EFI_MEMORY_DESCRIPTOR* pEfiDesc = (EFI_MEMORY_DESCRIPTOR*)(((UINT8*) pMemoryMap) + i * szDescriptor);
+        KrMemoryDescriptor* pDesc = pDescEntries + i;
+        pDesc->PhysicalBase = pEfiDesc->PhysicalStart;
+        pDesc->PageCount = pEfiDesc->NumberOfPages;
+        pDesc->Attributes = 0;
+        pDesc->Type = pEfiDesc->Type;
+        pDesc->Pad = 0;
     }
 
     // Clear interrupts and jump to BOOTELVT.
-    uint64_t szstruct=sizeof(KrSystemInfoPack);
+    UINT64 szstruct=sizeof(KrSystemInfoPack);
     __asm__ __volatile__ (
         "cli\n\t"
         "mov %[stack], %%rsp\n\t"
@@ -232,7 +247,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         "mov %[bootinfo], %%rsi\n\t"
         "jmp *%[bootelvt]\n\t"
          :
-         : [stack]    "r"(bootInfo.AddrInitialStack),
+         : [stack]    "r"(bootInfo.KernelStackPhysicalBase),
            [bootinfosize] "r"(szstruct),
            [bootinfo] "r"(&bootInfo),
            [bootelvt]   "r"(ldAddrBootelvt)

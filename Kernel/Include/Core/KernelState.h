@@ -1,24 +1,32 @@
 #ifndef YCH_KERNEL_KERNEL_STATE_H
 #define YCH_KERNEL_KERNEL_STATE_H
 
-#include "YchBootContract.h"
-
-#include <stdint.h>
+#include "Core/Fundtypes.h"
+#include "BootContract/BootContract.h"
 
 typedef enum
 {
     KR_VIDEO_OUTPUT_PROTOCOL_NULL,
-    KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT_PROTOCOL,
-    KR_VIDEO_OUTPUT_PROTOCOL_FRAMEBUFFER,
-    KR_VIDEO_OUTPUT_PROTOCOL_DRIVER
+    KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT,
+    KR_VIDEO_OUTPUT_PROTOCOL_VDDI,
+    KR_VIDEO_OUTPUT_PROTOCOL_TEXT_STREAM
 } KrVideoOutputProtocol;
 
 typedef struct
 {
-    uintptr_t AddrDescriptorTable;       // Address to GDT entries array
-    uint16_t  NumberOfDescriptorEntries; // NULL included
-    uint16_t  KernelCodeSegmentSelector;
-    uint16_t  KernelDataSegmentSelector;
+    USIZE   BinarySize;
+    USIZE   ReserveSize;
+
+    UINTPTR AddrPhysicalBase;
+    UINTPTR AddrVirtualBase;
+} KrLoadInfo;
+
+typedef struct
+{
+    UINTPTR AddrDescriptorTable;       // Address to GDT entries array
+    WORD    NumberOfDescriptorEntries; // NULL DESCRIPTOR included
+    WORD    KernelCodeSegmentSelector;
+    WORD    KernelDataSegmentSelector;
 } KrGlobalDescriptorTableState;
 
 typedef struct
@@ -30,14 +38,29 @@ typedef struct
 
 typedef struct
 {
-    /* Prekernel environment collected information by Bootloader. */
-    KrSystemInfoPack SystemInfoPack;
+    USIZE PageSize;       // Size in bytes per physical page.
+    USIZE TotalPages;     // Total amount of physical pages.
+    USIZE UnusablePages;  // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
+    USIZE AcquiredPages;  // Total amount of physical pages currently acquired and managed by Physmemmgmt.
+} KrStatePMM;
+
+typedef struct
+{
+    /** Kernel Load Information */
+    KrLoadInfo LoadInfo;
+
+    /** Memory Map */
+    KrMemoryMapInfo MemoryMapInfo;
+    KrMemoryDescriptor* MemoryMap;
+
+    /** Physmemmgmt */
+    KrStatePMM StatePMM;
 
     /** Global Descriptor Table Information */
     KrGlobalDescriptorTableState StateGDT;
 
     /** Interrupt Descriptor Table Information */
-    uintptr_t AddrIDT; // Address to IDT entries array.
+    UINTPTR AddrIDT; // Address to IDT entries array.
 
     /** Local APIC Information */
     KrLocalAPICState StateLocalAPIC;

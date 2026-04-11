@@ -1,16 +1,14 @@
 [org  0x100000]
 [bits 64]
 
+%include "../BootContract/Defines.asm"
+
 PAGE_HIERARCHY_ENTRY_COUNT equ 512
 PAGE_HIERARCHY_ENTRY_SIZE  equ 8
 PAGE_HIERARCHY_TOTAL_SIZE  equ (PAGE_HIERARCHY_ENTRY_COUNT * PAGE_HIERARCHY_ENTRY_SIZE)
-KERNEL_MAP_AT              equ 0xFFFFFFFF80000000
-FRAMEBUFFER_MAP_AT         equ 0xFFFFFFFFC0000000
 BOOT_INFO_MAGIC_OFFSET     equ 0
-BOOT_INFO_FBUF_OFFSET      equ 36
-BOOT_INFO_FBUFSZ_OFFSET    equ 44
-BOOT_INFO_MAGIC_VALUE      equ 0x4B594348 ; Used to test validity of given BOOT_INFO.
-KERNEL_RESERVE_SIZE        equ 128 * 1024 * 1024
+BOOT_INFO_FBUF_OFFSET      equ 68
+BOOT_INFO_FBUFSZ_OFFSET    equ (BOOT_INFO_FBUF_OFFSET + 8)
 
 PAT_UC      equ 0 ; Uncacheable
 PAT_WC      equ 1 ; Write-Combining
@@ -31,7 +29,7 @@ Bootelvt:
     REP MOVSB
 
     MOV EAX, [BOOT_INFO + BOOT_INFO_MAGIC_OFFSET]
-    CMP EAX, BOOT_INFO_MAGIC_VALUE
+    CMP EAX, SYSTEM_INFO_PACK_MAGIC
     JNE ProcessorHalt
 
     ; Setup PAT stage 1, disable caching
@@ -128,12 +126,12 @@ Bootelvt:
     MOV RAX, PML4
     MOV CR3, RAX  ; Load PML4 into CR3 (specifies physical address! fine because we are identity-mapped as of now.)
 
-    MOV RSP, (KERNEL_MAP_AT + KERNEL_RESERVE_SIZE - 16) ; Stack placed at the top of kernel reserved area.
+    MOV RSP, (KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE - 16) ; Stack placed at the top of kernel reserved area.
                                                         ; YchBootContract specifies: When bootloader transfers control to the Kernel
                                                         ; the stack is set to or near ADDR_LOAD_KERNEL(phys or virt) + KERNEL_RESERVE_SIZE.
                                                         ; The reserved stack space is always 2MiB at the very end no matter exact location.
                                                         ; In accordance to this, we put it quite near the top. 
-    MOV RAX, KERNEL_MAP_AT
+    MOV RAX, KERNEL_VIRTUAL_ADDRESS
     MOV RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
     JMP RAX ; KrKernelStart
 

@@ -24,7 +24,6 @@ void KrLoadInterruptDescriptorTable(const KrInterruptDescriptorTableRegister* rD
     __asm__ __volatile__
     (
         "lidt %0\n\t"
-        "sti"
          :
          : "m"(*rData)
     );
