@@ -23,7 +23,9 @@ SECTIONS
 
     .bss ALIGN(16) :
     {
+        __KR_LINK_BSS_START = .;
         *(COMMON)
         *(.bss*)
+        __KR_LINK_BSS_END = .;
     }
 }

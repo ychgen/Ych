@@ -46,6 +46,9 @@ typedef struct
 
 typedef struct
 {
+    /** If TRUE, kernel has entered Kernel Meltdown. Only God can help us. */
+    BOOL       bMeltdown;
+
     /** Kernel Load Information */
     KrLoadInfo LoadInfo;
 

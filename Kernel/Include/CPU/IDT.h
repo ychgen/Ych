@@ -1,7 +1,7 @@
 #ifndef YCH_KERNEL_CPU_IDT_H
 #define YCH_KERNEL_CPU_IDT_H
 
-#include <stdint.h>
+#include "Core/Fundtypes.h"
 
 #define KR_INTERRUPT_DESCRIPTOR_ENTRY_SIZE        16
 #define KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES 256
@@ -12,23 +12,23 @@
 
 typedef struct __attribute__((packed))
 {
-    uint16_t OffsetLow;
-    uint16_t SegmentSelector;
-    uint8_t  IST;
-    uint8_t  Attributes;
-    uint16_t OffsetMid;
-    uint32_t OffsetHigh;
-    uint32_t Reserved;
+    WORD  OffsetLow;
+    WORD  SegmentSelector;
+    BYTE  IST;
+    BYTE  Attributes;
+    WORD  OffsetMid;
+    DWORD OffsetHigh;
+    DWORD Reserved;
 } KrInterruptDescriptor;
 
 typedef struct __attribute__((packed))
 {
-    uint16_t Limit;
-    uint64_t Base;
+    WORD  Limit;
+    QWORD Base;
 } KrInterruptDescriptorTableRegister;
 
-void KrEncodeInterruptDescriptor(void* pDest, uint64_t offset, uint16_t ssl, uint8_t ist, uint8_t gateType, uint8_t dpl);
-KrInterruptDescriptor KrConstructInterruptDescriptor(uint64_t offset, uint16_t ssl, uint8_t ist, uint8_t gateType, uint8_t dpl);
+void KrEncodeInterruptDescriptor(void* pDest, QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl);
+KrInterruptDescriptor KrConstructInterruptDescriptor(QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl);
 void KrLoadInterruptDescriptorTable(const KrInterruptDescriptorTableRegister* rData);
 
 #endif // !YCH_KERNEL_CPU_IDT_H

@@ -1,8 +1,8 @@
 #include "KRTL/Krnlmem.h"
 
-void* KrtlContiguousSetBuffer(void* pDest, uint8_t uVal, size_t N)
+void* KrtlContiguousSetBuffer(void* pDest, BYTE uVal, USIZE N)
 {
-    unsigned char* pDestBytes = (unsigned char*) pDest;
+    BYTE* pDestBytes = (BYTE*) pDest;
     while (N--)
     {
         *pDestBytes++ = uVal;
@@ -10,15 +10,15 @@ void* KrtlContiguousSetBuffer(void* pDest, uint8_t uVal, size_t N)
     return pDest;
 }
 
-void* KrtlContiguousZeroBuffer(void* pDest, size_t N)
+void* KrtlContiguousZeroBuffer(void* pDest, USIZE N)
 {
     return KrtlContiguousSetBuffer(pDest, 0x00, N);
 }
 
-void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, size_t N)
+void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, USIZE N)
 {
-    unsigned char* restrict pDestBytes = (unsigned char* restrict) pDest;
-    const unsigned char* restrict pSrcBytes = (const unsigned char* restrict) pSrc;
+    BYTE* restrict pDestBytes = (BYTE* restrict) pDest;
+    const BYTE* restrict pSrcBytes = (const BYTE* restrict) pSrc;
 
     while (N--)
     {
@@ -28,10 +28,10 @@ void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, 
     return pDest;
 }
 
-void* KrtlContiguousMoveBuffer(void* pDest, const void* pSrc, size_t N)
+void* KrtlContiguousMoveBuffer(void* pDest, const void* pSrc, USIZE N)
 {
-    unsigned char* pDestBytes = (unsigned char*) pDest;
-    const unsigned char* pSrcBytes = (const unsigned char*)pSrc;
+    BYTE* pDestBytes = (BYTE*) pDest;
+    const BYTE* pSrcBytes = (const BYTE*)pSrc;
 
     if (pDestBytes == pSrcBytes || N == 0)
         return pDest;

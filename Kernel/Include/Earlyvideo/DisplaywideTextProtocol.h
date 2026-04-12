@@ -16,6 +16,7 @@
 #define KRDWTP_COLOR_GREEN  KRDWTP_MAKE_COLOR(0x00,0xFF,0x00,0xFF)
 #define KRDWTP_COLOR_BLUE   KRDWTP_MAKE_COLOR(0x00,0x00,0xFF,0xFF)
 #define KRDWTP_COLOR_YELLOW KRDWTP_MAKE_COLOR(0xFF,0xFF,0x00,0xFF)
+#define KRDWTP_COLOR_PINK   KRDWTP_MAKE_COLOR(0xFF,0x00,0xFF,0xFF)
 #define KRDWTP_COLOR_CYAN   KRDWTP_MAKE_COLOR(0x00,0xFF,0xFF,0xFF)
 
 #define KRDWTP_COLOR_DARK_RED KRDWTP_MAKE_COLOR(0x80,0x00,0x00,0xFF)
@@ -33,6 +34,8 @@ KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFon
 
 typedef struct
 {
+    BOOL    bIsActive;
+
     DWORD   FrameBufferWidth;
     DWORD   FrameBufferHeight;
     DWORD   PixelsPerScanLine;

@@ -12,7 +12,7 @@ void KrInitBootstrapArena(void* pBase, USIZE szArena)
 
 void* KrBootstrapArenaAcquire(USIZE N)
 {
-    if ((UINTPTR)(g_pBootstrapArenaPtr + N) >= (UINTPTR) g_pBootstrapArenaEnd)
+    if (!N || (UINTPTR)(g_pBootstrapArenaPtr + N) >= (UINTPTR) g_pBootstrapArenaEnd)
     {
         return NULLPTR;
     }

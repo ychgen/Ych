@@ -5,8 +5,8 @@
 #include "Core/KernelState.h"
 #include "CPU/Halt.h"
 
-#define MDMSGPREFIX  "\n!!!KERNEL MELTDOWN!!!\nMDCODE=0x%RX,MDDESC=`%s`\n"
-#define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nHard reset your machine.\n"
+#define MDMSGPREFIX  "\n!!!KERNEL MELTDOWN!!!\nMDCODE=0x%RX(%s),MDDESC=`%s`\n"
+#define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, hard reset your machine.\n"
 
 const char* Krnlmddesc(meltdowncode_t code)
 {
@@ -15,8 +15,12 @@ const char* Krnlmddesc(meltdowncode_t code)
     #define mkcase(x) case x: return #x
         /** PROCESSOR */
         mkcase(KR_MELTDOWN_CODE_CRITICAL_PROCESSOR_INTERRUPT);
+        /** MEMORY */
+        mkcase(KR_MELTDOWN_CODE_PHYSMEMMGMT_INIT_FAILURE);
+        mkcase(KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE);
         /** DEBUG */
         mkcase(KR_MELTDOWN_CODE_GENERAL_DEBUG);
+        mkcase(KR_MELTDOWN_CODE_KERNEL_START_RETURNS);
     #undef mkcase
     default: break;
     }
@@ -26,12 +30,10 @@ const char* Krnlmddesc(meltdowncode_t code)
 __attribute__((noreturn))
 void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnapshot* pSnapshot)
 {
-    uint64_t mdcode = (uint64_t) code;
-    if (!pDesc)
-    {
-        pDesc = Krnlmddesc(code);
-    }
+    __asm__ __volatile__("cli\n\t");
+    g_KernelState.bMeltdown = TRUE;
 
+    uint64_t mdcode = (uint64_t) code;
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
         // Clear fbuf and move cursor to start.
@@ -49,7 +51,7 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
                 "RFLAGS=0x%RX\nRIP=0x%RX\n"
                  MDMSGPOSTFIX,
 
-                mdcode, pDesc,
+                mdcode, Krnlmddesc(code), pDesc,
                 pSnapshot->R15, pSnapshot->R14, pSnapshot->R13, pSnapshot->R12,
                 pSnapshot->R11, pSnapshot->R10, pSnapshot->R9,  pSnapshot->R8,
                 pSnapshot->RDI, pSnapshot->RSI, pSnapshot->RBP, pSnapshot->RDX,
@@ -59,13 +61,16 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
         }
         else
         {
-            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdcode, pDesc);
+            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdcode, Krnlmddesc(code), pDesc);
         }
     }
 
 
     // Since frame buffer is mapped as WC (Write-Combining), let's wait until all that is flushed, and only then halt.
-    __asm__ __volatile__ ("sfence" ::: "memory");
+    __asm__ __volatile__ ("sfence\n\t" ::: "memory");
     // Halt indefinitely.
-    KrProcessorHalt();
+    while (1)
+    {
+        __asm__ __volatile__("cli\n\thlt\n\t");
+    }
 }

@@ -80,8 +80,8 @@ void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
     const char  pDescMsg[] = "Unhandled critical processor exception: ";
     const char* pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
     
-    const size_t szMsg = sizeof(pDescMsg) - 1;
-    const size_t szKod = KrtlStringLength(pDescKod);
+    const USIZE szMsg = sizeof(pDescMsg) - 1;
+    const USIZE szKod = KrtlStringLength(pDescKod);
     
     char pDesc[128];
     KrtlContiguousCopyBuffer(pDesc, pDescMsg, szMsg);

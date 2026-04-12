@@ -16,6 +16,9 @@
 #include "Memory/Physmemmgmt.h"
 #include "KRTL/Krnlmem.h"
 
+extern char __KR_LINK_BSS_START[];
+extern char __KR_LINK_BSS_END[];
+
 __attribute__((section(".text.KrKernelStart"), noreturn))
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
@@ -29,6 +32,9 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         // So we just halt... quietly.
         KrProcessorHalt();
     }
+
+    // Zero the BSS section.
+    KrtlContiguousZeroBuffer(__KR_LINK_BSS_START, (USIZE)(__KR_LINK_BSS_END - __KR_LINK_BSS_START));
 
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
@@ -56,7 +62,7 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         KrGraphicsInfo* pGraphicsInfo = &SysInfoPack.GraphicsInfo;
 
         KrdwtpInitializeDefaultFonts();
-        if (pGraphicsInfo->FramebufferWidth >= 1920 && pGraphicsInfo->FramebufferHeight >= 1080)
+        if (pGraphicsInfo->FramebufferWidth >= 2560 && pGraphicsInfo->FramebufferHeight >= 1440)
         {
             // 4K... But why would you, anyway...
             if (pGraphicsInfo->FramebufferWidth >= 3840 || pGraphicsInfo->FramebufferHeight >= 2160)
@@ -108,14 +114,43 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
     KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (void*) g_KernelState.StateLocalAPIC.BaseAddrPhysical);
 
+    // Initialize Physical Memory Management
     if (!KrInitPhysmemmgmt())
     {
-        KrdwtpOutColoredText("Failed to initialize Physmemmgmt!", KRDWTP_COLOR_RED, KRDWTP_FOREGROUND);
         meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_INIT_FAILURE;
-        const char* pDesc = NULL;
+        const char* pDesc = "Failed to initialize Physmemmgmt.";
         Krnlmeltdownimm(code, pDesc);
     }
     KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutFormatText
+    (
+        "Physical Memory Information:\n"
+        " -> Total Pages: %Ru (%Ru MiB) \n"
+        " -> Unusable Pages: %Ru (%Ru MiB)\n"
+        " -> Total Usable Pages: %Ru (%Ru MiB)\n",
+        g_KernelState.StatePMM.TotalPages, g_KernelState.StatePMM.TotalPages * g_KernelState.StatePMM.PageSize / 1024 / 1024,
+        g_KernelState.StatePMM.UnusablePages, g_KernelState.StatePMM.UnusablePages * g_KernelState.StatePMM.PageSize / 1024 / 1024,
+        (g_KernelState.StatePMM.TotalPages - g_KernelState.StatePMM.UnusablePages), (g_KernelState.StatePMM.TotalPages - g_KernelState.StatePMM.UnusablePages) * g_KernelState.StatePMM.PageSize / 1024 / 1024
+    );
+
+    // Test acquisition/relinquishment
+    {
+        PAGEID TestPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
+        if (TestPageID == KR_INVALID_PAGEID)
+        {
+            meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE;
+            const char* pDesc = "Test page acquisition from Physmemmgmt failed!";
+            Krnlmeltdownimm(code, pDesc);
+        }
+        KrdwtpOutFormatText("Acquired test page from Physmemmgmt: ID = %Ru, Address = %p\n", TestPageID, KrGetPhysicalPageAddress(TestPageID));
+        if (!KrRelinquishPhysicalPage(TestPageID))
+        {
+            meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE;
+            const char* pDesc = "Test page relinquishment to Physmemmgmt failed!";
+            Krnlmeltdownimm(code, pDesc);
+        }
+        KrdwtpOutColoredText("Relinquished test page to Physmemmgmt.\n", KRDWTP_COLOR_CYAN, KRDWTP_FOREGROUND);
+    }
 
     // ======= STOP HERE =========== //
     KrProcessorHalt();

@@ -1,6 +1,6 @@
 #include "CPU/IDT.h"
 
-void KrEncodeInterruptDescriptor(void* pDest, uint64_t offset, uint16_t ssl, uint8_t ist, uint8_t gateType, uint8_t dpl)
+void KrEncodeInterruptDescriptor(void* pDest, QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl)
 {
     KrInterruptDescriptor* desc = (KrInterruptDescriptor*) pDest;
     desc->OffsetLow = offset & 0xFFFF; // low 16 bits
@@ -12,7 +12,7 @@ void KrEncodeInterruptDescriptor(void* pDest, uint64_t offset, uint16_t ssl, uin
     desc->Reserved = 0;
 }
 
-KrInterruptDescriptor KrConstructInterruptDescriptor(uint64_t offset, uint16_t ssl, uint8_t ist, uint8_t gateType, uint8_t dpl)
+KrInterruptDescriptor KrConstructInterruptDescriptor(QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl)
 {
     KrInterruptDescriptor desc;
     KrEncodeInterruptDescriptor(&desc, offset, ssl, ist, gateType, dpl);

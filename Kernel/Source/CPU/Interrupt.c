@@ -61,22 +61,22 @@ void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     }
 }
 
-bool KrRegisterInterruptHandler(uint8_t interruptNo, KrInterruptHandler pHandler)
+BOOL KrRegisterInterruptHandler(uint8_t interruptNo, KrInterruptHandler pHandler)
 {
     if (g_pInterruptHandlers[interruptNo])
     {
-        return false;
+        return FALSE;
     }
     g_pInterruptHandlers[interruptNo] = pHandler;
-    return true;
+    return TRUE;
 }
 
-bool KrUnregisterInterruptHandler(uint8_t interruptNo)
+BOOL KrUnregisterInterruptHandler(uint8_t interruptNo)
 {
     if (g_pInterruptHandlers[interruptNo])
     {
-        g_pInterruptHandlers[interruptNo] = NULL;
-        return true;
+        g_pInterruptHandlers[interruptNo] = NULLPTR;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }

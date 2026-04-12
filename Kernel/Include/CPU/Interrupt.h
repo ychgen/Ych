@@ -3,9 +3,6 @@
 
 #include "CPU/ProcessorSnapshot.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #define KR_PROCESSOR_RESERVED_INTERRUPT_COUNT           32
 #define KR_INTERRUPTNO_DIVIDE_BY_ZERO                   0
 #define KR_INTERRUPTNO_DEBUG_EXCEPTION                  1
@@ -37,17 +34,17 @@
 
 typedef struct
 {
-    uint64_t R15, R14, R13, R12, R11, R10, R9, R8;
-    uint64_t RDI, RSI, RBP, RDX, RCX, RBX, RAX;
+    QWORD R15, R14, R13, R12, R11, R10, R9, R8;
+    QWORD RDI, RSI, RBP, RDX, RCX, RBX, RAX;
 
-    uint64_t InterruptNo;
-    uint64_t ErrorCode;
+    QWORD InterruptNo;
+    QWORD ErrorCode;
 
-    uint64_t RIP;
-    uint64_t CS;
-    uint64_t RFLAGS;
-    uint64_t RSP;
-    uint64_t SS;
+    QWORD RIP;
+    QWORD CS;
+    QWORD RFLAGS;
+    QWORD RSP;
+    QWORD SS;
 } KrInterruptFrame;
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame);
 
@@ -57,8 +54,8 @@ void KrInitializeInterruptSystem(void);
 // Called by ISRs after setting up iFrame.
 void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame);
 
-bool KrRegisterInterruptHandler(uint8_t interruptNo, KrInterruptHandler pHandler);
+BOOL KrRegisterInterruptHandler(BYTE interruptNo, KrInterruptHandler pHandler);
 // USE CAREFULLY!
-bool KrUnregisterInterruptHandler(uint8_t interruptNo);
+BOOL KrUnregisterInterruptHandler(BYTE interruptNo);
 
 #endif // !YCH_KERNEL_CPU_INTERRUPT_H

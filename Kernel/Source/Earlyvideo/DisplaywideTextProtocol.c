@@ -14,6 +14,7 @@ KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFon
 
 void KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, DWORD FramebufferWidth, DWORD FramebufferHeight, DWORD PixelsPerScanLine)
 {
+    g_ProtocolState.bIsActive         = TRUE;
     g_ProtocolState.FrameBufferWidth  = FramebufferWidth;
     g_ProtocolState.FrameBufferHeight = FramebufferHeight;
     g_ProtocolState.PixelsPerScanLine = PixelsPerScanLine;
@@ -122,7 +123,7 @@ void KrdwtpOutColoredCharacter(char Char, DWORD ForegroundColor, DWORD Backgroun
                     DWORD dwFramebufferOffsetY = dwStartY + dwRow * pFont->ScaleFactor + dwScalarY;
                     DWORD dwFramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + dwScalarX;
                     ((DWORD*) g_ProtocolState.AddrFrameBuffer)[dwFramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + dwFramebufferOffsetX]
-                        = pxlit ? ForegroundColor : BackgroundColor;
+                        = pxlit ? (ForegroundColor) : BackgroundColor;
                 }
             }
         }
