@@ -7,7 +7,7 @@ QWORD KrReadModelSpecificRegister(DWORD idRegister)
     return ((QWORD) hidword << 32) | lodword;
 }
 
-void KrWriteModelSpecificRegister(DWORD idRegister, DWORD data)
+void KrWriteModelSpecificRegister(DWORD idRegister, QWORD data)
 {
     DWORD lodword = (DWORD) data;
     DWORD hidword = (DWORD)(data >> 32);

@@ -5,9 +5,6 @@
 #include "Memory/BootstrapArena.h"
 #include "KRTL/Krnlmem.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"
-#include "CPU/Halt.h"
-
 // The advisory bitmap, once initialized, is mostly static. Its primary job is to prevent reserved pages from being relinquished.
 BYTE*   g_pAdvisoryBitmap;
 // The dynamic bitmap that changes with acquisitions and relinquishments.
@@ -163,6 +160,7 @@ Hunt:
                 if (KrSetPhysicalPageStatus(g_pBitmap, PageID, 1, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE))
                 {
                     g_idPageAcqHint = PageID + 1;
+                    g_KernelState.StatePMM.AcquiredPages++;
                     return PageID;
                 }
                 // continue seeking if this one couldnt be acquired
@@ -199,6 +197,7 @@ BOOL KrRelinquishPhysicalPage(PAGEID idPage)
     if (RegionData & (1 << BitOffset))
     {
         g_pBitmap[Index] &= ~(1 << BitOffset);
+        g_KernelState.StatePMM.AcquiredPages--;
         return TRUE;
     }
 
@@ -221,7 +220,7 @@ BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, USIZE N, BYTE Status
     if (BitOffset)
     {
         BYTE Value = *pRegion;
-        for (BitOffset; BitOffset < 8 && N; BitOffset++, N--, iCurrent++)
+        for (; BitOffset < 8 && N; BitOffset++, N--, iCurrent++)
         {
             if (Status)
             {
@@ -235,7 +234,28 @@ BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, USIZE N, BYTE Status
         *pRegion++ = Value;
     }
 
-    // Bulk write
+    // Bulk writes
+    while (N >= 64)
+    {
+        *((QWORD*) pRegion) = Status ? 0xFFFFFFFFFFFFFFFF : 0;
+        pRegion += 8;
+        iCurrent += 64;
+        N -= 64;
+    }
+    while (N >= 32)
+    {
+        *((DWORD*) pRegion) = Status ? 0xFFFFFFFF : 0;
+        pRegion += 4;
+        iCurrent += 32;
+        N -= 32;
+    }
+    while (N >= 16)
+    {
+        *((WORD*) pRegion) = Status ? 0xFFFF : 0;
+        pRegion += 2;
+        iCurrent += 16;
+        N -= 16;
+    }
     while (N >= 8)
     {
         *pRegion++ = Status ? 0xFF : 0x00;
@@ -289,6 +309,7 @@ BOOL KrReservePhysicalPage(PAGEID idPage)
         return FALSE;
     }
     g_pAdvisoryBitmap[Index] |= (1 << Offset);
+    g_KernelState.StatePMM.UnusablePages++;
     return TRUE;
 }
 

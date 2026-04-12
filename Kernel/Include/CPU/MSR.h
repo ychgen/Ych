@@ -6,6 +6,6 @@
 // `RDMSR`
 QWORD KrReadModelSpecificRegister(DWORD idRegister);
 // `WRMSR`
-void  KrWriteModelSpecificRegister(DWORD idRegister, DWORD data);
+void  KrWriteModelSpecificRegister(DWORD idRegister, QWORD data);
 
 #endif // !YCH_KERNEL_CPU_MSR_H

@@ -14,8 +14,10 @@
 
 #include "Memory/BootstrapArena.h"
 #include "Memory/Physmemmgmt.h"
+#include "Memory/Virtmemmgmt.h"
 #include "KRTL/Krnlmem.h"
 
+/** Defined by the linker (see `Kernel.ld` linker script used to link the kernel). */
 extern char __KR_LINK_BSS_START[];
 extern char __KR_LINK_BSS_END[];
 
