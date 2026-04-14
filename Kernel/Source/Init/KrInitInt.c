@@ -15,7 +15,7 @@
 
 __attribute__((aligned(16))) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
-static const char* g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
+static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
 {
     "Divide-by-Zero",
     "Debug Exception",
@@ -43,10 +43,10 @@ static const char* g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTE
     "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved"
 };
 
-void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
-void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
+VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
+VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
-void KrInitInt(void)
+VOID KrInitInt(VOID)
 {
     EncodeAllISRs(); // 0 to 2 and 4 to 255
     KrEncodeInterruptDescriptor(g_krInterruptDescriptorTable + 3, (uint64_t) KrInterruptServiceRoutine_3, g_KernelState.StateGDT.KernelCodeSegmentSelector, 0, KR_GATE_TYPE_TRAP, 0);
@@ -75,13 +75,13 @@ void KrInitInt(void)
     }
 }
 
-void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
+VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
-    const char  pDescMsg[] = "Unhandled critical processor exception: ";
-    const char* pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
+    CHAR  pDescMsg[] = "Unhandled critical processor exception: ";
+    CSTR  pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
     
-    const USIZE szMsg = sizeof(pDescMsg) - 1;
-    const USIZE szKod = KrtlStringLength(pDescKod);
+    const SIZE szMsg = sizeof(pDescMsg) - 1;
+    const SIZE szKod = KrtlStringSize(pDescKod);
     
     char pDesc[128];
     KrtlContiguousCopyBuffer(pDesc, pDescMsg, szMsg);
@@ -89,11 +89,11 @@ void KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
     
     // Kernel meltdown (panic)
     KrProcessorSnapshot snapshot = KrInterruptFrameToProcessorSnapshot(pInterruptFrame);
-    Krnlmeltdown(KR_MELTDOWN_CODE_CRITICAL_PROCESSOR_INTERRUPT, pDesc, &snapshot);
+    Krnlmeltdown(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION, pDesc, &snapshot);
 }
 
-void KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
+VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     // TODO: Log
-    (void)(pInterruptFrame);
+    (VOID)(pInterruptFrame);
 }

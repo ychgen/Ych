@@ -10,16 +10,16 @@ BYTE*   g_pAdvisoryBitmap;
 // The dynamic bitmap that changes with acquisitions and relinquishments.
 BYTE*   g_pBitmap;
 // Size of the bitmap in bytes.
-USIZE   g_szBitmap;
+SIZE   g_szBitmap;
 // Number of page entries in the bitmap itself, not ones described by the map.
-USIZE   g_noPages;
+SIZE   g_noPages;
 // Highest address ever discovered, calculated via `Base + PageCount * PageSize` on a map entry.
 UINTPTR g_AddrHighestDiscovered;
 // Page acquisition hint for performance.
 PAGEID  g_idPageAcqHint;
 
 // Starting from page idStart, it sets N pages to Status.
-BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, USIZE N, BYTE Status);
+BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, SIZE N, BYTE Status);
 
 BOOL KrInitPhysmemmgmt(void)
 {
@@ -98,7 +98,7 @@ BOOL KrInitPhysmemmgmt(void)
         case KR_MEMORY_TYPE_CONVENTIONAL_MEMORY:
         case KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY:
         {
-            USIZE idPage = pDesc->PhysicalBase / g_KernelState.StatePMM.PageSize;
+            SIZE idPage = pDesc->PhysicalBase / g_KernelState.StatePMM.PageSize;
             if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
             {
                 // If no acquisition hint yet set, use this one.
@@ -123,7 +123,7 @@ BOOL KrInitPhysmemmgmt(void)
     // Mark all memory under 1MiB as unavailable.
     // There are two reasons for this:
     //   - We should always reserve the first page, so we can have sane null pointer semantics.
-    //   - Under 1MiB is IBM PC legacy mess. Better to not wake up the 1980s ghosts.
+    //   - Under 1MiB is IBM PC cluster fuck area. Better to not wake up the 1980s ghosts.
     KrSetPhysicalPageStatus(g_pAdvisoryBitmap, 0, (1024 * 1024) / g_KernelState.StatePMM.PageSize, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
 
     // Now we'll create the dynamic bitmap and copy the advisory one as its initial state.
@@ -149,7 +149,7 @@ PAGEID KrAcquirePhysicalPage(PAGEID idHint)
     }
     
 Hunt:
-    for (USIZE i = PageID / 8; i < g_szBitmap && (bIsReroll ? PageID < InitialSearchID : TRUE); i++)
+    for (SIZE i = PageID / 8; i < g_szBitmap && (bIsReroll ? PageID < InitialSearchID : TRUE); i++)
     {
         BYTE* pRegion = g_pBitmap + i;
         for (BYTE BitOffset = PageID % 8; BitOffset < 8; BitOffset++, PageID++)
@@ -186,7 +186,7 @@ BOOL KrRelinquishPhysicalPage(PAGEID idPage)
         return FALSE;
     }
 
-    USIZE Index = idPage / 8;
+    SIZE Index = idPage / 8;
     if (Index >= g_szBitmap)
     {
         return FALSE;
@@ -205,18 +205,18 @@ BOOL KrRelinquishPhysicalPage(PAGEID idPage)
 }
 
 // internal function, doesn't care about permissions, sets directly.
-BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, USIZE N, BYTE Status)
+BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, SIZE N, BYTE Status)
 {
     if (idStart + N > g_noPages)
     {
         return FALSE;
     }
 
-    USIZE iCurrent = idStart;
+    SIZE iCurrent = idStart;
     BYTE* pRegion = pBitmap + (iCurrent / 8);
 
     // Unaligned start
-    USIZE BitOffset = iCurrent % 8;
+    SIZE BitOffset = iCurrent % 8;
     if (BitOffset)
     {
         BYTE Value = *pRegion;
@@ -301,8 +301,8 @@ BOOL KrReservePhysicalPage(PAGEID idPage)
     {
         return FALSE;
     }
-    USIZE Index = idPage / 8;
-    USIZE Offset = idPage % 8;
+    SIZE Index = idPage / 8;
+    SIZE Offset = idPage % 8;
     // First check if the page is acquired at all.
     if (!((g_pBitmap[Index]) & (1 << Offset)))
     {

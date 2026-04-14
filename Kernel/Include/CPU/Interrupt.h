@@ -19,7 +19,7 @@
 #define KR_INTERRUPTNO_STACK_SEGMENT_FAULT              12
 #define KR_INTERRUPTNO_GENERAL_PROTECTION_FAULT         13
 #define KR_INTERRUPTNO_PAGE_FAULT                       14
-// reserved 15
+//                                             reserved 15
 #define KR_INTERRUPTNO_X87_FPU_FLOATING_POINT_ERROR     16
 #define KR_INTERRUPTNO_ALIGNMENT_CHECK                  17
 #define KR_INTERRUPTNO_MACHINE_CHECK                    18
@@ -37,8 +37,8 @@ typedef struct
     QWORD R15, R14, R13, R12, R11, R10, R9, R8;
     QWORD RDI, RSI, RBP, RDX, RCX, RBX, RAX;
 
-    QWORD InterruptNo;
-    QWORD ErrorCode;
+    ULONG InterruptNo;
+    ULONG ErrorCode;
 
     QWORD RIP;
     QWORD CS;
@@ -48,11 +48,11 @@ typedef struct
 } KrInterruptFrame;
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame);
 
-typedef void(*KrInterruptHandler)(const KrInterruptFrame* pInterruptFrame);
+typedef VOID(*KrInterruptHandler)(const KrInterruptFrame* pInterruptFrame);
 
-void KrInitializeInterruptSystem(void);
+VOID KrInitializeInterruptSystem(VOID);
 // Called by ISRs after setting up iFrame.
-void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame);
+VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame);
 
 BOOL KrRegisterInterruptHandler(BYTE interruptNo, KrInterruptHandler pHandler);
 // USE CAREFULLY!

@@ -6,29 +6,29 @@
 #include "CPU/Halt.h"
 
 #define MDMSGPREFIX  "\n!!!KERNEL MELTDOWN!!!\nMDCODE=0x%RX(%s),MDDESC=`%s`\n"
-#define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, hard reset your machine.\n"
+#define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, only God can resurrect the system as-is.\nHard reset your machine, the system is now halted.\n"
 
-const char* Krnlmddesc(meltdowncode_t code)
+CSTR Krnlmddesc(MDCODE code)
 {
     switch (code)
     {
     #define mkcase(x) case x: return #x
         /** PROCESSOR */
-        mkcase(KR_MELTDOWN_CODE_CRITICAL_PROCESSOR_INTERRUPT);
+        mkcase(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION);
         /** MEMORY */
-        mkcase(KR_MELTDOWN_CODE_PHYSMEMMGMT_INIT_FAILURE);
-        mkcase(KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE);
+        mkcase(KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE);
+        mkcase(KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE);
         /** DEBUG */
-        mkcase(KR_MELTDOWN_CODE_GENERAL_DEBUG);
-        mkcase(KR_MELTDOWN_CODE_KERNEL_START_RETURNS);
+        mkcase(KR_MDCODE_GENERAL_DEBUG);
+        mkcase(KR_MDCODE_KERNEL_START_RETURNS);
     #undef mkcase
     default: break;
     }
-    return "IVLDMDCODE";
+    return "IVLDMDCODE"; // InVaLiD MeltDown CODE
 }
 
 __attribute__((noreturn))
-void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnapshot* pSnapshot)
+VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot)
 {
     __asm__ __volatile__("cli\n\t");
     g_KernelState.bMeltdown = TRUE;

@@ -12,7 +12,7 @@
 #include "CPU/ProcessorSnapshot.h"
 
 // MDCODE descriptor
-const char* Krnlmddesc(meltdowncode_t code);
+CSTR Krnlmddesc(MDCODE code);
 
 /**
  * @brief Triggers a kernel meltdown (kernel panic), ceasing all normal kernel functionality.
@@ -22,13 +22,13 @@ const char* Krnlmddesc(meltdowncode_t code);
  * @param pDesc Detailed description about this crash. Leave as NULL for kernel to populate it if `code` is a standard meltdown code.
  * @param pSnapshot The snapshot of the processor at the moment of error.
  */
-void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnapshot* pSnapshot) __attribute__((noreturn));
+VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot) __attribute__((noreturn));
 
 /**
  * This macro takes an instant snapshot of the processor and invokes Krnlmeltdown, causing a kernel meltdown.
- * NOTE: parameters `code` and `pDesc` must be in memory, you cannot use constants.
+ * NOTE: parameters `mdCode` and `pMdDesc` must be in memory, you cannot use constants.
  */
-#define Krnlmeltdownimm(code, pDesc) (void)(&code); (void)(&pDesc); /*if in mem, noop. if not in mem, compile error. small enforcement to catch literal and NULL passes*/ \
+#define Krnlmeltdownimm(mdCode, pMdDesc) (VOID)(&mdCode); (VOID)(&pMdDesc); /*if in mem, noop. if not in mem, compile error. small enforcement to catch literal and NULL passes*/ \
     __asm__ __volatile__ (                       \
     "cli\n\t"                                    \
     "call 1f\n\t"                                \
@@ -60,7 +60,7 @@ void Krnlmeltdown(meltdowncode_t code, const char* pDesc, const KrProcessorSnaps
     "movq %1, %%rsi\n\t"                         \
     "movq %%rsp, %%rdx\n\t"                      \
     "jmp Krnlmeltdown\n\t"                       \
-    : : "m"(code), "m"(pDesc) :                  \
+    : : "m"(mdCode), "m"(pMdDesc) :                  \
     "rax", "rbx", "rcx", "rdx",        "rsi",   \
     "rdi", "r8", "r9", "r10", "r11", "r12",      \
     "r13", "r14", "r15", "memory"                \

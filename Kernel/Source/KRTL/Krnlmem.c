@@ -1,24 +1,24 @@
 #include "KRTL/Krnlmem.h"
 
-void* KrtlContiguousSetBuffer(void* pDest, BYTE uVal, USIZE N)
+VOID* KrtlContiguousSetBuffer(VOID* pDest, BYTE Value, SIZE N)
 {
     BYTE* pDestBytes = (BYTE*) pDest;
     while (N--)
     {
-        *pDestBytes++ = uVal;
+        *pDestBytes++ = Value;
     }
     return pDest;
 }
 
-void* KrtlContiguousZeroBuffer(void* pDest, USIZE N)
+VOID* KrtlContiguousZeroBuffer(VOID* pDest, SIZE N)
 {
     return KrtlContiguousSetBuffer(pDest, 0x00, N);
 }
 
-void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, USIZE N)
+VOID* KrtlContiguousCopyBuffer(VOID* restrict pDest, const VOID* restrict pSrc, SIZE N)
 {
-    BYTE* restrict pDestBytes = (BYTE* restrict) pDest;
-    const BYTE* restrict pSrcBytes = (const BYTE* restrict) pSrc;
+          BYTE* restrict pDestBytes = (      BYTE* restrict) pDest;
+    const BYTE* restrict pSrcBytes  = (const BYTE* restrict) pSrc;
 
     while (N--)
     {
@@ -28,13 +28,15 @@ void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, 
     return pDest;
 }
 
-void* KrtlContiguousMoveBuffer(void* pDest, const void* pSrc, USIZE N)
+VOID* KrtlContiguousMoveBuffer(VOID* pDest, const VOID* pSrc, SIZE N)
 {
-    BYTE* pDestBytes = (BYTE*) pDest;
-    const BYTE* pSrcBytes = (const BYTE*)pSrc;
+          BYTE* pDestBytes = (      BYTE*) pDest;
+    const BYTE* pSrcBytes  = (const BYTE*) pSrc;
 
     if (pDestBytes == pSrcBytes || N == 0)
+    {
         return pDest;
+    }
 
     if (pDestBytes < pSrcBytes)
     {

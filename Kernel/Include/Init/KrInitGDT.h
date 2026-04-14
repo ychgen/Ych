@@ -1,6 +1,8 @@
 #ifndef YCH_KERNEL_INIT_KR_INIT_GDT_H
 #define YCH_KERNEL_INIT_KR_INIT_GDT_H
 
-void KrInitGDT(void);
+#include "Krnlych.h"
+
+VOID KrInitGDT(VOID);
 
 #endif // !YCH_KERNEL_INIT_KR_INIT_GDT_H

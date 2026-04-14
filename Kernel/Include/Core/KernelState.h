@@ -1,7 +1,7 @@
 #ifndef YCH_KERNEL_KERNEL_STATE_H
 #define YCH_KERNEL_KERNEL_STATE_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 #include "BootContract/BootContract.h"
 
 typedef enum
@@ -14,8 +14,8 @@ typedef enum
 
 typedef struct
 {
-    USIZE   BinarySize;
-    USIZE   ReserveSize;
+    SIZE    BinarySize;
+    SIZE    ReserveSize;
 
     UINTPTR AddrPhysicalBase;
     UINTPTR AddrVirtualBase;
@@ -38,10 +38,10 @@ typedef struct
 
 typedef struct
 {
-    USIZE PageSize;       // Size in bytes per physical page.
-    USIZE TotalPages;     // Total amount of physical pages.
-    USIZE UnusablePages;  // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
-    USIZE AcquiredPages;  // Total amount of physical pages currently acquired and managed by Physmemmgmt.
+    SIZE PageSize;       // Size in bytes per physical page.
+    SIZE TotalPages;     // Total amount of physical pages.
+    SIZE UnusablePages;  // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
+    SIZE AcquiredPages;  // Total amount of physical pages currently acquired and managed by Physmemmgmt.
 } KrStatePMM;
 
 typedef struct

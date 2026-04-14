@@ -21,7 +21,7 @@ KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* 
 
 KrInterruptHandler g_pInterruptHandlers[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
-void KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
+VOID KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     // First 32 are reserved by CPU
     // KrInitInt normally registers these to KrCriticalProcessorInterrupt, but just in case, HLT.
@@ -33,13 +33,13 @@ void KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
     // After this point, we are sure this is IRS >31, so a non-CPU reserved IRQ.
 }
 
-void KrInitializeInterruptSystem(void)
+VOID KrInitializeInterruptSystem(VOID)
 {
     // Zero array
     KrtlContiguousZeroBuffer(g_pInterruptHandlers, KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES * sizeof(KrInterruptHandler));
 }
 
-void KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
+VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     if (pInterruptFrame->InterruptNo < KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES)
     {

@@ -1,16 +1,16 @@
 #ifndef YCH_KERNEL_KRTL_KRNLMEMORY_H
 #define YCH_KERNEL_KRTL_KRNLMEMORY_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 
 // memset and memzero
 
-void* KrtlContiguousSetBuffer(void* pDest, BYTE uVal, USIZE N);
-void* KrtlContiguousZeroBuffer(void* pDest, USIZE N);
+VOID* KrtlContiguousSetBuffer (VOID* pDest, BYTE Value, SIZE N);
+VOID* KrtlContiguousZeroBuffer(VOID* pDest, SIZE N);
 
 // memcpy and memmove
 
-void* KrtlContiguousCopyBuffer(void* restrict pDest, const void* restrict pSrc, USIZE N);
-void* KrtlContiguousMoveBuffer(void* pDest, const void* pSrc, USIZE N);
+VOID* KrtlContiguousCopyBuffer(VOID* restrict pDest, const VOID* restrict pSrc, SIZE N);
+VOID* KrtlContiguousMoveBuffer(VOID*          pDest, const VOID*          pSrc, SIZE N);
 
 #endif // !YCH_KERNEL_KRTL_KRNLMEMORY_H

@@ -6,6 +6,6 @@
 extern KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x8;
 extern KrDisplaywideTextProtocolFont g_KrdwtpDefaultFont_8x16;
 
-void KrdwtpInitializeDefaultFonts(void);
+VOID KrdwtpInitializeDefaultFonts(VOID);
 
 #endif // !YCH_KERNEL_EARLYVIDEO_DWTPFONTS_H

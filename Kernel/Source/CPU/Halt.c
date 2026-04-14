@@ -4,11 +4,11 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 __attribute__((noreturn))
-void KrProcessorHalt(void)
+VOID KrProcessorHalt(VOID)
 {
     if (!g_KernelState.bMeltdown && KrdwtpGetProtocolState()->bIsActive)
     {
-        KrdwtpOutColoredText("KrProcessorHalt(void) called, halting the processor indefinitely...", KRDWTP_COLOR_YELLOW, KRDWTP_FOREGROUND);
+        KrdwtpOutColoredText("KrProcessorHalt(VOID) called, halting the processor indefinitely...", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND);
     }
 
     __asm__ __volatile__("cli"); // Clear maskable interrupts

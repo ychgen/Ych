@@ -10,10 +10,10 @@
 #ifndef YCH_KERNEL_MEMORY_PHYSMEMMGMT_H
 #define YCH_KERNEL_MEMORY_PHYSMEMMGMT_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 
 /* Physical Page ID */
-typedef USIZE PAGEID;
+typedef SIZE PAGEID;
 
 #define KR_INVALID_PAGEID ((PAGEID)-1)
 

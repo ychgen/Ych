@@ -1,11 +1,11 @@
 #ifndef YCH_KERNEL_CPU_MSR_H
 #define YCH_KERNEL_CPU_MSR_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 
 // `RDMSR`
-QWORD KrReadModelSpecificRegister(DWORD idRegister);
+QWORD KrReadModelSpecificRegister(DWORD RegisterID);
 // `WRMSR`
-void  KrWriteModelSpecificRegister(DWORD idRegister, QWORD data);
+VOID  KrWriteModelSpecificRegister(DWORD RegisterID, QWORD qwData);
 
 #endif // !YCH_KERNEL_CPU_MSR_H

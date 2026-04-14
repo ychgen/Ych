@@ -1,6 +1,6 @@
 /**
  * 
- * Physmemmgmt is the part of the kernel responsible for managing virtual memory.
+ * Virtmemmgmt is the part of the kernel responsible for managing virtual memory.
  * It handles acquisition and releasing of virtual addresses and mapping.
  * Bookkeeping of the virtual memory, basically.
  * It is also called VMM or Virtual Memory Management.
@@ -10,39 +10,70 @@
 #ifndef YCH_KERNEL_MEMORY_VIRTMEMMGMT_H
 #define YCH_KERNEL_MEMORY_VIRTMEMMGMT_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 
 /** ===================================== */
 /** Allocation types */
 /** ===================================== */
-// Will reserve the pages, but they won't be committed until accessed, the first access to each individual page will commit it.
+
+/*
+ * @brief Will reserve the pages, but they won't be committed until accessed, the first access to each individual page will commit that specific one.
+ * This is just purely address space reservation.
+ */
 #define KR_PAGE_ALLOCATE_RESERVE   (1 << 0)
-// Will reserve and commit each one of the pages during acquire phase.
+// Will make sure there is actual physical backing to the pages.
 #define KR_PAGE_ALLOCATE_COMMIT    (1 << 1)
+
 /** ===================================== */
 /** Various flags for page allocation.    */
+/** NOTE: No READ flag. If a page exists, it is readable. */
 /** ===================================== */
+
 // Pages are writable to.
 #define KR_PAGE_FLAG_WRITE         (1 << 0)
 // Pages can be executed as if containing code.
 #define KR_PAGE_FLAG_EXECUTE       (1 << 1)
 // All accesses to the pages are uncacheable and write combining is allowed enabling burst writes.
 #define KR_PAGE_FLAG_WRITE_COMBINE (1 << 2)
-// Specifies the allocation of a large page. KrAcquireVirt will return FALSE if processor doesn't support large pages.
+// Specifies the allocation of a large page of 2MiB. KrAcquireVirt will return FALSE if processor doesn't support large pages.
 #define KR_PAGE_FLAG_LARGE_PAGE    (1 << 3)
+
+/** ===================================== */
+/** Relinquishment types */
 /** ===================================== */
 
-/// @brief Acquires virtual address space and optionally physical memory to back that address space if `COMMIT` is specified.
-/// @param pHint Hint address, if possible, the acquisition will happen near this virtual address. Leave as NULLPTR to let the system decide.
-/// @param szRegionSize Size of the region to acquire. If not page-aligned, it will be rounded up to the next page boundary.
-/// @param dwAllocationType Bit field of how the allocation will proceed, uses KR_PAGE_ALLOCATE macros.
-/// @param dwFlags Various flags bit field, uses KR_PAGE_FLAG_WRITE macros and combos.
-/// @return Address to the acquired region. NULLPTR if the acquisition failed.
-void* KrAcquireVirt(const void* pHint, USIZE szRegionSize, DWORD dwAllocationType, DWORD dwFlags);
+// Decommitts the committed physical pages, but keeping the virtual address space reserved.
+#define KR_PAGE_DECOMMIT   1
+// Completely relinquishes the virtual address space and any committed physical pages associated.
+#define KR_PAGE_RELINQUISH 2
 
-/// @brief Relinquishes a previously allocated virtual address space, making it available for use again.
-/// @param pAddr Pointer to the region to release.
-/// @return TRUE if success, FALSE if failure or NULLPTR.
-BOOL KrRelinquishVirt(const void* pAddr);
+/** ===================================== */
+
+/**
+ * @brief Initializes the Virtual Memory Management (VMM) subsystem.
+ * 
+ * @return TRUE if just initialized, FALSE if initialization failed or the subsystem was already initialized.
+ */
+BOOL KrInitVirtmemmgmt(VOID);
+
+/**
+ * @brief Acquires a virtual address space, locking it in. Optionally acquires physical backing for those pages if `COMMIT` is specified.
+ * 
+ * @param pHintAddress Hint to the allocator to acquire near this address.
+ * @param szRegionSize Size of the region to acquire. Will be rounded up to the next page boundary.
+ * @param dwAcquisitionType Bit field specifying *how* the acquisition should be done. `RESERVE` and `COMMIT` can be combined together.
+ * @param dwFlags Bit field describing various flags about the virtual pages to acquire.
+ * @return Address to the acquired virtual address space if the acquisition was successful, NULLPTR otherwise.
+ */
+VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags);
+
+/**
+ * @brief Relinquishes previously acquired virtual address space and potentially any committed physical pages if `KR_PAGE_RELINQUISH` is used as the operation.
+ * 
+ * @param pBaseAddress The base address to start relinquishing from.
+ * @param szRegionSize If `dwOperation` is `KR_PAGE_RELINQUISH`, must be 0. If `dwOperation` is `KR_PAGE_DECOMMIT`, all pages spanning across (pBaseAddress + szRegionSize) will be decommitted if non-zero. If non-zero, decommits the entire region, pBaseAddress must be what KrAcquireVirt originally returned.
+ * @param dwOperation  Type of relinquishment to proceed with, either `KR_PAGE_DECOMMIT` or `KR_PAGE_RELINQUISH`.
+ */
+BOOL  KrRelinquishVirt(const VOID* pBaseAddress, SIZE szRegionSize, DWORD dwOperation);
 
 #endif // !YCH_KERNEL_MEMORY_VIRTMEMMGMT_H

@@ -1,21 +1,26 @@
 #ifndef YCH_KERNEL_KRTL_KRNLSTRING_H
 #define YCH_KERNEL_KRTL_KRNLSTRING_H
 
-#include "Core/Fundtypes.h"
-
-#define KRTL_HEX_CASE_PREFERENCE_LOWER 0
-#define KRTL_HEX_CASE_PREFERENCE_UPPER 1
+#include "Krnlych.h"
 
 #define KRTL_RADIX_OCTAL        8
 #define KRTL_RADIX_DECIMAL     10
 #define KRTL_RADIX_HEXADECIMAL 16
 
-void KrtlPushHexCasePreference(int pref);
+#define KRTL_HEX_LOWERCASE      0
+#define KRTL_HEX_UPPERCASE      1
 
-void KrtlReverseString(char* pStr, char* pStrEnd);
-void KrtlIntegerToString(char* pDest, SQWORD value, int radix);
-void KrtlUnsignedIntegerToString(char* pDest, QWORD value, int radix);
+/**
+ * @brief Reverses the given string, i.e. flips the order of characters.
+ * 
+ * @param pStr Start of the string to reverse.
+ * @param pStr End of the string to reverse.
+ */
+VOID  KrtlReverseString(CHAR* pStr, CHAR* pStrEnd);
 
-USIZE KrtlStringLength(const char* pString);
+VOID  KrtlSignedToString  (CHAR* pDest, INTMAX  Value, INT Radix, INT HexCasePreference);
+VOID  KrtlUnsignedToString(CHAR* pDest, UINTMAX Value, INT Radix, INT HexCasePreference);
+
+SIZE  KrtlStringSize(CSTR pString);
 
 #endif // !YCH_KERNEL_KRTL_KRNLSTRING_H

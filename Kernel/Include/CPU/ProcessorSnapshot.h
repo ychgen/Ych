@@ -1,7 +1,7 @@
 #ifndef YCH_KERNEL_CPU_PROCESSOR_SNAPSHOT_H
 #define YCH_KERNEL_CPU_PROCESSOR_SNAPSHOT_H
 
-#include "Core/Fundtypes.h"
+#include "Krnlych.h"
 
 typedef struct __attribute__((aligned(8)))
 {

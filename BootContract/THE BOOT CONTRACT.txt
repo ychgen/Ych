@@ -2,10 +2,10 @@ The Ych Boot Contract specifies the mutual expectations between the Boot Chain a
 Relevant Defines and Structures files specify the shared values, addresses and structures between the two parts.
 
 SECTION 1: The Stack
-    When bootloader transfers control to the Kernelб
-    the stack is set to or near ADDR_LOAD_KERNEL(phys or virt) + KERNEL_RESERVE_SIZE.
+    When bootloader transfers control to the Kernel
+    the stack is set to or near below KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE.
     The reserved stack space is always 2MiB at the very end no matter exact location.
 
 SECTION 2: The Bootstrap Kernel Arena
     Range [ADDR_LOAD_KERNEL - 26MiB - 2MiB, ADDR_LOAD_KERNEL - 2MiB]
-        is reserved as the Bootstrap Kernel Arena.
+        is reserved as the Bootstrap Kernel Arena.  

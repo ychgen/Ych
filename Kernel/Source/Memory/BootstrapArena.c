@@ -1,17 +1,25 @@
 #include "Memory/BootstrapArena.h"
 
-BYTE* g_pBootstrapArenaBase = NULLPTR;
-BYTE* g_pBootstrapArenaPtr  = NULLPTR;
-BYTE* g_pBootstrapArenaEnd  = NULLPTR;
+#define KR_BOOTSTRAP_ARENA_ALIGNMENT 16
 
-void KrInitBootstrapArena(void* pBase, USIZE szArena)
+BYTE* g_pBootstrapArenaBase;
+BYTE* g_pBootstrapArenaPtr;
+BYTE* g_pBootstrapArenaEnd;
+
+BOOL KrInitBootstrapArena(VOID* pBase, SIZE szArena)
 {
+    if (!szArena || (g_pBootstrapArenaBase || g_pBootstrapArenaPtr || g_pBootstrapArenaEnd))
+    {
+        return FALSE;
+    }
     g_pBootstrapArenaBase = g_pBootstrapArenaPtr = (BYTE*) pBase;
     g_pBootstrapArenaEnd = g_pBootstrapArenaBase + szArena;
+    return TRUE;
 }
 
-void* KrBootstrapArenaAcquire(USIZE N)
+VOID* KrBootstrapArenaAcquire(SIZE N)
 {
+    N = (N + KR_BOOTSTRAP_ARENA_ALIGNMENT - 1) & ~(KR_BOOTSTRAP_ARENA_ALIGNMENT - 1);
     if (!N || (UINTPTR)(g_pBootstrapArenaPtr + N) >= (UINTPTR) g_pBootstrapArenaEnd)
     {
         return NULLPTR;
@@ -21,8 +29,8 @@ void* KrBootstrapArenaAcquire(USIZE N)
     return pAddr;
 }
 
-void KrBootstrapArenaRelease(void* pPtr)
+VOID KrBootstrapArenaRelease(VOID* pPtr)
 {
-    (void)(pPtr);
+    (VOID)(pPtr);
     return;
 }

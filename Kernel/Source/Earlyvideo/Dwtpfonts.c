@@ -266,7 +266,7 @@ BYTE g_KrdwtpDefaultFont_8x16_Charset[128][16] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  },       //0x7F, delete
 };
 
-void KrdwtpInitializeDefaultFonts(void)
+VOID KrdwtpInitializeDefaultFonts(VOID)
 {
     g_KrdwtpDefaultFont_8x8.CharacterSet = (BYTE*) g_KrdwtpDefaultFont_8x8_Charset;
     g_KrdwtpDefaultFont_8x8.ColumnsPerEntry = 8;

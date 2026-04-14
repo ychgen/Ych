@@ -36,7 +36,7 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     }
 
     // Zero the BSS section.
-    KrtlContiguousZeroBuffer(__KR_LINK_BSS_START, (USIZE)(__KR_LINK_BSS_END - __KR_LINK_BSS_START));
+    KrtlContiguousZeroBuffer(__KR_LINK_BSS_START, (SIZE)(__KR_LINK_BSS_END - __KR_LINK_BSS_START));
 
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
@@ -82,7 +82,7 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         g_KernelState.VideoOutputContext  = (void*) KrdwtpGetProtocolState();
 
         KrdwtpResetState(KRDWTP_COLOR_BLACK);
-        KrdwtpOutColoredText("Initialized Displaywide Text Protocol\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+        KrdwtpOutColoredText("Initialized Displaywide Text Protocol\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     }
 
     // Print some useful information
@@ -91,20 +91,20 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         " -> Load Address (PHYS)      = %p\n"
         " -> Load Address (VIRT)      = %p\n"
         " -> Total Reserved           = %Ru MiB\n",
-        (uint32_t) g_KernelState.LoadInfo.BinarySize / 1024,
+        (DWORD) g_KernelState.LoadInfo.BinarySize / 1024,
         (void*) g_KernelState.LoadInfo.AddrPhysicalBase,
         (void*) g_KernelState.LoadInfo.AddrVirtualBase,
-        (uint64_t)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
+        (QWORD)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
     KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
     KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
-    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     KrInitInt();
-    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     
     // Enable APIC (best safe to do this after interrupt setup as it might fire interrupts before we fully initialize the interrupt subsystem)
     KrEnableAPIC();
@@ -113,17 +113,17 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         //Cant use, unmapped. need to set StateLocalAPIC.BaseAddrVirtual. Will be done when kernel sets up proper paging!
         //g_KernelState.StateLocalAPIC.BaseAddr = g_KernelState.StateLocalAPIC.BaseAddrPhysical;
     }
-    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (void*) g_KernelState.StateLocalAPIC.BaseAddrPhysical);
 
     // Initialize Physical Memory Management
     if (!KrInitPhysmemmgmt())
     {
-        meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_INIT_FAILURE;
+        MDCODE code = KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE;
         const char* pDesc = "Failed to initialize Physmemmgmt.";
         Krnlmeltdownimm(code, pDesc);
     }
-    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_FOREGROUND);
+    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText
     (
         "Physical Memory Information:\n"
@@ -140,18 +140,18 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         PAGEID TestPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
         if (TestPageID == KR_INVALID_PAGEID)
         {
-            meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE;
+            MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
             const char* pDesc = "Test page acquisition from Physmemmgmt failed!";
             Krnlmeltdownimm(code, pDesc);
         }
         KrdwtpOutFormatText("Acquired test page from Physmemmgmt: ID = %Ru, Address = %p\n", TestPageID, KrGetPhysicalPageAddress(TestPageID));
         if (!KrRelinquishPhysicalPage(TestPageID))
         {
-            meltdowncode_t code = KR_MELTDOWN_CODE_PHYSMEMMGMT_TEST_FAILURE;
+            MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
             const char* pDesc = "Test page relinquishment to Physmemmgmt failed!";
             Krnlmeltdownimm(code, pDesc);
         }
-        KrdwtpOutColoredText("Relinquished test page to Physmemmgmt.\n", KRDWTP_COLOR_CYAN, KRDWTP_FOREGROUND);
+        KrdwtpOutColoredText("Relinquished test page to Physmemmgmt.\n", KRDWTP_COLOR_CYAN, KRDWTP_BACKGROUND);
     }
 
     // ======= STOP HERE =========== //

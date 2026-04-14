@@ -1,6 +1,6 @@
 #include "CPU/IDT.h"
 
-void KrEncodeInterruptDescriptor(void* pDest, QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl)
+VOID KrEncodeInterruptDescriptor(VOID* pDest, QWORD offset, WORD ssl, BYTE ist, BYTE gateType, BYTE dpl)
 {
     KrInterruptDescriptor* desc = (KrInterruptDescriptor*) pDest;
     desc->OffsetLow = offset & 0xFFFF; // low 16 bits
@@ -19,7 +19,7 @@ KrInterruptDescriptor KrConstructInterruptDescriptor(QWORD offset, WORD ssl, BYT
     return desc;
 }
 
-void KrLoadInterruptDescriptorTable(const KrInterruptDescriptorTableRegister* rData)
+VOID KrLoadInterruptDescriptorTable(const KrInterruptDescriptorTableRegister* rData)
 {
     __asm__ __volatile__
     (

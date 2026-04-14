@@ -1,94 +1,75 @@
 #include "KRTL/Krnlstring.h"
 
-#define KRTL_HEX_CASE_PREFERENCE_DEFAULT KRTL_HEX_CASE_PREFERENCE_LOWER
-int g_KRTLHexCasePreference = KRTL_HEX_CASE_PREFERENCE_DEFAULT;
-
-void KrtlPushHexCasePreference(int pref)
+VOID KrtlReverseString(CHAR* pStr, CHAR* pStrEnd)
 {
-    g_KRTLHexCasePreference = pref;
-}
-
-void KrtlReverseString(char* pStr, char* pStrEnd)
-{
-    char tmp;
+    CHAR Temp;
     while (pStr < pStrEnd)
     {
-        tmp = *pStr;
-        *pStr++ = *pStrEnd;
-        *pStrEnd-- = tmp;
+         Temp      = *pStr;
+        *pStr++    = *pStrEnd;
+        *pStrEnd-- = Temp;
     }
 }
 
-char KrtlIntegerToString_Chval(QWORD r);
-void KrtlIntegerToString(char* pDest, SQWORD value, int radix)
+inline CHAR KrtlDigitChar(UINTMAX r, INT HexCasePreference)
 {
-    char* pDestInitial = pDest;
-    if (value == 0)
+    return r < KRTL_RADIX_DECIMAL ? r + '0' : (r - KRTL_RADIX_DECIMAL) + (HexCasePreference == KRTL_HEX_UPPERCASE ? 'A' : 'a');
+}
+
+VOID KrtlSignedToString(CHAR* pDest, INTMAX Value, INT Radix, INT HexCasePreference)
+{
+    CHAR* pDestInitial = pDest;
+
+    if (!Value)
     {
         *pDest++ = '0';
-        *pDest   =  0; // null terminate
+        *pDest   =  0; // Null terminate
         return;
     }
 
-    int sign = 0;
-    if (value < 0)
+    BOOL bHasSign = FALSE;
+    if (Value < 0)
     {
-        sign = 1;
-        value = -value;
+        bHasSign =  TRUE;
+        Value    = -Value; // Make positive
     }
 
-    while (value)
+    while (Value)
     {
-        *pDest++ = KrtlIntegerToString_Chval((QWORD)(value % radix));
-        value /= radix;
+        *pDest++ = KrtlDigitChar((QWORD)(Value % Radix), HexCasePreference);
+        Value /= Radix;
     }
-    if (sign)
+    if (bHasSign)
     {
         *pDest++ = '-';
     }
-    *pDest = 0; // null terminate
+    *pDest = 0; // Null terminate
     KrtlReverseString(pDestInitial, pDest - 1);
-
-    // pop preference
-    if (radix == KRTL_RADIX_HEXADECIMAL)
-    {
-        g_KRTLHexCasePreference = KRTL_HEX_CASE_PREFERENCE_DEFAULT;
-    }
 }
-void KrtlUnsignedIntegerToString(char* pDest, QWORD value, int radix)
+VOID KrtlUnsignedToString(CHAR* pDest, UINTMAX Value, INT Radix, INT HexCasePreference)
 {
-    char* pDestInitial = pDest;
-    if (value == 0)
+    CHAR* pDestInitial = pDest;
+
+    if (Value == 0)
     {
         *pDest++ = '0';
-        *pDest   =  0; // null terminate
+        *pDest   =  0; // Null terminate
         return;
     }
 
-    while (value)
+    while (Value)
     {
-        *pDest++ = KrtlIntegerToString_Chval(value % radix);
-        value /= radix;
+        *pDest++ = KrtlDigitChar(Value % Radix, HexCasePreference);
+        Value /= Radix;
     }
-    *pDest = 0; // null terminate
+    *pDest = 0; // Null terminate
     KrtlReverseString(pDestInitial, pDest - 1);
-
-    // pop preference
-    if (radix == KRTL_RADIX_HEXADECIMAL)
-    {
-        g_KRTLHexCasePreference = KRTL_HEX_CASE_PREFERENCE_DEFAULT;
-    }
 }
 
-char KrtlIntegerToString_Chval(QWORD r)
+SIZE KrtlStringSize(CSTR pString)
 {
-    return r < KRTL_RADIX_DECIMAL ? r + '0' : (r-KRTL_RADIX_DECIMAL) + (g_KRTLHexCasePreference == KRTL_HEX_CASE_PREFERENCE_UPPER ? 'A' : 'a');
-}
-
-USIZE KrtlStringLength(const char* pString)
-{
-    const char* pIt = pString;
+    const CHAR* pIt = pString;
     while (*++pIt);
-    return (USIZE)(pIt - pString);
+    return (SIZE)(pIt - pString);
 }
 

@@ -1,6 +1,6 @@
 #include "CPU/GDT.h"
 
-KrEncodeSegmentDescriptor_Result KrEncodeSegmentDescriptor(void* pDest, const KrGlobalDescriptorTableSegmentDescriptor* pSrc)
+KrEncodeSegmentDescriptor_Result KrEncodeSegmentDescriptor(VOID* pDest, const KrGlobalDescriptorTableSegmentDescriptor* pSrc)
 {
     /**
      * GDT Layout:
@@ -20,7 +20,7 @@ KrEncodeSegmentDescriptor_Result KrEncodeSegmentDescriptor(void* pDest, const Kr
         return ENCODE_SEGMENT_DESCRIPTOR_LIMIT_TOO_LARGE;
     }
 
-    uint8_t* pDestBytes = (uint8_t*) pDest;
+    BYTE* pDestBytes = (BYTE*) pDest;
     *pDestBytes++  = (pSrc->Limit >> 0 ) & 0xFF;
     *pDestBytes++  = (pSrc->Limit >> 8 ) & 0xFF;
     *pDestBytes++  = (pSrc->Base  >> 0 ) & 0xFF;
@@ -36,7 +36,7 @@ KrEncodeSegmentDescriptor_Result KrEncodeSegmentDescriptor(void* pDest, const Kr
     *pDestBytes   |= (pSrc->Access_ReadWrite  & 0x01) << 1;
     *pDestBytes++ |= (pSrc->Access_Accessed   & 0x01) << 0;
 
-    uint8_t flags = 0;
+    BYTE flags = 0;
     flags |= (pSrc->Flags_Granularity  & 0x01) << 3;
     flags |= (pSrc->Flags_Size         & 0x01) << 2;
     flags |= (pSrc->Flags_LongModeCode & 0x01) << 1;
@@ -48,11 +48,11 @@ KrEncodeSegmentDescriptor_Result KrEncodeSegmentDescriptor(void* pDest, const Kr
     return ENCODE_SEGMENT_DESCRIPTOR_SUCCESS;
 }
 
-uint16_t KrConstructSegmentSelector(uint8_t RPL, uint16_t i)
+WORD KrConstructSegmentSelector(BYTE RPL, WORD i)
 {
     if (RPL > 3 || i > 0x1FFF)
     {
         return 0;
     }
-    return (uint16_t)(((i << 3) & 0xFFF8) | (0 << 2) | (RPL & 0x03));
+    return (WORD)(((i << 3) & 0xFFF8) | (0 << 2) | (RPL & 0x03));
 }
