@@ -12,6 +12,14 @@
 
 #include "Krnlych.h"
 
+typedef struct
+{
+    SIZE PageSize;      // Size in bytes per physical page.
+    SIZE TotalPages;    // Total amount of physical pages.
+    SIZE UnusablePages; // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
+    SIZE AcquiredPages; // Total amount of physical pages currently acquired and managed by Physmemmgmt.
+} KrPhysmemmgmtState;
+
 /* Physical Page ID */
 typedef SIZE PAGEID;
 
@@ -46,5 +54,12 @@ BOOL  KrReservePhysicalPage(PAGEID idPage);
 /// @param idPage ID of the page to check.
 /// @return FALSE if not reserved, TRUE if reserved.
 BOOL  KrIsPhysicalPageReserved(PAGEID idPage);
+
+/**
+ * @brief Gets the current PMM state.
+ * 
+ * @return Pointer to the state struct if initialized, NULLPTR otherwise.
+ */
+const KrPhysmemmgmtState* GetPhysmemmgmtState(VOID);
 
 #endif // !YCH_KERNEL_MEMORY_PHYSMEMMGMT_H

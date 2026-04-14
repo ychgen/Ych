@@ -5,6 +5,8 @@
 #include "Memory/BootstrapArena.h"
 #include "KRTL/Krnlmem.h"
 
+// Current PMM state information.
+KrPhysmemmgmtState g_StatePMM;
 // The advisory bitmap, once initialized, is mostly static. Its primary job is to prevent reserved pages from being relinquished.
 BYTE*   g_pAdvisoryBitmap;
 // The dynamic bitmap that changes with acquisitions and relinquishments.
@@ -29,10 +31,10 @@ BOOL KrInitPhysmemmgmt(void)
     }
     g_szBitmap = 0;
 
-    g_KernelState.StatePMM.PageSize      = g_KernelState.MemoryMapInfo.PageSize;
-    g_KernelState.StatePMM.TotalPages    =    0;
-    g_KernelState.StatePMM.UnusablePages =    0;
-    g_KernelState.StatePMM.AcquiredPages =    0;
+    g_StatePMM.PageSize      = g_KernelState.MemoryMapInfo.PageSize;
+    g_StatePMM.TotalPages    =    0;
+    g_StatePMM.UnusablePages =    0;
+    g_StatePMM.AcquiredPages =    0;
 
     // 1st pass ; discovery
     for (QWORD i = 0; i < g_KernelState.MemoryMapInfo.EntryCount; i++)
@@ -40,7 +42,7 @@ BOOL KrInitPhysmemmgmt(void)
         KrMemoryDescriptor* pDesc = g_KernelState.MemoryMap + i;
         
         // This is the logical physical pages.
-        g_KernelState.StatePMM.TotalPages += pDesc->PageCount;
+        g_StatePMM.TotalPages += pDesc->PageCount;
 
         switch (pDesc->Type)
         {
@@ -54,13 +56,13 @@ BOOL KrInitPhysmemmgmt(void)
         case KR_MEMORY_TYPE_PAL_CODE:
         case KR_MEMORY_TYPE_PERSISTENT_MEMORY:
         {
-            g_KernelState.StatePMM.UnusablePages += pDesc->PageCount;
+            g_StatePMM.UnusablePages += pDesc->PageCount;
             break;
         }
         // These are usable.
         default:
         {
-            UINTPTR AddrRegionEnd = pDesc->PhysicalBase + pDesc->PageCount * g_KernelState.StatePMM.PageSize;
+            UINTPTR AddrRegionEnd = pDesc->PhysicalBase + pDesc->PageCount * g_StatePMM.PageSize;
             if (AddrRegionEnd > g_AddrHighestDiscovered)
             {
                 g_AddrHighestDiscovered = AddrRegionEnd;
@@ -71,7 +73,7 @@ BOOL KrInitPhysmemmgmt(void)
     }
 
     // noPages is based on highest addressable point.
-    g_noPages         = (g_AddrHighestDiscovered + g_KernelState.StatePMM.PageSize - 1) / g_KernelState.StatePMM.PageSize;
+    g_noPages         = (g_AddrHighestDiscovered + g_StatePMM.PageSize - 1) / g_StatePMM.PageSize;
     g_szBitmap        = (g_noPages + 7) / 8;
     g_pAdvisoryBitmap = KrBootstrapArenaAcquire(g_szBitmap);
 
@@ -98,7 +100,7 @@ BOOL KrInitPhysmemmgmt(void)
         case KR_MEMORY_TYPE_CONVENTIONAL_MEMORY:
         case KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY:
         {
-            SIZE idPage = pDesc->PhysicalBase / g_KernelState.StatePMM.PageSize;
+            SIZE idPage = pDesc->PhysicalBase / g_StatePMM.PageSize;
             if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
             {
                 // If no acquisition hint yet set, use this one.
@@ -115,8 +117,8 @@ BOOL KrInitPhysmemmgmt(void)
     KrSetPhysicalPageStatus
     (
         g_pAdvisoryBitmap,
-        g_KernelState.LoadInfo.AddrPhysicalBase / g_KernelState.StatePMM.PageSize,
-        g_KernelState.LoadInfo.ReserveSize      / g_KernelState.StatePMM.PageSize,
+        g_KernelState.LoadInfo.AddrPhysicalBase / g_StatePMM.PageSize,
+        g_KernelState.LoadInfo.ReserveSize      / g_StatePMM.PageSize,
         KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE
     );
 
@@ -124,7 +126,7 @@ BOOL KrInitPhysmemmgmt(void)
     // There are two reasons for this:
     //   - We should always reserve the first page, so we can have sane null pointer semantics.
     //   - Under 1MiB is IBM PC cluster fuck area. Better to not wake up the 1980s ghosts.
-    KrSetPhysicalPageStatus(g_pAdvisoryBitmap, 0, (1024 * 1024) / g_KernelState.StatePMM.PageSize, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
+    KrSetPhysicalPageStatus(g_pAdvisoryBitmap, 0, (1024 * 1024) / g_StatePMM.PageSize, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
 
     // Now we'll create the dynamic bitmap and copy the advisory one as its initial state.
     g_pBitmap = KrBootstrapArenaAcquire(g_szBitmap);
@@ -160,7 +162,7 @@ Hunt:
                 if (KrSetPhysicalPageStatus(g_pBitmap, PageID, 1, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE))
                 {
                     g_idPageAcqHint = PageID + 1;
-                    g_KernelState.StatePMM.AcquiredPages++;
+                    g_StatePMM.AcquiredPages++;
                     return PageID;
                 }
                 // continue seeking if this one couldnt be acquired
@@ -197,7 +199,7 @@ BOOL KrRelinquishPhysicalPage(PAGEID idPage)
     if (RegionData & (1 << BitOffset))
     {
         g_pBitmap[Index] &= ~(1 << BitOffset);
-        g_KernelState.StatePMM.AcquiredPages--;
+        g_StatePMM.AcquiredPages--;
         return TRUE;
     }
 
@@ -290,7 +292,7 @@ void* KrGetPhysicalPageAddress(PAGEID idPage)
     {
         return NULLPTR;
     }
-    return (void*)(idPage * g_KernelState.StatePMM.PageSize);
+    return (void*)(idPage * g_StatePMM.PageSize);
 }
 
 // This function allows an already acquired page to be marked as reserved, making it immune to relinquishments.
@@ -309,7 +311,7 @@ BOOL KrReservePhysicalPage(PAGEID idPage)
         return FALSE;
     }
     g_pAdvisoryBitmap[Index] |= (1 << Offset);
-    g_KernelState.StatePMM.UnusablePages++;
+    g_StatePMM.UnusablePages++;
     return TRUE;
 }
 
@@ -320,4 +322,9 @@ BOOL KrIsPhysicalPageReserved(PAGEID idPage)
         return FALSE;
     }
     return (g_pAdvisoryBitmap[idPage / 8]) & (1 << (idPage % 8));
+}
+
+const KrPhysmemmgmtState* GetPhysmemmgmtState(VOID)
+{
+    return &g_StatePMM;
 }

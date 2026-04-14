@@ -20,7 +20,7 @@ PAT_UCMINUS equ 7 ; Uncacheable-
 ; Bootloader ensures that:
 ;   RCX = Size of the KrSystemInfoPack structure.
 ;   RSI = Pointer to the KrSystemInfoPack structure.
-Bootelvt:
+Bootelvt: ; `Boot Elevate` entry point
     CLI ; Being pedantic about interrupts does not hurt anyone.
 
     ; Keep a copy of the KrSystemInfoPack, will be lost when we change to paging

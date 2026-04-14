@@ -46,7 +46,7 @@ KrVirtualMemoryRegion g_RootVMR;
 
 // The PML4 (Page Map Level 4) paging structure, always fixed here.
 // Contains physical addresses of PDPTs.
-KrPageTableEntry g_PML4[KR_PAGE_STRUCTURE_ENTRY_COUNT] __attribute__((aligned(KR_PAGE_STRUCTURE_SIZE)));
+KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE) KrPageTableEntry g_PML4[KR_PAGE_STRUCTURE_ENTRY_COUNT];
 
 BOOL g_bVirtmemmgmt;
 

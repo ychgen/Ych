@@ -31,33 +31,25 @@ typedef struct
 
 typedef struct
 {
-    uintptr_t BaseAddrPhysical;
-    uintptr_t BaseAddrVirtual;
-    uintptr_t BaseAddr; // Use this to address local APIC!
+    UINTPTR BaseAddrPhysical;
+    UINTPTR BaseAddrVirtual;
+    UINTPTR BaseAddr; // Use this to address local APIC!
 } KrLocalAPICState;
 
-typedef struct
-{
-    SIZE PageSize;       // Size in bytes per physical page.
-    SIZE TotalPages;     // Total amount of physical pages.
-    SIZE UnusablePages;  // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
-    SIZE AcquiredPages;  // Total amount of physical pages currently acquired and managed by Physmemmgmt.
-} KrStatePMM;
-
+/**
+ * @brief Global kernel state that applies everywhere
+ */
 typedef struct
 {
     /** If TRUE, kernel has entered Kernel Meltdown. Only God can help us. */
-    BOOL       bMeltdown;
+    BOOL bMeltdown;
 
-    /** Kernel Load Information */
+    /** Kernel Load Information, containing fields like load address and certain area sizes. */
     KrLoadInfo LoadInfo;
 
     /** Memory Map */
     KrMemoryMapInfo MemoryMapInfo;
     KrMemoryDescriptor* MemoryMap;
-
-    /** Physmemmgmt */
-    KrStatePMM StatePMM;
 
     /** Global Descriptor Table Information */
     KrGlobalDescriptorTableState StateGDT;
@@ -70,7 +62,7 @@ typedef struct
 
     /** Video Output Information */
     KrVideoOutputProtocol VideoOutputProtocol;
-    void* VideoOutputContext;
+    void* VideoOutputContext; // Pointer to relevant video information data. Content depends on KrKernelState.VideoOutputProtocol.
 } KrKernelState;
 
 extern KrKernelState g_KernelState;

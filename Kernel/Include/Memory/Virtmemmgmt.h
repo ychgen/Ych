@@ -26,7 +26,7 @@
 
 /** ===================================== */
 /** Various flags for page allocation.    */
-/** NOTE: No READ flag. If a page exists, it is readable. */
+/** NOTE: No READ flag. If a page exists, it is readable, period. */
 /** ===================================== */
 
 // Pages are writable to.

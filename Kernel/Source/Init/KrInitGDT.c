@@ -11,9 +11,9 @@
 
 #define KR_STANDARD_GPT_SIZE ( KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES * GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE )
 
-__attribute__((aligned(16))) uint8_t g_KrSegmentDescriptorsGDT[KR_STANDARD_GPT_SIZE];
+KR_ALIGNED(16) uint8_t g_KrSegmentDescriptorsGDT[KR_STANDARD_GPT_SIZE];
 
-void KrInitGDT(void)
+VOID KrInitGDT(VOID)
 {
     KrGlobalDescriptorTableSegmentDescriptor  pDescs[KR_STANDARD_GPT_NUMBER_OF_DESCRIPTOR_ENTRIES];
     

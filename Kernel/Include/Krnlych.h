@@ -45,7 +45,7 @@ typedef          long  LONG;    // 64 bit   signed, logical.
 /**
  * @brief 32 bit  signed, logical. 32-bit for better CPU mapping.
  * Type capable of storing at least 0 and 1. 0 means FALSE, anything else means TRUE, 1 is preferred.
- * This is mainly for function returns, if you are storing a lot of BOOLs in a struct, you are doing it wrong. Prefer using bit fields.
+ * This is mainly for function returns, if you are storing a lot of BOOLs in a struct, you are doing it wrong. Prefer using bit fields or BYTE.
  */
 typedef          int   BOOL;
 

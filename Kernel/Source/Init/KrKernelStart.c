@@ -18,12 +18,12 @@
 #include "KRTL/Krnlmem.h"
 
 /** Defined by the linker (see `Kernel.ld` linker script used to link the kernel). */
-extern char __KR_LINK_BSS_START[];
-extern char __KR_LINK_BSS_END[];
+extern CHAR __KR_LINK_BSS_START[];
+extern CHAR __KR_LINK_BSS_END[];
 
 __attribute__((section(".text.KrKernelStart"), noreturn))
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
-void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
+VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 {
     __asm__ __volatile__("cli"); // Just to be safe, clear interrupts (YchBoot does this anyway, but, still.)
 
@@ -87,14 +87,14 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Print some useful information
     KrdwtpOutFormatText("[KRNLYCH] Kernel Post-Load Self Information:\n"
-        " -> Kernel Binary Size       = %u KiB\n"
-        " -> Load Address (PHYS)      = %p\n"
-        " -> Load Address (VIRT)      = %p\n"
-        " -> Total Reserved           = %Ru MiB\n",
-        (DWORD) g_KernelState.LoadInfo.BinarySize / 1024,
+        " -> Kernel Binary Size  : %u KiB\n"
+        " -> Load Address (PHYS) : %p\n"
+        " -> Load Address (VIRT) : %p\n"
+        " -> Total Reserved      : %u MiB\n",
+        (UINT) g_KernelState.LoadInfo.BinarySize / 1024,
         (void*) g_KernelState.LoadInfo.AddrPhysicalBase,
         (void*) g_KernelState.LoadInfo.AddrVirtualBase,
-        (QWORD)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
+        (UINT)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
     KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
     KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
@@ -124,16 +124,21 @@ void KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         Krnlmeltdownimm(code, pDesc);
     }
     KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText
-    (
-        "Physical Memory Information:\n"
-        " -> Total Pages: %Ru (%Ru MiB) \n"
-        " -> Unusable Pages: %Ru (%Ru MiB)\n"
-        " -> Total Usable Pages: %Ru (%Ru MiB)\n",
-        g_KernelState.StatePMM.TotalPages, g_KernelState.StatePMM.TotalPages * g_KernelState.StatePMM.PageSize / 1024 / 1024,
-        g_KernelState.StatePMM.UnusablePages, g_KernelState.StatePMM.UnusablePages * g_KernelState.StatePMM.PageSize / 1024 / 1024,
-        (g_KernelState.StatePMM.TotalPages - g_KernelState.StatePMM.UnusablePages), (g_KernelState.StatePMM.TotalPages - g_KernelState.StatePMM.UnusablePages) * g_KernelState.StatePMM.PageSize / 1024 / 1024
-    );
+    {
+        const KrPhysmemmgmtState* pStatePMM = GetPhysmemmgmtState();
+        KrdwtpOutFormatText
+        (
+            "Physical Memory Information:\n"
+            " -> Page Size: %Ru (%Ru KiB) \n"
+            " -> Total Pages: %Ru (%Ru MiB) \n"
+            " -> Unusable Pages: %Ru (%Ru MiB)\n"
+            " -> Total Usable Pages: %Ru (%Ru MiB)\n",
+            pStatePMM->PageSize, pStatePMM->PageSize / 1024,
+            pStatePMM->TotalPages, pStatePMM->TotalPages * pStatePMM->PageSize / 1024 / 1024,
+            pStatePMM->UnusablePages, pStatePMM->UnusablePages * pStatePMM->PageSize / 1024 / 1024,
+            (pStatePMM->TotalPages - pStatePMM->UnusablePages), (pStatePMM->TotalPages - pStatePMM->UnusablePages) * pStatePMM->PageSize / 1024 / 1024
+        );
+    }
 
     // Test acquisition/relinquishment
     {

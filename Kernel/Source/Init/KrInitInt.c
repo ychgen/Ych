@@ -13,7 +13,7 @@
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
-__attribute__((aligned(16))) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
+KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
 static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
 {
