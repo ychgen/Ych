@@ -27,8 +27,7 @@ CSTR Krnlmddesc(MDCODE code)
     return "IVLDMDCODE"; // InVaLiD MeltDown CODE
 }
 
-__attribute__((noreturn))
-VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot)
+KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot)
 {
     __asm__ __volatile__("cli\n\t");
     g_KernelState.bMeltdown = TRUE;

@@ -27,7 +27,7 @@ typedef struct
     BYTE Flags_Granularity;  // 1 bit
 } KrGlobalDescriptorTableSegmentDescriptor;
 
-typedef struct __attribute__((packed))
+typedef struct KR_PACKED
 {
     WORD  Limit;
     QWORD Base;

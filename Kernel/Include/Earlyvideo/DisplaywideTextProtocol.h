@@ -19,13 +19,14 @@
 #define KRDWTP_COLOR_YELLOW KRDWTP_MAKE_COLOR(0xFF,0xFF,0x00,0xFF)
 #define KRDWTP_COLOR_PINK   KRDWTP_MAKE_COLOR(0xFF,0x00,0xFF,0xFF)
 #define KRDWTP_COLOR_CYAN   KRDWTP_MAKE_COLOR(0x00,0xFF,0xFF,0xFF)
+#define KRDWTP_COLOR_PURPLE KRDWTP_MAKE_COLOR(0xB2,0x00,0xFF,0xFF)
 
 #define KRDWTP_COLOR_DARK_RED KRDWTP_MAKE_COLOR(0x80,0x00,0x00,0xFF)
 
 typedef struct
 {
     BYTE* CharacterSet;    // Pointer to font bitset. In form: `uint8_t CharSet[NumberOfEntries][ColumnsPerEntry]`
-    QWORD NumberOfEntries; // No. character entries in CharacterSet.
+    UINT  NumberOfEntries; // No. character entries in CharacterSet.
     BYTE  ColumnsPerEntry; // Columns per each character.
     BYTE  RowsPerEntry;    // Rows per each character.
     BYTE  ScaleFactor;     // Scaling factor, leave as 1 nor NOP.
@@ -37,6 +38,7 @@ typedef struct
 {
     BOOL    bIsActive;
 
+    UINT    FrameBufferSize;
     UINT    FrameBufferWidth;
     UINT    FrameBufferHeight;
     UINT    PixelsPerScanLine;
@@ -49,7 +51,7 @@ typedef struct
     BOOL bUppercaseMode; // If true, each call to KrdwtpOutCharacter with a lowercase character will automatically be uppercased.
 } KrDisplaywideTextProtocolState;
 
-VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine);
+VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FrameBufferSize, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine);
 VOID KrdwtpReloadFrameBuffer(UINTPTR AddrFrameBuffer);
 // Clears the framebuffer with given color and moves the cursor to its initial default position.
 VOID KrdwtpResetState(DWORD ClearColor);

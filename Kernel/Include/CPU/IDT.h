@@ -10,7 +10,7 @@
 #define KR_GATE_TYPE_INTERRUPT 0xE
 #define KR_GATE_TYPE_TRAP      0xF
 
-typedef struct __attribute__((packed))
+typedef struct KR_PACKED
 {
     WORD  OffsetLow;
     WORD  SegmentSelector;
@@ -21,7 +21,7 @@ typedef struct __attribute__((packed))
     DWORD Reserved;
 } KrInterruptDescriptor;
 
-typedef struct __attribute__((packed))
+typedef struct KR_PACKED
 {
     WORD  Limit;
     QWORD Base;

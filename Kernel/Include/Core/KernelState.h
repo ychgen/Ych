@@ -23,18 +23,18 @@ typedef struct
 
 typedef struct
 {
+    UINTPTR PhysicalAddress;
+    UINTPTR VirtualAddress;
+    UINT    Size;
+} KrFrameBufferInfo;
+
+typedef struct
+{
     UINTPTR AddrDescriptorTable;       // Address to GDT entries array
     WORD    NumberOfDescriptorEntries; // NULL DESCRIPTOR included
     WORD    KernelCodeSegmentSelector;
     WORD    KernelDataSegmentSelector;
 } KrGlobalDescriptorTableState;
-
-typedef struct
-{
-    UINTPTR BaseAddrPhysical;
-    UINTPTR BaseAddrVirtual;
-    UINTPTR BaseAddr; // Use this to address local APIC!
-} KrLocalAPICState;
 
 /**
  * @brief Global kernel state that applies everywhere
@@ -57,12 +57,12 @@ typedef struct
     /** Interrupt Descriptor Table Information */
     UINTPTR AddrIDT; // Address to IDT entries array.
 
-    /** Local APIC Information */
-    KrLocalAPICState StateLocalAPIC;
+    /** GOP/VBE Frame Buffer Information */
+    KrFrameBufferInfo FrameBufferInfo;
 
     /** Video Output Information */
     KrVideoOutputProtocol VideoOutputProtocol;
-    void* VideoOutputContext; // Pointer to relevant video information data. Content depends on KrKernelState.VideoOutputProtocol.
+    const VOID* VideoOutputContext; // Pointer to relevant video information data. Content depends on KrKernelState.VideoOutputProtocol.
 } KrKernelState;
 
 extern KrKernelState g_KernelState;

@@ -5,8 +5,8 @@
 #include "BootContract/BootContract.h"
 #include "Krnlych.h"
 
-__attribute__((section(".text.KrKernelStart"), noreturn))
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
-VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack);
+KR_SECTION(".text.KrKernelStart")
+KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack);
 
 #endif // !YCK_KERNEL_INIT_KR_KERNEL_START_H

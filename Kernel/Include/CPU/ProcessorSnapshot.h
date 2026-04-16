@@ -3,7 +3,7 @@
 
 #include "Krnlych.h"
 
-typedef struct __attribute__((aligned(8)))
+typedef struct KR_PACKED
 {
     QWORD R15, R14, R13, R12, R11, R10, R9, R8;
     QWORD RDI, RSI, RBP, RDX, RCX, RBX, RAX;

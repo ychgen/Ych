@@ -57,7 +57,7 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
         // Send EOI signal to APIC. Writing anything works, 0 is traditional.
-        *(uint32_t*)(((uint8_t*) g_KernelState.StateLocalAPIC.BaseAddr) + KR_LOCAL_APIC_REGISTER_EOI) = 0;
+        //*(uint32_t*)(((uint8_t*) g_KernelState.StateLocalAPIC.BaseAddr) + KR_LOCAL_APIC_REGISTER_EOI) = 0;
     }
 }
 

@@ -15,9 +15,10 @@ KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFon
     return result;
 }
 
-VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine)
+VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FrameBufferSize, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine)
 {
     g_ProtocolState.bIsActive         = TRUE;
+    g_ProtocolState.FrameBufferSize   = FrameBufferSize;
     g_ProtocolState.FrameBufferWidth  = FramebufferWidth;
     g_ProtocolState.FrameBufferHeight = FramebufferHeight;
     g_ProtocolState.PixelsPerScanLine = PixelsPerScanLine;
@@ -80,14 +81,15 @@ VOID KrdwtpScroll(VOID)
 
 VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
 {
-    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || Char >= 128)
+    const KrDisplaywideTextProtocolFont* pFont = &g_ProtocolState.Font;
+    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || pFont->NumberOfEntries >= (UINT) Char)
     {
         return;
     }
     if (Char == '\n')
     {
         g_ProtocolState.CursorX = 0;
-        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (g_ProtocolState.Font.RowsPerEntry * g_ProtocolState.Font.ScaleFactor))
+        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
         {
             KrdwtpScroll();
         }
@@ -98,7 +100,6 @@ VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD Backgroun
         Char -= ('a' - 'A');
     }
 
-    const KrDisplaywideTextProtocolFont* pFont = &g_ProtocolState.Font;
     UINT dwBytesPerGlyph = (pFont->ColumnsPerEntry + 7) / 8;
     UINT dwGlyphSize = pFont->RowsPerEntry * dwBytesPerGlyph;
     BYTE* pGlyph = &pFont->CharacterSet[Char * dwGlyphSize];

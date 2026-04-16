@@ -17,14 +17,18 @@
 #ifndef YCH_KERNEL_KRNLYCH_H
 #define YCH_KERNEL_KRNLYCH_H
 
+#define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / Divisor)
+
 /** Defined as macros just in case in the future we change compilers, we are not completely GCC dependent. */
 
 #define KR_NORETURN   __attribute__((noreturn))
 #define KR_PACKED     __attribute__((packed))
 #define KR_ALIGNED(N) __attribute__((aligned(N)))
+#define KR_SECTION(S) __attribute__((section(S)))
 
 #define VOID      void
 #define NULLPTR ((VOID*) 0)
+#define KR_UNUSED(X) ((VOID)(X))
 
 #define FALSE            0
 #define TRUE             1

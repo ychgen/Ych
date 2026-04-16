@@ -3,8 +3,7 @@
 #include "Core/KernelState.h"
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
-__attribute__((noreturn))
-VOID KrProcessorHalt(VOID)
+KR_NORETURN VOID KrProcessorHalt(VOID)
 {
     if (!g_KernelState.bMeltdown && KrdwtpGetProtocolState()->bIsActive)
     {

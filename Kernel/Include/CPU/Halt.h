@@ -3,7 +3,6 @@
 
 #include "Krnlych.h"
 
-__attribute__((noreturn))
-VOID KrProcessorHalt(VOID);
+KR_NORETURN VOID KrProcessorHalt(VOID);
 
 #endif // !YCH_KERNEL_CORE_KRHALT_H
