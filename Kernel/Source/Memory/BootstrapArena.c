@@ -34,3 +34,23 @@ VOID KrBootstrapArenaRelease(VOID* pPtr)
     (VOID)(pPtr);
     return;
 }
+
+SIZE KrBootstrapArenaGetSpaceLeft(VOID)
+{
+    return g_pBootstrapArenaPtr ? (SIZE)(g_pBootstrapArenaEnd - g_pBootstrapArenaPtr) : 0;
+}
+
+const VOID* KrBootstrapArenaGetBase(VOID)
+{
+    return g_pBootstrapArenaBase;
+}
+
+const VOID* KrBootstrapArenaGetPtr(VOID)
+{
+    return g_pBootstrapArenaPtr;
+}
+
+const VOID* KrBootstrapArenaGetEnd(VOID)
+{
+    return g_pBootstrapArenaEnd;
+}

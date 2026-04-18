@@ -44,31 +44,17 @@ BOOL KrInitPhysmemmgmt(void)
         // This is the logical physical pages.
         g_StatePMM.TotalPages += pDesc->PageCount;
 
-        switch (pDesc->Type)
-        {
-        case KR_MEMORY_TYPE_RESERVED:
-        case KR_MEMORY_TYPE_RUNTIME_SERVICES_CODE:
-        case KR_MEMORY_TYPE_RUNTIME_SERVICES_DATA:
-        case KR_MEMORY_TYPE_UNUSABLE_MEMORY:
-        case KR_MEMORY_TYPE_ACPI_MEMORY_NVS:
-        case KR_MEMORY_TYPE_MMIO:
-        case KR_MEMORY_TYPE_MMIO_PORT_SPACE:
-        case KR_MEMORY_TYPE_PAL_CODE:
-        case KR_MEMORY_TYPE_PERSISTENT_MEMORY:
-        {
-            g_StatePMM.UnusablePages += pDesc->PageCount;
-            break;
-        }
-        // These are usable.
-        default:
+        if (KrIsUsableMemoryRegionType(pDesc->Type))
         {
             UINTPTR AddrRegionEnd = pDesc->PhysicalBase + pDesc->PageCount * g_StatePMM.PageSize;
             if (AddrRegionEnd > g_AddrHighestDiscovered)
             {
                 g_AddrHighestDiscovered = AddrRegionEnd;
             }
-            break;
         }
+        else
+        {
+            g_StatePMM.UnusablePages += pDesc->PageCount;
         }
     }
 
@@ -91,14 +77,7 @@ BOOL KrInitPhysmemmgmt(void)
     {
         KrMemoryDescriptor* pDesc = g_KernelState.MemoryMap + i;
 
-        switch (pDesc->Type)
-        {
-        case KR_MEMORY_TYPE_LOADER_CODE:
-        case KR_MEMORY_TYPE_LOADER_DATA:
-        case KR_MEMORY_TYPE_BOOT_SERVICES_CODE:
-        case KR_MEMORY_TYPE_BOOT_SERVICES_DATA:
-        case KR_MEMORY_TYPE_CONVENTIONAL_MEMORY:
-        case KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY:
+        if (KrIsUsableMemoryRegionType(pDesc->Type))
         {
             SIZE idPage = pDesc->PhysicalBase / g_StatePMM.PageSize;
             if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
@@ -108,8 +87,6 @@ BOOL KrInitPhysmemmgmt(void)
             }
             // Set entire range as available
             KrSetPhysicalPageStatus(g_pAdvisoryBitmap, idPage, pDesc->PageCount, KR_PHYSICAL_PAGE_STATUS_AVAILABLE);
-            break;
-        }
         }
     }
 
@@ -322,6 +299,28 @@ BOOL KrIsPhysicalPageReserved(PAGEID idPage)
         return FALSE;
     }
     return (g_pAdvisoryBitmap[idPage / 8]) & (1 << (idPage % 8));
+}
+
+BOOL KrIsUsableMemoryRegionType(DWORD Type)
+{
+    switch (Type)
+    {
+    case KR_MEMORY_TYPE_LOADER_CODE:
+    case KR_MEMORY_TYPE_LOADER_DATA:
+    case KR_MEMORY_TYPE_BOOT_SERVICES_CODE:
+    case KR_MEMORY_TYPE_BOOT_SERVICES_DATA:
+    case KR_MEMORY_TYPE_CONVENTIONAL_MEMORY:
+    case KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY:
+    {
+        return TRUE;
+    }
+    default:
+    {
+        break;
+    }
+    }
+
+    return FALSE;
 }
 
 const KrPhysmemmgmtState* GetPhysmemmgmtState(VOID)

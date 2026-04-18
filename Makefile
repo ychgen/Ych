@@ -29,6 +29,7 @@ CONTRACT_NAME    ?= BootContract.json
 CONTRACT         := $(CONTRACT_PATH)/$(CONTRACT_NAME)
 
 RM      ?= rm
+CP      ?= cp
 PY      ?= python
 MMD     ?= mmd
 ECHO    ?= echo
@@ -40,6 +41,8 @@ MKFSFAT ?= mkfs.fat
 os-image: $(OS_IMAGE_TARGET)
 
 run: os-image
+	@$(RM) $(FIRMWARE)/OVMF_VARS.fd
+	@$(CP) $(FIRMWARE)/OVMF_VARS_OriginalCopy.fd $(FIRMWARE)/OVMF_VARS.fd
 	@$(QEMU) -monitor stdio -d int,cpu_reset,unimp -cpu qemu64 -m $(OS_EMULATION_RAM) \
 			 -drive if=pflash,format=raw,unit=0,file=$(FIRMWARE)/OVMF_CODE.fd,readonly=on \
 			 -drive if=pflash,format=raw,unit=1,file=$(FIRMWARE)/OVMF_VARS.fd \

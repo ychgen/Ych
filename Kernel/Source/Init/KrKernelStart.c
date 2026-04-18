@@ -73,7 +73,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         if (pGraphicsInfo->FramebufferWidth >= 2560 && pGraphicsInfo->FramebufferHeight >= 1440)
         {
             // 4K... But why would you, anyway...
-            if (pGraphicsInfo->FramebufferWidth >= 3840 || pGraphicsInfo->FramebufferHeight >= 2160)
+            if (pGraphicsInfo->FramebufferWidth >= 3840 && pGraphicsInfo->FramebufferHeight >= 2160)
             {
                 g_KrdwtpDefaultFont_8x16.ScaleFactor = 4;
             }
@@ -102,13 +102,14 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         (void*) g_KernelState.LoadInfo.AddrVirtualBase,
         (UINT)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
     KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
-    KrdwtpOutFormatText("GOP Framebuffer is resolution %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
+    KrdwtpOutFormatText("Framebuffer resolution is %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
     KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
+    // Bye bye Triple Fault!
     KrInitInt();
     KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     
@@ -135,8 +136,8 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         KrdwtpOutFormatText
         (
             "Physical Memory Information:\n"
-            " -> Page Size: %Ru (%Ru KiB) \n"
-            " -> Total Pages: %Ru (%Ru MiB) \n"
+            " -> Page Size: %Ru (%Ru KiB)\n"
+            " -> Total Pages: %Ru (%Ru MiB)\n"
             " -> Unusable Pages: %Ru (%Ru MiB)\n"
             " -> Total Usable Pages: %Ru (%Ru MiB)\n",
             pStatePMM->PageSize, pStatePMM->PageSize / 1024,
@@ -173,6 +174,18 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         Krnlmeltdownimm(code, pDesc);
     }
     KrdwtpOutColoredText("Initialized Virtmemmgmt (Virtual Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    {
+        const KrVirtmemmgmtState* pStateVMM = GetVirtmemmgmtState();
+        KrdwtpOutFormatText
+        (
+            "Virtual Memory DMAP Information:\n"
+            " -> Huge  Pages (1GiB) : %Ru\n"
+            " -> Large Pages (2MiB) : %Ru\n"
+            " -> Small Pages (4KiB) : %Ru\n"
+            " -> Total Pages (H+L+S): %Ru\n",
+            pStateVMM->HugePages, pStateVMM->LargePages, pStateVMM->SmallPages, pStateVMM->TotalPages
+        );
+    }
 
     // ======= STOP HERE =========== //
     KrProcessorHalt();

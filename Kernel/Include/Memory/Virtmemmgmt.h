@@ -12,6 +12,14 @@
 
 #include "Krnlych.h"
 
+/**
+ * @brief Constructs a virtual address from PML4, PDPT, PD and PT indices and an offset (up to 4KiB, 2MiB or 1GiB depending on the page).
+ * If you are referring to a Huge Page (1GiB), leave IndexPD and IndexPT as 0 and your Offset can be larger (up to 1GiB).
+ * If you are referring to a Large Page (2MiB), leave IndexPT as 0 and your Offset can be larger (up to 2MiB).
+ */
+#define KR_MAKE_VIRTUAL(IndexPML4, IndexPDPT, IndexPD, IndexPT, Offset) \
+    ( ( UINTPTR ) ( ((QWORD)((-((QWORD)((IndexPML4) >> 8) & ((QWORD)(1))) & ((QWORD)(0xFFFF000000000000))))) | ( ( ( QWORD ) ( IndexPML4 ) ) & 0x1FF ) << 39 ) | ( ( ( ( QWORD ) ( IndexPDPT ) ) & 0x1FF ) << 30 ) | ( ( ( ( QWORD ) ( IndexPD ) ) & 0x1FF ) << 21 ) | ( ( ( ( QWORD ) ( IndexPT ) ) & 0x1FF ) << 12 ) | ( ( ( ( QWORD ) ( Offset ) ) ) ) )
+
 /** ===================================== */
 /** Allocation types */
 /** ===================================== */
@@ -49,6 +57,21 @@
 
 /** ===================================== */
 
+typedef struct
+{
+    // Total Page Table Entry Structures
+    UINT TotalPTEs;
+
+    UINT HugePages;  // Number of huge pages.
+    UINT LargePages; // Number of large pages.
+    UINT SmallPages; // Number of small pages.
+    UINT TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
+
+    /** @brief Base virtual address of where direct mapping of system memory starts. */
+    UINTPTR AddrDirectMapBase;
+    UINTPTR AddrRecursiveMapBase;
+} KrVirtmemmgmtState;
+
 /**
  * @brief Initializes the Virtual Memory Management (VMM) subsystem.
  * 
@@ -75,5 +98,15 @@ VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szRegionSize, DWORD dwAcquisi
  * @param dwOperation  Type of relinquishment to proceed with, either `KR_PAGE_DECOMMIT` or `KR_PAGE_RELINQUISH`.
  */
 BOOL  KrRelinquishVirt(const VOID* pBaseAddress, SIZE szRegionSize, DWORD dwOperation);
+
+/**
+ * @brief Converts a physical memory address to a virtual one, by using the direct map.
+ * 
+ * @param pAddrPhysical The physical address to convert.
+ * @return The virtual address.
+ */
+VOID* KrPhysicalToVirtual(VOID* pAddrPhysical);
+
+const KrVirtmemmgmtState* GetVirtmemmgmtState(VOID);
 
 #endif // !YCH_KERNEL_MEMORY_VIRTMEMMGMT_H

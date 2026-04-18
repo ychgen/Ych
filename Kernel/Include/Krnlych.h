@@ -17,9 +17,10 @@
 #ifndef YCH_KERNEL_KRNLYCH_H
 #define YCH_KERNEL_KRNLYCH_H
 
+// Ceiling divide
 #define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / Divisor)
 
-/** Defined as macros just in case in the future we change compilers, we are not completely GCC dependent. */
+/** Defined as macros just in case in the future we change compilers, we are not *completely* GCC dependent. */
 
 #define KR_NORETURN   __attribute__((noreturn))
 #define KR_PACKED     __attribute__((packed))
@@ -28,7 +29,7 @@
 
 #define VOID      void
 #define NULLPTR ((VOID*) 0)
-#define KR_UNUSED(X) ((VOID)(X))
+#define KR_UNUSED(X) ((VOID)(X)) // for when you want to suppress an unused variable warning especially.
 
 #define FALSE            0
 #define TRUE             1
@@ -49,7 +50,7 @@ typedef          long  LONG;    // 64 bit   signed, logical.
 /**
  * @brief 32 bit  signed, logical. 32-bit for better CPU mapping.
  * Type capable of storing at least 0 and 1. 0 means FALSE, anything else means TRUE, 1 is preferred.
- * This is mainly for function returns, if you are storing a lot of BOOLs in a struct, you are doing it wrong. Prefer using bit fields or BYTE.
+ * This is mainly for function returns, if you are storing a lot of BOOLs in a struct, this isn't it. Prefer using bit fields or BYTE or BOOL : 1 syntax.
  */
 typedef          int   BOOL;
 

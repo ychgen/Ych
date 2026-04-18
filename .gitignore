@@ -7,3 +7,6 @@ Binaries/
 # MakeContract outputs
 /BootContract/Defines.asm
 /BootContract/Include/BootContract/Defines.h
+
+# OVMF VARS to replenish
+/FIRMWARE/OVMF_VARS.fd

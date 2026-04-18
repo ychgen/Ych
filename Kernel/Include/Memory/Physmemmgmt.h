@@ -55,6 +55,8 @@ BOOL  KrReservePhysicalPage(PAGEID idPage);
 /// @return FALSE if not reserved, TRUE if reserved.
 BOOL  KrIsPhysicalPageReserved(PAGEID idPage);
 
+BOOL  KrIsUsableMemoryRegionType(DWORD Type);
+
 /**
  * @brief Gets the current PMM state.
  * 

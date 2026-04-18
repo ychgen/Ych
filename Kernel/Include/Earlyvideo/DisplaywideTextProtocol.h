@@ -7,7 +7,7 @@
 
 #define KR_DISPLAYWIDE_TEXT_PROTOCOL_FONT_CHARSET_SIZE   128
 
-#define KRDWTP_MAKE_COLOR(r,g,b,a) ( ((((DWORD)a) & 0xFF) << 24) | ((((DWORD)r) & 0xFF) << 16) | ((((DWORD)g) & 0xFF) << 8) | ((((DWORD)b) & 0xFF)))
+#define KRDWTP_MAKE_COLOR(r,g,b,a) ( ((((DWORD)(a)) & 0xFF) << 24) | ((((DWORD)(r)) & 0xFF) << 16) | ((((DWORD)(g)) & 0xFF) << 8) | ((((DWORD)(b)) & 0xFF)))
 // Default foreground color
 #define KRDWTP_BACKGROUND KRDWTP_MAKE_COLOR(0x00,0x00,0x00,0xFF)
 
@@ -25,12 +25,12 @@
 
 typedef struct
 {
-    BYTE* CharacterSet;    // Pointer to font bitset. In form: `uint8_t CharSet[NumberOfEntries][ColumnsPerEntry]`
-    UINT  NumberOfEntries; // No. character entries in CharacterSet.
-    BYTE  ColumnsPerEntry; // Columns per each character.
-    BYTE  RowsPerEntry;    // Rows per each character.
-    BYTE  ScaleFactor;     // Scaling factor, leave as 1 nor NOP.
-    BOOL  bDirectionBit;   // If false, uses MSB, if true, uses LSB.
+    BYTE* CharacterSet;      // Pointer to font bitset. In form: `uint8_t CharSet[NumberOfEntries][ColumnsPerEntry]`
+    UINT  NumberOfEntries;   // No. character entries in CharacterSet.
+    BYTE  ColumnsPerEntry;   // Columns per each character.
+    BYTE  RowsPerEntry;      // Rows per each character.
+    UINT  ScaleFactor;       // Scaling factor, leave as 1 nor NOP.
+    BOOL  bDirectionBit : 1; // If false, uses MSB, if true, uses LSB.
 } KrDisplaywideTextProtocolFont;
 KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, BYTE factor);
 
@@ -48,7 +48,7 @@ typedef struct
     UINT    BytesPerPixel;
     
     KrDisplaywideTextProtocolFont Font;
-    BOOL bUppercaseMode; // If true, each call to KrdwtpOutCharacter with a lowercase character will automatically be uppercased.
+    BOOL bUppercaseMode : 1; // If true, each call to KrdwtpOutCharacter with a lowercase character will automatically be uppercased. Useful for shitty font.
 } KrDisplaywideTextProtocolState;
 
 VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FrameBufferSize, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine);
