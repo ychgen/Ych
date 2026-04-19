@@ -1,6 +1,4 @@
 #include "Init/KrInitInt.h"
-
-#include "Init/KrInitGDT.h"
 #include "ISRs.h"
 
 #include "CPU/Interrupt.h"
@@ -57,6 +55,40 @@ VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
     KrProcessorHalt();
 }
 
+VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    WORD CS, SS, DS, ES, FS, GS;
+    QWORD CR0, CR3, CR4;
+
+    __asm__ __volatile__ ("mov %%cr0, %0" : "=r"(CR0));
+    __asm__ __volatile__ ("mov %%cr3, %0" : "=r"(CR3));
+    __asm__ __volatile__ ("mov %%cr4, %0" : "=r"(CR4));
+
+    __asm__ __volatile__ ("mov %%cs, %0" : "=r"(CS));
+    __asm__ __volatile__ ("mov %%ss, %0" : "=r"(SS));
+    __asm__ __volatile__ ("mov %%ds, %0" : "=r"(DS));
+    __asm__ __volatile__ ("mov %%es, %0" : "=r"(ES));
+    __asm__ __volatile__ ("mov %%fs, %0" : "=r"(FS));
+    __asm__ __volatile__ ("mov %%gs, %0" : "=r"(GS));
+
+    KrdwtpOutColoredText("!!!GENERAL PROTECTION FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
+    KrdwtpOutFormatText
+    (
+        " -> CR0 = %Ru\n"
+        " -> CR3 = %Ru\n"
+        " -> CR4 = %Ru\n"
+        " ->  CS = %u\n"
+        " ->  SS = %u\n"
+        " ->  DS = %u\n"
+        " ->  ES = %u\n"
+        " ->  FS = %u\n"
+        " ->  GS = %u\n"
+        " ->  EC = %Ru\n",
+        CR0, CR3, CR4, CS, SS, DS, ES, FS, GS, pInterruptFrame->ErrorCode
+    );
+    KrProcessorHalt();
+}
+
 VOID KrInitInt(VOID)
 {
     EncodeAllISRs(); // 0 to 2 and 4 to 255
@@ -76,6 +108,7 @@ VOID KrInitInt(VOID)
 
     KrInitializeInterruptSystem();
     KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt);
+    KrRegisterInterruptHandler(KR_INTERRUPTNO_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt);
     KrRegisterInterruptHandler(KR_INTERRUPTNO_PAGE_FAULT, KrPageFaultInterrupt);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.

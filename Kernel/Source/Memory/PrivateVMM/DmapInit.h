@@ -1,7 +1,7 @@
 // Private header for Virtmemmgmt.c
 
-#ifndef YCH_KERNEL_MEMORY_DMAP_INIT_H
-#define YCH_KERNEL_MEMORY_DMAP_INIT_H
+#ifndef YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H
+#define YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H
 
 // For debugging
 #define KR_VMM_FORCED_EVICTION FALSE
@@ -281,4 +281,4 @@ static UINTPTR __KrGetVirtualOfPTE(UINTPTR AddrPhysical)
     return g_StateVMM.AddrDirectMapBase + AddrPhysical;
 }
 
-#endif // !YCH_KERNEL_MEMORY_DMAP_INIT_H
+#endif // !YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H

@@ -89,7 +89,7 @@ VOID KrInitMemmap(const KrMemoryMapInfo* pMemmapInfo)
                     break;
                 }
                 // Not so fast, we need to check if the regions are sequential
-                if ((PhysAddrRegionBase + CanonicalPageCount * pMemmapInfo->PageSize) == pFwDescAhead->PhysicalBase)
+                if ((PhysAddrRegionBase + CanonicalPageCount * pMemmapInfo->PageSize) != pFwDescAhead->PhysicalBase)
                 {
                     i = j - 1; // This entry is actually usable, just not adjacent. Do -1 so upper loop starts from j.
                     break;

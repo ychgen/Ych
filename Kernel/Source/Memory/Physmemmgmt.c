@@ -73,21 +73,18 @@ BOOL KrInitPhysmemmgmt(void)
     KrtlContiguousSetBuffer(g_pAdvisoryBitmap, 0xFF, g_szBitmap);
 
     // 2nd pass ; mark conventional memory and likewise areas as available.
-    for (QWORD i = 0; i < g_KernelState.MemoryMapInfo.EntryCount; i++)
+    for (QWORD i = 0; i < g_KernelState.NumCanonicalMapEntries; i++)
     {
         KrMemoryDescriptor* pDesc = g_KernelState.MemoryMap + i;
 
-        if (KrIsUsableMemoryRegionType(pDesc->Type))
+        SIZE idPage = pDesc->PhysicalBase / g_StatePMM.PageSize;
+        if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
         {
-            SIZE idPage = pDesc->PhysicalBase / g_StatePMM.PageSize;
-            if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
-            {
-                // If no acquisition hint yet set, use this one.
-                g_idPageAcqHint = idPage;
-            }
-            // Set entire range as available
-            KrSetPhysicalPageStatus(g_pAdvisoryBitmap, idPage, pDesc->PageCount, KR_PHYSICAL_PAGE_STATUS_AVAILABLE);
+            // If no acquisition hint yet set, use this one.
+            g_idPageAcqHint = idPage;
         }
+        // Set entire range as available
+        KrSetPhysicalPageStatus(g_pAdvisoryBitmap, idPage, pDesc->PageCount, KR_PHYSICAL_PAGE_STATUS_AVAILABLE);
     }
 
     // Mark kernel-reserved area as unavailable (must be done since kernel lives in conventional memory and code above marks all that as available)
