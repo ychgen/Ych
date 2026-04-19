@@ -1,7 +1,9 @@
 #include "Init/KrKernelStart.h"
 
+#include "Init/KrInitMemmap.h"
 #include "Init/KrInitGDT.h"
 #include "Init/KrInitInt.h"
+#include "Init/KrInitMem.h"
 
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
@@ -45,20 +47,16 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrSystemInfoPack SysInfoPack;
     KrtlContiguousCopyBuffer(&SysInfoPack, pSystemInfoPack, sizeof(KrSystemInfoPack));
 
-    g_KernelState.LoadInfo.BinarySize = SysInfoPack.KernelBinarySize;
-    g_KernelState.LoadInfo.ReserveSize = SysInfoPack.KernelReserveSize;
+    g_KernelState.LoadInfo.BinarySize       = SysInfoPack.KernelBinarySize;
+    g_KernelState.LoadInfo.ReserveSize      = SysInfoPack.KernelReserveSize;
     g_KernelState.LoadInfo.AddrPhysicalBase = SysInfoPack.KernelPhysicalBase;
-    g_KernelState.LoadInfo.AddrVirtualBase = SysInfoPack.KernelVirtualBase;
+    g_KernelState.LoadInfo.AddrVirtualBase  = SysInfoPack.KernelVirtualBase;
 
     // Initialize Bootstrap Arena
     KrInitBootstrapArena((VOID*) SysInfoPack.KernelBootstrapArenaBase, SysInfoPack.KernelBootstrapArenaSize);
 
-    // Copy over the memory map
-    {
-        g_KernelState.MemoryMapInfo = SysInfoPack.MemoryMapInfo;
-        g_KernelState.MemoryMap = KrBootstrapArenaAcquire(g_KernelState.MemoryMapInfo.MemoryMapSize);
-        KrtlContiguousCopyBuffer(g_KernelState.MemoryMap, (VOID*) SysInfoPack.MemoryMapInfo.PhysicalAddress, g_KernelState.MemoryMapInfo.MemoryMapSize);
-    }
+    // Does sum crazy shit
+    KrInitMemmap(&SysInfoPack.MemoryMapInfo);
 
     // Init FrameBufferInfo & DisplaywideTextProtocol
     {
@@ -97,7 +95,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         " -> Load Address (PHYS) : %p\n"
         " -> Load Address (VIRT) : %p\n"
         " -> Total Reserved      : %u MiB\n",
-        (UINT) g_KernelState.LoadInfo.BinarySize / 1024, (UINT) KR_CEILDIV(g_KernelState.LoadInfo.BinarySize, 1024), (UINT) g_KernelState.LoadInfo.BinarySize,
+        (UINT)  g_KernelState.LoadInfo.BinarySize / 1024, (UINT) KR_CEILDIV(g_KernelState.LoadInfo.BinarySize, 1024), (UINT) g_KernelState.LoadInfo.BinarySize,
         (void*) g_KernelState.LoadInfo.AddrPhysicalBase,
         (void*) g_KernelState.LoadInfo.AddrVirtualBase,
         (UINT)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
@@ -123,69 +121,8 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText("Local APIC Physical Base Address = %p\n", (VOID*) KrGetAPICPhysicalBase());
 
-    // Initialize Physical Memory Management
-    if (!KrInitPhysmemmgmt())
-    {
-        MDCODE code = KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE;
-        CSTR pDesc = "Failed to initialize Physmemmgmt.";
-        Krnlmeltdownimm(code, pDesc);
-    }
-    KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    {
-        const KrPhysmemmgmtState* pStatePMM = GetPhysmemmgmtState();
-        KrdwtpOutFormatText
-        (
-            "Physical Memory Information:\n"
-            " -> Page Size: %Ru (%Ru KiB)\n"
-            " -> Total Pages: %Ru (%Ru MiB)\n"
-            " -> Unusable Pages: %Ru (%Ru MiB)\n"
-            " -> Total Usable Pages: %Ru (%Ru MiB)\n",
-            pStatePMM->PageSize, pStatePMM->PageSize / 1024,
-            pStatePMM->TotalPages, pStatePMM->TotalPages * pStatePMM->PageSize / 1024 / 1024,
-            pStatePMM->UnusablePages, pStatePMM->UnusablePages * pStatePMM->PageSize / 1024 / 1024,
-            (pStatePMM->TotalPages - pStatePMM->UnusablePages), (pStatePMM->TotalPages - pStatePMM->UnusablePages) * pStatePMM->PageSize / 1024 / 1024
-        );
-    }
-
-    // Test acquisition/relinquishment
-    {
-        PAGEID TestPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-        if (TestPageID == KR_INVALID_PAGEID)
-        {
-            MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
-            CSTR pDesc = "Test page acquisition from Physmemmgmt failed!";
-            Krnlmeltdownimm(code, pDesc);
-        }
-        KrdwtpOutFormatText("Acquired test page from Physmemmgmt: ID = %Ru, Address = %p\n", TestPageID, KrGetPhysicalPageAddress(TestPageID));
-        if (!KrRelinquishPhysicalPage(TestPageID))
-        {
-            MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
-            CSTR pDesc = "Test page relinquishment to Physmemmgmt failed!";
-            Krnlmeltdownimm(code, pDesc);
-        }
-        KrdwtpOutColoredText("Relinquished test page to Physmemmgmt.\n", KRDWTP_COLOR_CYAN, KRDWTP_BACKGROUND);
-    }
-
-    // Init VMM
-    if (!KrInitVirtmemmgmt())
-    {
-        MDCODE code = KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE;
-        CSTR pDesc = "Failed to initialize Virtmemmgmt.";
-        Krnlmeltdownimm(code, pDesc);
-    }
-    KrdwtpOutColoredText("Initialized Virtmemmgmt (Virtual Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    {
-        const KrVirtmemmgmtState* pStateVMM = GetVirtmemmgmtState();
-        KrdwtpOutFormatText
-        (
-            "Virtual Memory DMAP Information:\n"
-            " -> Huge  Pages (1GiB) : %Ru\n"
-            " -> Large Pages (2MiB) : %Ru\n"
-            " -> Small Pages (4KiB) : %Ru\n"
-            " -> Total Pages (H+L+S): %Ru\n",
-            pStateVMM->HugePages, pStateVMM->LargePages, pStateVMM->SmallPages, pStateVMM->TotalPages
-        );
-    }
+    // Init Physmemmgmt & Virtmemmgmt
+    KrInitMem();
 
     // ======= STOP HERE =========== //
     KrProcessorHalt();

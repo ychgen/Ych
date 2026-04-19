@@ -12,6 +12,14 @@
 BOOL KrInitBootstrapArena(VOID* pBase, SIZE szArena);
 
 /**
+ * @brief Aligns the current bootstrap arena cursor to the next multiple of the given alignment.
+ * 
+ * @param Alignment The value to align to.
+ * @return TRUE if succeeded, FALSE if failed (example: running out of space!)
+ */
+BOOL KrBootstrapArenaAlign(UINT Alignment);
+
+/**
  * @brief Acquires N amount of bytes in the Bootstrap Kernel Arena.
  * 
  * @param N Number of bytes to allocate.

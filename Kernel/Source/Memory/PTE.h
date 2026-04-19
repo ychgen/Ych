@@ -24,7 +24,7 @@ typedef struct KR_PACKED
 // 8 bytes
 typedef QWORD KrPageTableEntry;
 
-KrPageTableEntry KrEncodePageTableEntry
+static KrPageTableEntry KrEncodePageTableEntry
 (
     UINTPTR pPhysicalAddress,
     KrPageTableEntryFlags Flags
@@ -37,7 +37,7 @@ KrPageTableEntry KrEncodePageTableEntry
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
 }
 
-KrPageTableEntry KrEncodeLargePageEntry
+static KrPageTableEntry KrEncodeLargePageEntry
 (
     UINTPTR pPhysicalAddress,
     KrPageTableEntryFlags Flags,
@@ -51,7 +51,7 @@ KrPageTableEntry KrEncodeLargePageEntry
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
 }
 
-KrPageTableEntry KrEncodeHugePageTableEntry
+static KrPageTableEntry KrEncodeHugePageTableEntry
 (
     UINTPTR pPhysicalAddress,
     KrPageTableEntryFlags Flags
@@ -78,7 +78,7 @@ typedef enum
     KR_VAMODE_HUGE,
 } KrVirtualAddressMode;
 
-KrVirtualAddress KrVirtBreakdown(UINTPTR pAddrVirt, KrVirtualAddressMode eMode)
+static KrVirtualAddress KrVirtBreakdown(UINTPTR pAddrVirt, KrVirtualAddressMode eMode)
 {
     KrVirtualAddress Result = {0};
     Result.PML4 = (pAddrVirt >> 39) & 0x1FF;

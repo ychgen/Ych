@@ -9,9 +9,6 @@
 
 #include "KRTL/Krnlmem.h"
 
-// For debugging
-#define KR_VMM_FORCED_EVICTION FALSE
-
 // Converts a virtual address from the reserved area to physical
 #define KrReservedVirtToPhys(Virt) (g_KernelState.LoadInfo.AddrPhysicalBase + ((UINTPTR)(Virt) - g_KernelState.LoadInfo.AddrVirtualBase))
 // Converts a physical address from the reserved area to virtual
@@ -80,7 +77,7 @@ VOID KrInitStaticPages(VOID)
         g_KernelPDPT[KR_KERNEL_PDPT_KERNEL_INDEX      ] = KrEncodeLargePageEntry(KrReservedVirtToPhys(g_KernelPD),      Flags, 0);
         g_KernelPDPT[KR_KERNEL_PDPT_FRAME_BUFFER_INDEX] = KrEncodeLargePageEntry(KrReservedVirtToPhys(g_FrameBufferPD), Flags, 0);
 
-        g_StateVMM.AddrDirectMapBase = KR_MAKE_VIRTUAL(KR_DIRECT_MAP_PML4_INDEX, 0, 0, 0, 0);
+        g_StateVMM.AddrDirectMapBase    = KR_MAKE_VIRTUAL(KR_DIRECT_MAP_PML4_INDEX, 0, 0, 0, 0);
         g_StateVMM.AddrRecursiveMapBase = KR_MAKE_VIRTUAL(KR_RECURSIVE_PML4_INDEX, 0, 0, 0, 0);
     }
     
@@ -143,19 +140,19 @@ BOOL KrInitVirtmemmgmt(VOID)
     return TRUE;
 }
 
-VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szszRegionSize, DWORD dwAcquisitionType, DWORD dwFlags)
+VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags)
 {
     KR_UNUSED(pHintAddress);
-    KR_UNUSED(szszRegionSize);
+    KR_UNUSED(szRegionSize);
     KR_UNUSED(dwAcquisitionType);
     KR_UNUSED(dwFlags);
     return NULLPTR;
 }
 
-BOOL KrRelinquishVirt(const VOID* pBaseAddress, SIZE szszRegionSize, DWORD dwOperation)
+BOOL KrRelinquishVirt(const VOID* pBaseAddress, SIZE szRegionSize, DWORD dwOperation)
 {
     KR_UNUSED(pBaseAddress);
-    KR_UNUSED(szszRegionSize);
+    KR_UNUSED(szRegionSize);
     KR_UNUSED(dwOperation);
     return FALSE;
 }

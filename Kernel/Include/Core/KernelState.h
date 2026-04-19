@@ -31,7 +31,7 @@ typedef struct
 typedef struct
 {
     UINTPTR AddrDescriptorTable;       // Address to GDT entries array
-    WORD    NumberOfDescriptorEntries; // NULL DESCRIPTOR included
+    WORD    NumberOfDescriptorEntries; // NULL DESCRIPTOR included!
     WORD    KernelCodeSegmentSelector;
     WORD    KernelDataSegmentSelector;
 } KrGlobalDescriptorTableState;
@@ -47,9 +47,12 @@ typedef struct
     /** Kernel Load Information, containing fields like load address and certain area sizes. */
     KrLoadInfo LoadInfo;
 
-    /** Memory Map */
+    /** Firmware Provided Memory Map */
     KrMemoryMapInfo MemoryMapInfo;
     KrMemoryDescriptor* MemoryMap;
+    /* Canonical Memory Map */
+    UINT NumCanonicalMapEntries;
+    KrMemoryDescriptor* CanonicalMemoryMap;
 
     /** Global Descriptor Table Information */
     KrGlobalDescriptorTableState StateGDT;
@@ -57,7 +60,7 @@ typedef struct
     /** Interrupt Descriptor Table Information */
     UINTPTR AddrIDT; // Address to IDT entries array.
 
-    /** GOP/VBE Frame Buffer Information */
+    /** GOP/VBE Frame Buffer Information (Non-Driver Related) */
     KrFrameBufferInfo FrameBufferInfo;
 
     /** Video Output Information */

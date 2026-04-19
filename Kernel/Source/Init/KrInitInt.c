@@ -13,6 +13,9 @@
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+#include "Memory/Virtmemmgmt.h"
+
 KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
 static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
@@ -46,6 +49,14 @@ static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_C
 VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
+VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    QWORD CR2;
+    __asm__ __volatile__ ("mov %%cr2, %0" : "=r"(CR2));
+    KrdwtpOutFormatText("#PF -> CR2 = 0x%X ; ErrorCode = 0x%X\nRecorded Pages %u\n", CR2, pInterruptFrame->ErrorCode, GetVirtmemmgmtState()->TotalPages);
+    KrProcessorHalt();
+}
+
 VOID KrInitInt(VOID)
 {
     EncodeAllISRs(); // 0 to 2 and 4 to 255
@@ -65,6 +76,7 @@ VOID KrInitInt(VOID)
 
     KrInitializeInterruptSystem();
     KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt);
+    KrRegisterInterruptHandler(KR_INTERRUPTNO_PAGE_FAULT, KrPageFaultInterrupt);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
     // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,

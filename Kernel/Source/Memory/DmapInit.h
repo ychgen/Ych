@@ -3,63 +3,32 @@
 #ifndef YCH_KERNEL_MEMORY_DMAP_INIT_H
 #define YCH_KERNEL_MEMORY_DMAP_INIT_H
 
-BYTE* __KrHelperAcquirePageStructSpace(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** WorkflowAreaCur, SIZE BootstrapAreaPageStructCount)
-{
-    if (g_StateVMM.TotalPTEs < BootstrapAreaPageStructCount)
-    {
-        BYTE* pResult = *WorkflowAreaCur;
-        KrtlContiguousZeroBuffer(pResult, GetPhysmemmgmtState()->PageSize);
-        *WorkflowAreaCur += KR_PAGE_STRUCTURE_SIZE;
-        return pResult;
-    }
-    else
-    {
-        *pOutPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-        *WorkflowAreaHead = g_StateVMM.AddrDirectMapBase + KrGetPhysicalPageAddress(*pOutPageID);
-        *WorkflowAreaCur = *WorkflowAreaHead;
-        KrtlContiguousZeroBuffer(*WorkflowAreaHead, GetPhysmemmgmtState()->PageSize);
-        return *WorkflowAreaCur; 
-    }
-}
-#define KrHelperAcquirePageStructSpace() __KrHelperAcquirePageStructSpace(&PageID, &WorkflowAreaHead, &WorkflowAreaCur, BootstrapAreaPageStructCount)
+// For debugging
+#define KR_VMM_FORCED_EVICTION FALSE
 
-UINTPTR __KrHelperAcquirePhysicalOfLastPageStruct(PAGEID PageID, const VOID* pInitialBootstrapArena, SIZE BootstrapAreaPageStructCount)
-{
-    if (g_StateVMM.TotalPTEs < BootstrapAreaPageStructCount)
-    {
-        // Conversion ceremony...
-        return (UINTPTR)(pInitialBootstrapArena + g_StateVMM.TotalPTEs * KR_PAGE_STRUCTURE_SIZE);
-    }
-    // If the condition above is FALSE this page structure lives on memory acquired from Physmemmgmt.
-    return (UINTPTR) KrGetPhysicalPageAddress(PageID);
-}
-#define KrHelperAcquirePhysicalOfLastPageStruct(Addr) __KrHelperAcquirePhysicalOfLastPageStruct(PageID, pBootstrapArenaInitial, BootstrapAreaPageStructCount)
+static BYTE*   __KrAcquirePTE(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** WorkflowAreaCur, SIZE BootstrapAreaPageStructCount);
+static UINTPTR __KrGetPhysicalOfLastPTE(PAGEID PageID, const VOID* pInitialBootstrapArena, SIZE BootstrapAreaPageStructCount);
+static UINTPTR __KrGetVirtualOfPTE(UINTPTR AddrPhysical);
 
-UINTPTR __KrHelperGetVirtualOfPageStruct(UINTPTR AddrPhysical)
-{
-    UINTPTR PhysAddrBootstrapArenaBase = KrReservedVirtToPhys(KrBootstrapArenaGetBase());
-    UINTPTR PhysAddrBootstrapArenaEnd  = KrReservedVirtToPhys(KrBootstrapArenaGetEnd());
-
-    if (AddrPhysical >= PhysAddrBootstrapArenaBase && AddrPhysical <= PhysAddrBootstrapArenaEnd)
-    {
-        return KrReservedPhysToVirt(AddrPhysical);
-    }
-    // If the condition above is FALSE this page structure lives on memory acquired from Physmemmgmt.
-    return g_StateVMM.AddrDirectMapBase + AddrPhysical;
-}
-#define KrHelperGetVirtualOfPageStruct(Addr) __KrHelperGetVirtualOfPageStruct(Addr)
+#define KrAcquirePTE()               __KrAcquirePTE(&PageID, &WorkflowAreaHead, &WorkflowAreaCur, BootstrapAreaPageStructCount)
+#define KrGetPhysicalOfLastPTE(Addr) __KrGetPhysicalOfLastPTE(PageID, pBootstrapArenaInitial, BootstrapAreaPageStructCount)
+#define KrGetVirtualOfPTE(Addr)      __KrGetVirtualOfPTE(Addr)
 
 // I am genuinely going to kill myself,
 // when you look at this code keep in mind it was written with 45 minutes of sleep and a dream.
 // all the associated cursed helpers included.
-BOOL KrInitDirectMap(VOID)
+static BOOL KrInitDirectMap(VOID)
 {
-    const UINT ONEGIB  = 1024 * 1024 * 1024;
-    const UINT TWOMIB  =    2 * 1024 * 1024; // Tragic note: original I defined this as `1 * 1024 * 1024`.
-    const UINT FOURKIB =    4 * 1024;
-
+    const UINT ONEGIB   = 1024 * 1024 * 1024;
+    const UINT TWOMIB   =    2 * 1024 * 1024; // Tragic note: original I defined this as `1 * 1024 * 1024`.
+    const UINT FOURKIB  =    4 * 1024;
     const UINT PageSize = g_KernelState.MemoryMapInfo.PageSize;
-    const VOID* pBootstrapArenaInitial = g_KernelState.LoadInfo.AddrPhysicalBase + (KrBootstrapArenaGetPtr() - g_KernelState.LoadInfo.AddrVirtualBase);
+
+    // THIS MUST BE SET IN STONE EARLY!
+    if (!KrBootstrapArenaAlign(KR_PAGE_STRUCTURE_SIZE)) // Align to 4KiB
+    {
+        return FALSE;
+    }
 
     // Calculate how many paging structures can fit in the bootstrap arena.
     SIZE BootstrapAreaPageStructCount = KrBootstrapArenaGetSpaceLeft() / KR_PAGE_STRUCTURE_SIZE; // Floor divide
@@ -75,8 +44,10 @@ BOOL KrInitDirectMap(VOID)
         // `16` is enough to bootstrap us and very little to very quickly evict us out of the bootstrap arena.
         BootstrapAreaPageStructCount = 16;
     }
+    // MUST STORE AFTER ALIGNMENT OPERATION!
+    const VOID* pBootstrapArenaInitial = g_KernelState.LoadInfo.AddrPhysicalBase + (KrBootstrapArenaGetPtr() - g_KernelState.LoadInfo.AddrVirtualBase);
     BYTE* WorkflowAreaHead = KrBootstrapArenaAcquire(BootstrapAreaPageStructCount * KR_PAGE_STRUCTURE_SIZE); // * 4096
-    KrtlContiguousZeroBuffer(WorkflowAreaHead, GetPhysmemmgmtState()->PageSize);
+    KrtlContiguousZeroBuffer(WorkflowAreaHead, BootstrapAreaPageStructCount * KR_PAGE_STRUCTURE_SIZE);
     BYTE* WorkflowAreaCur  = WorkflowAreaHead;
     PAGEID PageID = KR_INVALID_PAGEID;
 
@@ -91,9 +62,9 @@ BOOL KrInitDirectMap(VOID)
     TopLevelFlags.bPresent  = TRUE;
     TopLevelFlags.bWritable = TRUE;
 
-    for (UINT i = 0; i < g_KernelState.MemoryMapInfo.EntryCount; i++)
+    for (UINT i = 0; i < g_KernelState.NumCanonicalMapEntries; i++)
     {
-        KrMemoryDescriptor* pRegion = g_KernelState.MemoryMap + i;
+        KrMemoryDescriptor* pRegion = g_KernelState.CanonicalMemoryMap + i;
 
         if (!KrIsUsableMemoryRegionType(pRegion->Type))
         {
@@ -138,14 +109,14 @@ BOOL KrInitDirectMap(VOID)
                 // Acquire new PDPT if needed.
                 if (!(g_PML4[VirtIndices.PML4]))
                 {
-                    pStructPDPT = (QWORD*) KrHelperAcquirePageStructSpace();
-                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPDPT = (QWORD*) KrAcquirePTE();
+                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     UINTPTR VirtAddr = g_PML4[VirtIndices.PML4] & 0xFFFFFFFFFF000;
-                    pStructPDPT = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPDPT = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
                 *((KrPageTableEntry*) (((BYTE*) pStructPDPT) + VirtIndices.PDPT * KR_PAGE_STRUCTURE_ENTRY_SIZE)) = KrEncodeHugePageTableEntry(PhysAddrRegionBase, Flags);
 
@@ -172,28 +143,28 @@ BOOL KrInitDirectMap(VOID)
                 // Acquire new PDPT if needed
                 if (!(g_PML4[VirtIndices.PML4]))
                 {
-                    pStructPDPT = (QWORD*) KrHelperAcquirePageStructSpace();
-                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPDPT = (QWORD*) KrAcquirePTE();
+                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     // g_PML4 contains physical. We need virtual
                     UINTPTR VirtAddr = g_PML4[VirtIndices.PML4] & 0xFFFFFFFFFF000;
-                    pStructPDPT = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPDPT = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
 
                 // Acquire new PD if needed
                 if (!(pStructPDPT[VirtIndices.PDPT]))
                 {
-                    pStructPD = (QWORD*) KrHelperAcquirePageStructSpace();
-                    pStructPDPT[VirtIndices.PDPT] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPD = (QWORD*) KrAcquirePTE();
+                    pStructPDPT[VirtIndices.PDPT] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     UINTPTR VirtAddr = pStructPDPT[VirtIndices.PDPT] & 0xFFFFFFFFFF000;
-                    pStructPD = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPD = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
                 *((KrPageTableEntry*) (((BYTE*) pStructPD) + VirtIndices.PD * KR_PAGE_STRUCTURE_ENTRY_SIZE)) = KrEncodeLargePageEntry(PhysAddrRegionBase, Flags, 0);
 
@@ -215,41 +186,41 @@ BOOL KrInitDirectMap(VOID)
                 // Acquire new PDPT if needed
                 if (!(g_PML4[VirtIndices.PML4]))
                 {
-                    pStructPDPT = (QWORD*) KrHelperAcquirePageStructSpace();
-                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPDPT = (QWORD*) KrAcquirePTE();
+                    g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     // g_PML4 contains physical. We need virtual
                     UINTPTR VirtAddr = g_PML4[VirtIndices.PML4] & 0xFFFFFFFFFF000;
-                    pStructPDPT = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPDPT = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
 
                 // Acquire new PD if needed
                 if (!(pStructPDPT[VirtIndices.PDPT]))
                 {
-                    pStructPD = (QWORD*) KrHelperAcquirePageStructSpace();
-                    pStructPDPT[VirtIndices.PDPT] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPD = (QWORD*) KrAcquirePTE();
+                    pStructPDPT[VirtIndices.PDPT] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     UINTPTR VirtAddr = pStructPDPT[VirtIndices.PDPT] & 0xFFFFFFFFFF000;
-                    pStructPD = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPD = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
 
                 // Acquire new PT if needed
                 if (!(pStructPD[VirtIndices.PD]))
                 {
-                    pStructPT = (QWORD*) KrHelperAcquirePageStructSpace();
-                    pStructPD[VirtIndices.PD] = KrEncodePageTableEntry(KrHelperAcquirePhysicalOfLastPageStruct(), TopLevelFlags);
+                    pStructPT = (QWORD*) KrAcquirePTE();
+                    pStructPD[VirtIndices.PD] = KrEncodePageTableEntry(KrGetPhysicalOfLastPTE(), TopLevelFlags);
                     g_StateVMM.TotalPTEs++;
                 }
                 else
                 {
                     UINTPTR VirtAddr = pStructPD[VirtIndices.PD] & 0xFFFFFFFFFF000;
-                    pStructPT = (QWORD*) KrHelperGetVirtualOfPageStruct(VirtAddr);
+                    pStructPT = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
                 *((KrPageTableEntry*) (((BYTE*) pStructPT) + VirtIndices.PT * KR_PAGE_STRUCTURE_ENTRY_SIZE)) = KrEncodePageTableEntry(PhysAddrRegionBase, Flags);
 
@@ -266,6 +237,48 @@ BOOL KrInitDirectMap(VOID)
     }
 
     return TRUE;
+}
+
+static BYTE* __KrAcquirePTE(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** WorkflowAreaCur, SIZE BootstrapAreaPageStructCount)
+{
+    if (g_StateVMM.TotalPTEs < BootstrapAreaPageStructCount)
+    {
+        BYTE* pResult = *WorkflowAreaCur;
+        *WorkflowAreaCur += KR_PAGE_STRUCTURE_SIZE;
+        return pResult;
+    }
+    else
+    {
+        *pOutPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
+        *WorkflowAreaHead = g_StateVMM.AddrDirectMapBase + KrGetPhysicalPageAddress(*pOutPageID);
+        *WorkflowAreaCur = *WorkflowAreaHead;
+        KrtlContiguousZeroBuffer(*WorkflowAreaHead, GetPhysmemmgmtState()->PageSize);
+        return *WorkflowAreaCur; 
+    }
+}
+
+static UINTPTR __KrGetPhysicalOfLastPTE(PAGEID PageID, const VOID* pInitialBootstrapArena, SIZE BootstrapAreaPageStructCount)
+{
+    if (g_StateVMM.TotalPTEs < BootstrapAreaPageStructCount)
+    {
+        // Conversion ceremony...
+        return (UINTPTR)(pInitialBootstrapArena + g_StateVMM.TotalPTEs * KR_PAGE_STRUCTURE_SIZE);
+    }
+    // If the condition above is FALSE this page structure lives on memory acquired from Physmemmgmt.
+    return (UINTPTR) KrGetPhysicalPageAddress(PageID);
+}
+
+static UINTPTR __KrGetVirtualOfPTE(UINTPTR AddrPhysical)
+{
+    UINTPTR PhysAddrBootstrapArenaBase = KrReservedVirtToPhys(KrBootstrapArenaGetBase());
+    UINTPTR PhysAddrBootstrapArenaEnd  = KrReservedVirtToPhys(KrBootstrapArenaGetEnd());
+
+    if (AddrPhysical >= PhysAddrBootstrapArenaBase && AddrPhysical <= PhysAddrBootstrapArenaEnd)
+    {
+        return KrReservedPhysToVirt(AddrPhysical);
+    }
+    // If the condition above is FALSE this page structure lives on memory acquired from Physmemmgmt.
+    return g_StateVMM.AddrDirectMapBase + AddrPhysical;
 }
 
 #endif // !YCH_KERNEL_MEMORY_DMAP_INIT_H

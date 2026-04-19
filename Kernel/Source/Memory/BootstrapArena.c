@@ -17,10 +17,21 @@ BOOL KrInitBootstrapArena(VOID* pBase, SIZE szArena)
     return TRUE;
 }
 
+BOOL KrBootstrapArenaAlign(UINT Alignment)
+{
+    BYTE* pAligned = (BYTE*)(((UINTPTR) g_pBootstrapArenaPtr + Alignment - 1) & ~((UINTPTR) Alignment - 1));
+    if (pAligned > g_pBootstrapArenaEnd)
+    {
+        return FALSE;
+    }
+    g_pBootstrapArenaPtr = pAligned;
+    return TRUE;
+}
+
 VOID* KrBootstrapArenaAcquire(SIZE N)
 {
     N = (N + KR_BOOTSTRAP_ARENA_ALIGNMENT - 1) & ~(KR_BOOTSTRAP_ARENA_ALIGNMENT - 1);
-    if (!N || (UINTPTR)(g_pBootstrapArenaPtr + N) >= (UINTPTR) g_pBootstrapArenaEnd)
+    if (!N || (UINTPTR)(g_pBootstrapArenaPtr + N) > (UINTPTR) g_pBootstrapArenaEnd)
     {
         return NULLPTR;
     }
