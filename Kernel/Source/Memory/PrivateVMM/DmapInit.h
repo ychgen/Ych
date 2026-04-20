@@ -3,8 +3,11 @@
 #ifndef YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H
 #define YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
 // For debugging
-#define KR_VMM_FORCED_EVICTION FALSE
+#define KR_VMM_DEBUG_FORCED_EVICTION FALSE
+#define KR_VMM_DEBUG_NO_PDPE1GB      FALSE
 
 static BYTE*   __KrAcquirePTE(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** WorkflowAreaCur, SIZE BootstrapAreaPageStructCount);
 static UINTPTR __KrGetPhysicalOfLastPTE(PAGEID PageID, const VOID* pInitialBootstrapArena, SIZE BootstrapAreaPageStructCount);
@@ -20,7 +23,7 @@ static UINTPTR __KrGetVirtualOfPTE(UINTPTR AddrPhysical);
 static BOOL KrInitDirectMap(VOID)
 {
     const UINT ONEGIB   = 1024 * 1024 * 1024;
-    const UINT TWOMIB   =    2 * 1024 * 1024; // Tragic note: original I defined this as `1 * 1024 * 1024`.
+    const UINT TWOMIB   =    2 * 1024 * 1024; // Tragic note: originally, I defined this as `1 * 1024 * 1024`.
     const UINT FOURKIB  =    4 * 1024;
     const UINT PageSize = g_KernelState.MemoryMapInfo.PageSize;
 
@@ -39,7 +42,7 @@ static BOOL KrInitDirectMap(VOID)
     }
     // Forced eviction is a debug mode to utilize bootstrap area bare minimum so page structures get evicted to normal memory...
     // This is done so we can be sure our main logic works with acquisiton and accessing of just mapped areas.
-    if (KR_VMM_FORCED_EVICTION && BootstrapAreaPageStructCount > 16)
+    if (KR_VMM_DEBUG_FORCED_EVICTION && BootstrapAreaPageStructCount > 16)
     {
         // `16` is enough to bootstrap us and very little to very quickly evict us out of the bootstrap arena.
         BootstrapAreaPageStructCount = 16;
@@ -66,10 +69,11 @@ static BOOL KrInitDirectMap(VOID)
     {
         KrMemoryDescriptor* pRegion = g_KernelState.CanonicalMemoryMap + i;
 
-        if (!KrIsUsableMemoryRegionType(pRegion->Type))
-        {
-            continue;
-        }
+        // Not needed since we use CanonicalMemoryMap now which already contains only super regions of CONVENTIONAL_MEMORY.
+        // if (!KrIsUsableMemoryRegionType(pRegion->Type))
+        // {
+        //     continue;
+        // }
 
         UINTPTR PhysAddrRegionBase = pRegion->PhysicalBase;
         ULONG   szRegionSize       = pRegion->PageCount * PageSize;
@@ -79,7 +83,8 @@ static BOOL KrInitDirectMap(VOID)
         {
             /* Decide *what* sort of table we have to use for this shit */
             // 1GiB aligned page & 1GiB span? HUGE.
-            if (!(PhysAddrRegionBase & (ONEGIB - 1)) && szRegionSize >= ONEGIB)
+            // Not so fast, processor must support huge pages (and our debug flag must be the correct value ofcourse)
+            if ((!(KR_VMM_DEBUG_NO_PDPE1GB) && g_StateVMM.bHugePageSupport) && !(PhysAddrRegionBase & (ONEGIB - 1)) && szRegionSize >= ONEGIB)
             {
                 ModeVA = KR_VAMODE_HUGE;
             }
@@ -126,9 +131,6 @@ static BOOL KrInitDirectMap(VOID)
 
                 PhysAddrRegionBase += ONEGIB;
                 szRegionSize -= ONEGIB;
-
-                pStructPD = NULLPTR;
-                pStructPT = NULLPTR;
 
                 break;
             }

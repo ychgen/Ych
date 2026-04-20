@@ -8,6 +8,7 @@
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
+#include "CPU/Identify.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
 
@@ -101,6 +102,25 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         (UINT)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
     KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
     KrdwtpOutFormatText("Framebuffer resolution is %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
+
+    {
+        CHAR ManufacturerID[KR_PROCESSOR_MANUFACTURER_ID_SIZE + 1];
+        KrGetProcessorManufacturerID(ManufacturerID);
+        ManufacturerID[KR_PROCESSOR_MANUFACTURER_ID_SIZE] = 0;
+
+        CHAR BrandStr[KR_PROCESSOR_BRAND_STRING_SIZE + 1];
+        KrGetProcessorBrandString(BrandStr);
+        BrandStr[KR_PROCESSOR_BRAND_STRING_SIZE] = 0;
+
+        KrdwtpOutFormatText
+        (
+            "Processor Information:\n"
+            " -> Manufacturer : %s\n"
+            " -> Brand String : %s\n",
+
+            ManufacturerID, BrandStr
+        );
+    }
 
     // Initialize flat Global Descriptor Table.
     KrInitGDT();

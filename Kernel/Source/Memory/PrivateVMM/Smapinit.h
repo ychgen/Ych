@@ -1,6 +1,27 @@
 #ifndef YCH_KERNEL_MEMORY_PRIVATE_VMM_SMAP_INIT_H
 #define YCH_KERNEL_MEMORY_PRIVATE_VMM_SMAP_INIT_H
 
+#include "PTE.h"
+
+// Converts a virtual address from the reserved area to physical
+#define KrReservedVirtToPhys(Virt) (g_KernelState.LoadInfo.AddrPhysicalBase + ((UINTPTR)(Virt) - g_KernelState.LoadInfo.AddrVirtualBase))
+// Converts a physical address from the reserved area to virtual
+#define KrReservedPhysToVirt(Phys) (g_KernelState.LoadInfo.AddrVirtualBase  + ((UINTPTR)(Phys) - g_KernelState.LoadInfo.AddrPhysicalBase))
+
+// The PML4 (Page Map Level 4) paging structure, always fixed here.
+// Contains physical addresses of PDPTs.
+KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
+KrPageTableEntry g_PML4[KR_PAGE_STRUCTURE_ENTRY_COUNT];          // The PML4
+
+KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
+KrPageTableEntry g_KernelPDPT[KR_PAGE_STRUCTURE_ENTRY_COUNT];    // Referred as g_PML4[KR_KERNEL_RESERVED_PML4_INDEX]
+
+KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
+KrPageTableEntry g_KernelPD[KR_PAGE_STRUCTURE_ENTRY_COUNT];      // Referred as g_KernelPDPT[KR_KERNEL_PDPT_KERNEL_INDEX]
+
+KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
+KrPageTableEntry g_FrameBufferPD[KR_PAGE_STRUCTURE_ENTRY_COUNT]; // Referred as g_KernelPDPT[KR_KERNEL_PDPT_FRAME_BUFFER_INDEX]
+
 // Initializes static mapping to map kernel as-is.
 static VOID KrInitStaticPages(VOID)
 {

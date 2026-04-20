@@ -59,17 +59,26 @@
 
 typedef struct
 {
-    // Total Page Table Entry Structures
-    UINT TotalPTEs;
+    /** If TRUE, the processor is capable of 1GiB huge pages. */
+    BOOL  bHugePageSupport  : 1;
+    /** If TRUE, the processor is capable of pages being NX. */
+    BOOL  bNoExecuteSupport : 1;
 
-    UINT HugePages;  // Number of huge pages.
-    UINT LargePages; // Number of large pages.
-    UINT SmallPages; // Number of small pages.
-    UINT TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
+    // Total Page Table Entry Structures
+    ULONG TotalPTEs;
+
+    ULONG HugePages;  // Number of huge pages.
+    ULONG LargePages; // Number of large pages.
+    ULONG SmallPages; // Number of small pages.
+    ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
 
     /** @brief Base virtual address of where direct mapping of system memory starts. */
     UINTPTR AddrDirectMapBase;
+    /** @brief This one is like a cheat code to edit PTEs directly. */
     UINTPTR AddrRecursiveMapBase;
+
+    // Total number of currently acquired VMR (Virtual Memory Region)s.
+    UINT NumVMRs;
 } KrVirtmemmgmtState;
 
 /**
@@ -78,6 +87,8 @@ typedef struct
  * @return TRUE if just initialized, FALSE if initialization failed or the subsystem was already initialized.
  */
 BOOL KrInitVirtmemmgmt(VOID);
+
+BOOL KrMapVirt(const VOID* pVirt, const VOID* pPhys, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags);
 
 /**
  * @brief Acquires a virtual address space, locking it in. Optionally acquires physical backing for those pages if `COMMIT` is specified.

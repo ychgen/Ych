@@ -298,9 +298,33 @@ BOOL KrIsPhysicalPageReserved(PAGEID idPage)
     return (g_pAdvisoryBitmap[idPage / 8]) & (1 << (idPage % 8));
 }
 
-BOOL KrIsUsableMemoryRegionType(DWORD Type)
+CSTR  KrMemoryRegionTypeToString(DWORD dwType)
 {
-    switch (Type)
+    switch (dwType)
+    {
+    case KR_MEMORY_TYPE_RESERVED             : return "KR_MEMORY_TYPE_RESERVED";
+    case KR_MEMORY_TYPE_LOADER_CODE          : return "KR_MEMORY_TYPE_LOADER_CODE";
+    case KR_MEMORY_TYPE_LOADER_DATA          : return "KR_MEMORY_TYPE_LOADER_DATA";
+    case KR_MEMORY_TYPE_BOOT_SERVICES_CODE   : return "KR_MEMORY_TYPE_BOOT_SERVICES_CODE";
+    case KR_MEMORY_TYPE_BOOT_SERVICES_DATA   : return "KR_MEMORY_TYPE_BOOT_SERVICES_DATA";
+    case KR_MEMORY_TYPE_RUNTIME_SERVICES_CODE: return "KR_MEMORY_TYPE_RUNTIME_SERVICES_CODE";
+    case KR_MEMORY_TYPE_RUNTIME_SERVICES_DATA: return "KR_MEMORY_TYPE_RUNTIME_SERVICES_DATA";
+    case KR_MEMORY_TYPE_CONVENTIONAL_MEMORY  : return "KR_MEMORY_TYPE_CONVENTIONAL_MEMORY";
+    case KR_MEMORY_TYPE_UNUSABLE_MEMORY      : return "KR_MEMORY_TYPE_UNUSABLE_MEMORY";
+    case KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY  : return "KR_MEMORY_TYPE_ACPI_RECLAIM_MEMORY";
+    case KR_MEMORY_TYPE_ACPI_MEMORY_NVS      : return "KR_MEMORY_TYPE_ACPI_MEMORY_NVS";
+    case KR_MEMORY_TYPE_MMIO                 : return "KR_MEMORY_TYPE_MMIO";
+    case KR_MEMORY_TYPE_MMIO_PORT_SPACE      : return "KR_MEMORY_TYPE_MMIO_PORT_SPACE";
+    case KR_MEMORY_TYPE_PAL_CODE             : return "KR_MEMORY_TYPE_PAL_CODE";
+    case KR_MEMORY_TYPE_PERSISTENT_MEMORY    : return "KR_MEMORY_TYPE_PERSISTENT_MEMORY";
+    default: break;
+    }
+    return "(NULLPTR)";
+}
+
+BOOL KrIsUsableMemoryRegionType(DWORD dwType)
+{
+    switch (dwType)
     {
     case KR_MEMORY_TYPE_LOADER_CODE:
     case KR_MEMORY_TYPE_LOADER_DATA:

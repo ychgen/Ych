@@ -53,6 +53,9 @@ VOID KrInitMemmap(const KrMemoryMapInfo* pMemmapInfo)
 {
     // Copy over the memory map
     {
+        // Make sure barena is 16-aligned
+        KrBootstrapArenaAlign(16);
+
         g_KernelState.MemoryMapInfo = *pMemmapInfo;
         g_KernelState.MemoryMap = KrBootstrapArenaAcquire(pMemmapInfo->MemoryMapSize);
         KrtlContiguousCopyBuffer(g_KernelState.MemoryMap, (VOID*) pMemmapInfo->PhysicalAddress, pMemmapInfo->MemoryMapSize);
@@ -60,6 +63,8 @@ VOID KrInitMemmap(const KrMemoryMapInfo* pMemmapInfo)
     }
     // Build CanonicalMemoryMap (used when you just want to iterate regions classified as usable)
     {
+        // Make sure barena is 16-aligned, enjoy General Protection Fault otherwise
+        KrBootstrapArenaAlign(16);
         // Make sure enough space exists (who cares about wasting space anyway)
         g_KernelState.CanonicalMemoryMap = KrBootstrapArenaAcquire(pMemmapInfo->MemoryMapSize);
         for (UINT i = 0; i < pMemmapInfo->EntryCount; i++)
@@ -71,32 +76,31 @@ VOID KrInitMemmap(const KrMemoryMapInfo* pMemmapInfo)
                 continue;
             }
 
+            /** Super Region  */
             UINTPTR PhysAddrRegionBase = pFwDescriptor->PhysicalBase;
             ULONG   CanonicalPageCount = pFwDescriptor->PageCount;
+
             // Peek ahead
-            for (UINT j = i + 1; j < pMemmapInfo->EntryCount; j++)
+            UINT j = i + 1;
+            while (j < pMemmapInfo->EntryCount)
             {
                 KrMemoryDescriptor* pFwDescAhead = (KrMemoryDescriptor*) g_KernelState.MemoryMap + j;
                 
-                // NOTE: i is manually advanced inside inner loop to consume merged regions.
-                // Do not refactor without understanding consumption semantics.
-
-                // Did we exhaust the usable chain?
-                if (!KrIsUsableMemoryRegionType(pFwDescAhead->Type))
+                // Two requirements:
+                //   Did we exhaust the usable chain?
+                //   Are the regions actually sequential in the address space?
+                // Russian roulette ass.
+                if (!KrIsUsableMemoryRegionType(pFwDescAhead->Type) ||
+                    (PhysAddrRegionBase + CanonicalPageCount * pMemmapInfo->PageSize) != pFwDescAhead->PhysicalBase)
                 {
-                    // We know this entry is unusable, so upper loop will start checking from the next one due to increment.
-                    i = j;
                     break;
                 }
-                // Not so fast, we need to check if the regions are sequential
-                if ((PhysAddrRegionBase + CanonicalPageCount * pMemmapInfo->PageSize) != pFwDescAhead->PhysicalBase)
-                {
-                    i = j - 1; // This entry is actually usable, just not adjacent. Do -1 so upper loop starts from j.
-                    break;
-                }
+                
                 // Usable region(s) stacked, combine.
                 CanonicalPageCount += pFwDescAhead->PageCount;
+                j++;
             }
+            i = j - 1;
 
             KrMemoryDescriptor* pCanonicalDescriptor = g_KernelState.CanonicalMemoryMap + g_KernelState.NumCanonicalMapEntries++;
             pCanonicalDescriptor->PhysicalBase = PhysAddrRegionBase;

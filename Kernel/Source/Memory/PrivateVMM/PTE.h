@@ -3,7 +3,7 @@
 #ifndef YCH_KERNEL_MEMORY_PTE_H
 #define YCH_KERNEL_MEMORY_PTE_H
 
-#include "Krnlych.h"
+#include "Memory/Virtmemmgmt.h"
 
 #define KR_PAGE_STRUCTURE_ENTRY_COUNT 512
 #define KR_PAGE_STRUCTURE_ENTRY_SIZE    8
@@ -31,7 +31,7 @@ static KrPageTableEntry KrEncodePageTableEntry
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(Flags.bNoExecute) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) |
+        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) |
         ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
         ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
@@ -45,7 +45,7 @@ static KrPageTableEntry KrEncodeLargePageEntry
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(Flags.bNoExecute) << 63) | ((QWORD)(0) << 52) | ((QWORD)(PAT) << 12) | ((QWORD)(pPhysicalAddress)) |
+        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(PAT) << 12) | ((QWORD)(pPhysicalAddress)) |
         ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
         ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
@@ -58,7 +58,7 @@ static KrPageTableEntry KrEncodeHugePageTableEntry
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(Flags.bNoExecute) << 63) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(Flags.bGlobal) << 8) |
+        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(Flags.bGlobal) << 8) |
         ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) | ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
 }
@@ -107,6 +107,47 @@ static KrVirtualAddress KrVirtBreakdown(UINTPTR pAddrVirt, KrVirtualAddressMode 
     }
 
     return Result;
+}
+
+typedef enum
+{
+    KR_PAGE_HIERARCHY_PML4,
+    KR_PAGE_HIERARCHY_PDPT,
+    KR_PAGE_HIERARCHY_PD,
+    KR_PAGE_HIERARCHY_PT
+} KrPageHierarchy;
+
+KrPageTableEntry* KrGetAddrOfPTE(KrVirtualAddress VirtAddr, KrPageHierarchy eHierarchy)
+{
+    QWORD Idx = 0;
+    switch (eHierarchy)
+    {
+    case KR_PAGE_HIERARCHY_PML4:
+    {
+        Idx = (((QWORD)(VirtAddr.PML4)));
+        break;
+    }
+    case KR_PAGE_HIERARCHY_PDPT:
+    {
+        Idx = (((QWORD)(VirtAddr.PML4) << 9)) | (((QWORD)(VirtAddr.PDPT)));
+        break;
+    }
+    case KR_PAGE_HIERARCHY_PD:
+    {
+        Idx = (((QWORD)(VirtAddr.PML4) << 18)) | (((QWORD)(VirtAddr.PDPT) << 9)) | (((QWORD)(VirtAddr.PD)));
+        break;
+    }
+    case KR_PAGE_HIERARCHY_PT:
+    {
+        Idx = (((QWORD)(VirtAddr.PML4) << 27)) | (((QWORD)(VirtAddr.PDPT) << 18)) | (((QWORD)(VirtAddr.PD) << 9)) | (((QWORD)(VirtAddr.PT)));
+        break;
+    }
+    default:
+    {
+        return NULLPTR;
+    }
+    }
+    return ((KrPageTableEntry*) g_StateVMM.AddrRecursiveMapBase) + Idx;
 }
 
 #endif // !YCH_KERNEL_MEMORY_PTE_H

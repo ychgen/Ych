@@ -1,18 +1,15 @@
 #include "Memory/Virtmemmgmt.h"
-#include "PTE.h"
 
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
+
+#include "CPU/CPUID.h"
+#include "CPU/MSR.h"
 
 #include "Memory/BootstrapArena.h"
 #include "Memory/Physmemmgmt.h"
 
 #include "KRTL/Krnlmem.h"
-
-// Converts a virtual address from the reserved area to physical
-#define KrReservedVirtToPhys(Virt) (g_KernelState.LoadInfo.AddrPhysicalBase + ((UINTPTR)(Virt) - g_KernelState.LoadInfo.AddrVirtualBase))
-// Converts a physical address from the reserved area to virtual
-#define KrReservedPhysToVirt(Phys) (g_KernelState.LoadInfo.AddrVirtualBase  + ((UINTPTR)(Phys) - g_KernelState.LoadInfo.AddrPhysicalBase))
 
 #define KR_DIRECT_MAP_PML4_INDEX          256 // Direct mapping starts at this PML4 index.
 #define KR_RECURSIVE_PML4_INDEX           510 // PML4[KR_RECURSIVE_PML4_INDEX] = PHYSICAL_OF(PML4)
@@ -32,30 +29,8 @@ typedef struct KrVirtualMemoryRegion
     struct KrVirtualMemoryRegion* pNext; // Next Node
 } KrVirtualMemoryRegion;
 
-// VMM State
-KrVirtmemmgmtState g_StateVMM;
-
-/** The root node within the VMR linked list. */
+KrVirtmemmgmtState    g_StateVMM;
 KrVirtualMemoryRegion g_RootVMR;
-
-// The PML4 (Page Map Level 4) paging structure, always fixed here.
-// Contains physical addresses of PDPTs.
-KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
-KrPageTableEntry g_PML4[KR_PAGE_STRUCTURE_ENTRY_COUNT];          // The PML4
-
-KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
-KrPageTableEntry g_KernelPDPT[KR_PAGE_STRUCTURE_ENTRY_COUNT];    // Referred as g_PML4[KR_KERNEL_RESERVED_PML4_INDEX]
-
-KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
-KrPageTableEntry g_KernelPD[KR_PAGE_STRUCTURE_ENTRY_COUNT];      // Referred as g_KernelPDPT[KR_KERNEL_PDPT_KERNEL_INDEX]
-
-KR_ALIGNED(KR_PAGE_STRUCTURE_SIZE)
-KrPageTableEntry g_FrameBufferPD[KR_PAGE_STRUCTURE_ENTRY_COUNT]; // Referred as g_KernelPDPT[KR_KERNEL_PDPT_FRAME_BUFFER_INDEX]
-
-QWORD* KrGetPTE(const VOID* pVirtual)
-{
-    return (QWORD*)(g_StateVMM.AddrRecursiveMapBase + ((((UINTPTR) pVirtual) >> 9) & 0x7FFFFFFFF8));
-}
 
 // Include these here (depends on symbol defs and stuff from above)
 #include "PrivateVMM/Smapinit.h" // for KrInitStaticPages()
@@ -67,6 +42,26 @@ BOOL KrInitVirtmemmgmt(VOID)
     if (g_PML4[KR_KERNEL_RESERVED_PML4_INDEX])
     {
         return FALSE;
+    }
+
+    // Huge Page Support Check & NX Support Check + Activation
+    {
+        DWORD EAX, EBX, ECX, EDX;
+        KrCPUID(KR_CPUID_LEAF_EXT_FEAT_INFO, EAX, EBX, ECX, EDX);
+
+        if (EDX & KR_CPUID_FEAT_EDX_PDPE1GB)
+        {
+            g_StateVMM.bHugePageSupport = TRUE;
+        }
+
+        if (EDX & KR_CPUID_FEAT_EDX_NX_BIT)
+        {
+            QWORD msrEFER = KrReadModelSpecificRegister(KR_MSR_IA32_EFER);
+            msrEFER |= KR_MSR_IA32_EFER_NXE;
+            KrWriteModelSpecificRegister(KR_MSR_IA32_EFER, msrEFER);
+            // Used by encode PTE functions
+            g_StateVMM.bNoExecuteSupport = TRUE;
+        }
     }
 
     // This keeps our current mapping and unmapping identity-mapped lower 2MiB (L bozo).
@@ -81,10 +76,12 @@ BOOL KrInitVirtmemmgmt(VOID)
         return FALSE;
     }
 
-    // Let's create... nodes...
-
-
     return TRUE;
+}
+
+BOOL KrMapVirt(const VOID* pVirt, const VOID* pPhys, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags)
+{
+    return FALSE;
 }
 
 VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags)

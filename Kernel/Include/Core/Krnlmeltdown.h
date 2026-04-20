@@ -54,14 +54,14 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot
     "addq $8, %%rax\n\t"                         \
     "movq %%rax, 128(%%rsp)\n\t"                 \
     "movq 136(%%rsp), %%rax\n\t"                 \
-    "subq $5, %%rax\n\t"                         \
+    "subq $6, %%rax\n\t"                         \
     "movq %%rax, 136(%%rsp)\n\t"                 \
     "movq %0, %%rdi\n\t"                         \
     "movq %1, %%rsi\n\t"                         \
     "movq %%rsp, %%rdx\n\t"                      \
     "jmp Krnlmeltdown\n\t"                       \
-    : : "m"(mdCode), "m"(pMdDesc) :                  \
-    "rax", "rbx", "rcx", "rdx",        "rsi",   \
+    : : "m"(mdCode), "m"(pMdDesc) :              \
+    "rax", "rbx", "rcx", "rdx",        "rsi",    \
     "rdi", "r8", "r9", "r10", "r11", "r12",      \
     "r13", "r14", "r15", "memory"                \
     );                                           \

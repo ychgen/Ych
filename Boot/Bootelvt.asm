@@ -133,6 +133,7 @@ Bootelvt: ; `Boot Elevate` entry point
                                                         ; In accordance to this, we put it quite near the top. 
     MOV RAX, KERNEL_VIRTUAL_ADDRESS
     MOV RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
+    PUSH 0 ; Fake return address (this makes the stack actually -8 because compiler expects us to call the function, but we JMP instead.)
     JMP RAX ; KrKernelStart
 
     ; Kernel returned? Somebody is drunk.
