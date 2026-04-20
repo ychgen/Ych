@@ -75,7 +75,7 @@ BOOL KrInitPhysmemmgmt(void)
     // 2nd pass ; mark conventional memory and likewise areas as available.
     for (QWORD i = 0; i < g_KernelState.NumCanonicalMapEntries; i++)
     {
-        KrMemoryDescriptor* pDesc = g_KernelState.MemoryMap + i;
+        KrMemoryDescriptor* pDesc = g_KernelState.CanonicalMemoryMap + i;
 
         SIZE idPage = pDesc->PhysicalBase / g_StatePMM.PageSize;
         if (!g_idPageAcqHint || g_idPageAcqHint == KR_INVALID_PAGEID)
