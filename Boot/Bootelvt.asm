@@ -35,6 +35,7 @@ Bootelvt: ; `Boot Elevate` entry point
     ; Setup PAT stage 1, disable caching
     MOV RAX, CR0
     OR  RAX,  (1 << 30) ; CD set (disable caching)
+    AND RAX, ~(1 << 29) ; NW unset
     MOV CR0, RAX
     WBINVD
     ; Setup PAT
@@ -126,15 +127,14 @@ Bootelvt: ; `Boot Elevate` entry point
     MOV RAX, PML4
     MOV CR3, RAX  ; Load PML4 into CR3 (specifies physical address! fine because we are identity-mapped as of now.)
 
-    MOV RSP, (KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE - 16) ; Stack placed at the top of kernel reserved area.
+    MOV  RSP, (KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE - 16) ; Stack placed at the top of kernel reserved area.
                                                         ; YchBootContract specifies: When bootloader transfers control to the Kernel
                                                         ; the stack is set to or near ADDR_LOAD_KERNEL(phys or virt) + KERNEL_RESERVE_SIZE.
                                                         ; The reserved stack space is always 2MiB at the very end no matter exact location.
                                                         ; In accordance to this, we put it quite near the top. 
-    MOV RAX, KERNEL_VIRTUAL_ADDRESS
-    MOV RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
-    PUSH 0 ; Fake return address (this makes the stack actually -8 because compiler expects us to call the function, but we JMP instead.)
-    JMP RAX ; KrKernelStart
+    MOV  RAX, KERNEL_VIRTUAL_ADDRESS
+    MOV  RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
+    CALL RAX ; KrKernelStart (Important: use `CALL`, if you use `JMP`, your stack is fucked.)
 
     ; Kernel returned? Somebody is drunk.
     JMP ProcessorHalt
@@ -149,13 +149,13 @@ BOOT_INFO_PACK_SIZE: dq 0
 BOOT_INFO:           times 4096 db 0 ; Reserve 4KiB for KrSystemInfoPack. Should be more than enough...
 
 align 4096
-PML4:      times PAGE_HIERARCHY_TOTAL_SIZE db 0
+PML4:        times PAGE_HIERARCHY_TOTAL_SIZE db 0
 align 4096
-KRNL_PDPT: times PAGE_HIERARCHY_TOTAL_SIZE db 0
+KRNL_PDPT:   times PAGE_HIERARCHY_TOTAL_SIZE db 0
 align 4096
-KRNL_PD:   times PAGE_HIERARCHY_TOTAL_SIZE db 0
+KRNL_PD:     times PAGE_HIERARCHY_TOTAL_SIZE db 0
 align 4096
-FBUF_PD: times PAGE_HIERARCHY_TOTAL_SIZE db 0
+FBUF_PD:     times PAGE_HIERARCHY_TOTAL_SIZE db 0
 
 align 4096
 IDPAGE_PDPT: times PAGE_HIERARCHY_TOTAL_SIZE db 0

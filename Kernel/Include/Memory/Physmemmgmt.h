@@ -12,6 +12,17 @@
 
 #include "Krnlych.h"
 
+// Size of """physical""" pages
+#define KR_PAGE_SIZE 4096
+
+/* Physical Page ID */
+typedef SIZE PAGEID;
+
+#define KR_INVALID_PAGEID ((PAGEID) -1)
+
+#define KR_PHYSICAL_PAGE_STATUS_AVAILABLE   ((BYTE) 0)
+#define KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE ((BYTE) 1)
+
 typedef struct
 {
     SIZE PageSize;      // Size in bytes per physical page.
@@ -19,14 +30,6 @@ typedef struct
     SIZE UnusablePages; // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
     SIZE AcquiredPages; // Total amount of physical pages currently acquired and managed by Physmemmgmt.
 } KrPhysmemmgmtState;
-
-/* Physical Page ID */
-typedef SIZE PAGEID;
-
-#define KR_INVALID_PAGEID ((PAGEID)-1)
-
-#define KR_PHYSICAL_PAGE_STATUS_AVAILABLE   ((BYTE)0)
-#define KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE ((BYTE)1)
 
 /// @brief Initializes the PMM (Physical Memory Management).
 /// @return TRUE if just initialized, FALSE if it was already initialized or initialization failed.
@@ -44,7 +47,7 @@ BOOL KrRelinquishPhysicalPage(PAGEID idPage);
 /// @brief Gets the physical address of a page.
 /// @param idPage ID of the page to get the physical address of.
 /// @return Physical address of the page.
-void* KrGetPhysicalPageAddress(PAGEID idPage);
+UINTPTR KrGetPhysicalPageAddress(PAGEID idPage);
 
 /// @brief Marks an existing and acquired page as reserved, preventing it from being relinquished.
 /// @param idPage Page to reserve.

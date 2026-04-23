@@ -147,5 +147,5 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // ======= STOP HERE =========== //
     KrProcessorHalt();
 
-#include "krstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */
+#include "Krnlstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */
 }

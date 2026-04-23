@@ -260,13 +260,13 @@ BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, SIZE N, BYTE Status)
     return TRUE;
 }
 
-void* KrGetPhysicalPageAddress(PAGEID idPage)
+UINTPTR KrGetPhysicalPageAddress(PAGEID idPage)
 {
     if (idPage == KR_INVALID_PAGEID || idPage >= g_noPages)
     {
-        return NULLPTR;
+        return (UINTPTR) NULLPTR;
     }
-    return (void*)(idPage * g_StatePMM.PageSize);
+    return idPage * g_StatePMM.PageSize;
 }
 
 // This function allows an already acquired page to be marked as reserved, making it immune to relinquishments.

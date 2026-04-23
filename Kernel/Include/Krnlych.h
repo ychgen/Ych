@@ -18,21 +18,26 @@
 #define YCH_KERNEL_KRNLYCH_H
 
 // Ceiling divide
-#define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / Divisor)
+#define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / (Divisor))
 
 /** Defined as macros just in case in the future we change compilers, we are not *completely* GCC dependent. */
 
-#define KR_NORETURN   __attribute__((noreturn))
-#define KR_PACKED     __attribute__((packed))
-#define KR_ALIGNED(N) __attribute__((aligned(N)))
-#define KR_SECTION(S) __attribute__((section(S)))
+#define KR_NORETURN                 __attribute__((noreturn))
+#define KR_PACKED                   __attribute__((packed))
+#define KR_ALIGNED(N)               __attribute__((aligned(N)))
+#define KR_SECTION(S)               __attribute__((section(S)))
+#define KR_STATIC_ASSERT(Expr, Msg) _Static_assert((Expr), Msg) // Thank the C committee for this shitty naming convention that we need a macro to make it readable.
 
-#define VOID      void
-#define NULLPTR ((VOID*) 0)
+#define VOID           void
+#define NULLPTR      ((VOID*) 0)
 #define KR_UNUSED(X) ((VOID)(X)) // for when you want to suppress an unused variable warning especially.
 
 #define FALSE            0
 #define TRUE             1
+
+/** Sanity checks */
+
+KR_STATIC_ASSERT(sizeof(long) == 8, "I am disappointed in you. Go find a compiler that uses the LP64 model, making `long` 64-bits wide.");
 
 /** Types to be used for hardware/memory oriented and size-specific operations, therefore named to keep consistent and close with x86-64 ISA. */
 

@@ -81,6 +81,17 @@ typedef struct
     UINT NumVMRs;
 } KrVirtmemmgmtState;
 
+typedef struct KrVirtualMemoryRegion
+{
+    UINTPTR VirtAddrBase;
+    SIZE    szPageCount;
+    WORD    wAcquisitionType;
+    WORD    wFlags;
+
+    struct KrVirtualMemoryRegion* pPrev; // Previous Node
+    struct KrVirtualMemoryRegion* pNext; // Next Node
+} KrVirtualMemoryRegion;
+
 /**
  * @brief Initializes the Virtual Memory Management (VMM) subsystem.
  * 
@@ -88,35 +99,19 @@ typedef struct
  */
 BOOL KrInitVirtmemmgmt(VOID);
 
-BOOL KrMapVirt(const VOID* pVirt, const VOID* pPhys, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags);
-
 /**
- * @brief Acquires a virtual address space, locking it in. Optionally acquires physical backing for those pages if `COMMIT` is specified.
+ * @brief Creates a new virtual address space mapping if possible.
  * 
- * @param pHintAddress Hint to the allocator to acquire near this address.
- * @param szRegionSize Size of the region to acquire. Will be rounded up to the next page boundary.
- * @param dwAcquisitionType Bit field specifying *how* the acquisition should be done. `RESERVE` and `COMMIT` can be combined together.
- * @param dwFlags Bit field describing various flags about the virtual pages to acquire.
- * @return Address to the acquired virtual address space if the acquisition was successful, NULLPTR otherwise.
+ * @param pAddrVirt The base virtual address to map at. Must be 4 KiB aligned, otherwise will be rejected.
+ * @param pAddrPhys The base physical address to map. Must be 4 KiB aligned, otherwise will be rejected.
+ * @param szRegionSize The size of the region to map. It is rounded up to the nearest page boundary.
+ * @param wAcquisitionType Nerdy stuff to be honest.
+ * @param wFlags Some more nerdy stuff.
+ * @return TRUE if the mapping was created, FALSE if not.
  */
-VOID* KrAcquireVirt(const VOID* pHintAddress, SIZE szRegionSize, DWORD dwAcquisitionType, DWORD dwFlags);
+BOOL KrMapVirt(UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags);
 
-/**
- * @brief Relinquishes previously acquired virtual address space and potentially any committed physical pages if `KR_PAGE_RELINQUISH` is used as the operation.
- * 
- * @param pBaseAddress The base address to start relinquishing from.
- * @param szRegionSize If `dwOperation` is `KR_PAGE_RELINQUISH`, must be 0. If `dwOperation` is `KR_PAGE_DECOMMIT`, all pages spanning across (pBaseAddress + szRegionSize) will be decommitted if non-zero. If non-zero, decommits the entire region, pBaseAddress must be what KrAcquireVirt originally returned.
- * @param dwOperation  Type of relinquishment to proceed with, either `KR_PAGE_DECOMMIT` or `KR_PAGE_RELINQUISH`.
- */
-BOOL  KrRelinquishVirt(const VOID* pBaseAddress, SIZE szRegionSize, DWORD dwOperation);
-
-/**
- * @brief Converts a physical memory address to a virtual one, by using the direct map.
- * 
- * @param pAddrPhysical The physical address to convert.
- * @return The virtual address.
- */
-VOID* KrPhysicalToVirtual(VOID* pAddrPhysical);
+UINTPTR KrPhysToVirt(UINTPTR AddrPhys);
 
 const KrVirtmemmgmtState* GetVirtmemmgmtState(VOID);
 
