@@ -18,19 +18,22 @@
  * If you are referring to a Large Page (2MiB), leave IndexPT as 0 and your Offset can be larger (up to 2MiB).
  */
 #define KR_MAKE_VIRTUAL(IndexPML4, IndexPDPT, IndexPD, IndexPT, Offset) \
-    ( ( UINTPTR ) ( ((QWORD)((-((QWORD)((IndexPML4) >> 8) & ((QWORD)(1))) & ((QWORD)(0xFFFF000000000000))))) | ( ( ( QWORD ) ( IndexPML4 ) ) & 0x1FF ) << 39 ) | ( ( ( ( QWORD ) ( IndexPDPT ) ) & 0x1FF ) << 30 ) | ( ( ( ( QWORD ) ( IndexPD ) ) & 0x1FF ) << 21 ) | ( ( ( ( QWORD ) ( IndexPT ) ) & 0x1FF ) << 12 ) | ( ( ( ( QWORD ) ( Offset ) ) ) ) )
+    ( ( UINTPTR ) ( ((QWORD)((-((QWORD)((IndexPML4) >> 8) & ((QWORD)(1))) & ((QWORD)(0xFFFF000000000000))))) | \
+    ( ( ( QWORD ) ( IndexPML4 ) ) & 0x1FF ) << 39 ) | ( ( ( ( QWORD ) ( IndexPDPT ) ) & 0x1FF ) << 30 ) | \
+    ( ( ( ( QWORD ) ( IndexPD ) ) & 0x1FF ) << 21 ) | ( ( ( ( QWORD ) ( IndexPT ) ) & 0x1FF ) << 12 ) | \
+    ( ( ( ( QWORD ) ( Offset ) ) ) ) )
 
 /** ===================================== */
-/** Allocation types */
+/** Acquisition types */
 /** ===================================== */
 
 /*
  * @brief Will reserve the pages, but they won't be committed until accessed, the first access to each individual page will commit that specific one.
  * This is just purely address space reservation.
  */
-#define KR_PAGE_ALLOCATE_RESERVE   (1 << 0)
+#define KR_PAGE_ACQUIRE_RESERVE   (1 << 0)
 // Will make sure there is actual physical backing to the pages.
-#define KR_PAGE_ALLOCATE_COMMIT    (1 << 1)
+#define KR_PAGE_ACQUIRE_COMMIT    (1 << 1)
 
 /** ===================================== */
 /** Various flags for page allocation.    */
@@ -41,19 +44,32 @@
 #define KR_PAGE_FLAG_WRITE         (1 << 0)
 // Pages can be executed as if containing code.
 #define KR_PAGE_FLAG_EXECUTE       (1 << 1)
-// All accesses to the pages are uncacheable and write combining is allowed enabling burst writes.
+// All accesses to the pages are uncacheable and write combining is allowed enabling burst writes. Mutually exclusive with KR_PAGE_FLAG_UNCACHEABLE.
 #define KR_PAGE_FLAG_WRITE_COMBINE (1 << 2)
-// Specifies the allocation of a large page of 2MiB. KrAcquireVirt will return FALSE if processor doesn't support large pages.
+// Specifies the allocation of large pages of 2MiB.
 #define KR_PAGE_FLAG_LARGE_PAGE    (1 << 3)
+// Can only be used with AcquisitionType=RESERVE, it means any access to this page is considered a fatal oopsie.
+#define KR_PAGE_FLAG_HARD_RESERVE  (1 << 4)
+// The processor cannot cache this page. All read and write operations occur normally with no cache involvement. Mutually exclusive with KR_PAGE_FLAG_WRITE_COMBINE.
+#define KR_PAGE_FLAG_UNCACHEABLE   (1 << 5)
 
 /** ===================================== */
 /** Relinquishment types */
 /** ===================================== */
 
-// Decommitts the committed physical pages, but keeping the virtual address space reserved.
+// Decommits the committed physical pages, but keeping the virtual address space reserved.
 #define KR_PAGE_DECOMMIT   1
 // Completely relinquishes the virtual address space and any committed physical pages associated.
 #define KR_PAGE_RELINQUISH 2
+
+/** ===================================== */
+/** Return types */
+/** ===================================== */
+
+typedef DWORD KrMapResult;
+#define KR_MAP_RESULT_SUCCESS              ((KrMapResult)  0)
+#define KR_MAP_RESULT_CONTRADICTION        ((KrMapResult)  1)
+#define KR_MAP_RESULT_SPACE_ALREADY_TAKEN  ((KrMapResult)  2)
 
 /** ===================================== */
 
@@ -67,15 +83,18 @@ typedef struct
     // Total Page Table Entry Structures
     ULONG TotalPTEs;
 
-    ULONG HugePages;  // Number of huge pages.
-    ULONG LargePages; // Number of large pages.
-    ULONG SmallPages; // Number of small pages.
+    ULONG HugePages;  // Number of huge  (1GiB) pages.
+    ULONG LargePages; // Number of large (2MiB) pages.
+    ULONG SmallPages; // Number of small (4KiB) pages.
     ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
 
     /** @brief Base virtual address of where direct mapping of system memory starts. */
-    UINTPTR AddrDirectMapBase;
+    UINTPTR VirtAddrDmapBase;
     /** @brief This one is like a cheat code to edit PTEs directly. */
-    UINTPTR AddrRecursiveMapBase;
+    UINTPTR VirtAddrRecursiveBase;
+
+    // Virtual address of the kernel itself.
+    UINTPTR VirtAddrKernel;
 
     // Total number of currently acquired VMR (Virtual Memory Region)s.
     UINT NumVMRs;
@@ -87,6 +106,7 @@ typedef struct KrVirtualMemoryRegion
     SIZE    szPageCount;
     WORD    wAcquisitionType;
     WORD    wFlags;
+    UINT    uProcID; // 0 = Invalid, 1 = Kernel, anything else = actual Process ID.
 
     struct KrVirtualMemoryRegion* pPrev; // Previous Node
     struct KrVirtualMemoryRegion* pNext; // Next Node
@@ -107,10 +127,19 @@ BOOL KrInitVirtmemmgmt(VOID);
  * @param szRegionSize The size of the region to map. It is rounded up to the nearest page boundary.
  * @param wAcquisitionType Nerdy stuff to be honest.
  * @param wFlags Some more nerdy stuff.
- * @return TRUE if the mapping was created, FALSE if not.
+ * @return Status/result value telling you if it was successful or if not, what went wrong.
  */
-BOOL KrMapVirt(UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags);
+KrMapResult KrMapVirt(UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags);
 
+/**
+ * @brief Converts a physical conventional memory address to a virtual one the kernel
+ * can access any time after `KrInitVirtmemmgmt(VOID)` was called and it had succeeded.
+ * This uses the DMAP (Direct Map) set up by the Virtmemmgmt.
+ * Given address must belong to a conventional memory page as defined by the `CanonicalMemoryMap`.
+ * 
+ * @param AddrPhys The physical address to convert.
+ * @return Virtual address to `AddrPhys`.
+ */
 UINTPTR KrPhysToVirt(UINTPTR AddrPhys);
 
 const KrVirtmemmgmtState* GetVirtmemmgmtState(VOID);

@@ -98,7 +98,7 @@ static BOOL KrInitDirectMap(VOID)
             {
                 ModeVA = KR_VAMODE_SMALL;
             }
-            VirtIndices = KrVirtBreakdown(g_StateVMM.AddrDirectMapBase + PhysAddrRegionBase, ModeVA);
+            VirtIndices = KrVirtBreakdown(g_StateVMM.VirtAddrDmapBase + PhysAddrRegionBase, ModeVA);
 
             // Now comes to fun part... we have to see what structures we potentially need to map this.
             switch (ModeVA)
@@ -252,7 +252,7 @@ static BYTE* __KrAcquirePTE(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** 
     else
     {
         *pOutPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-        *WorkflowAreaHead = (BYTE*)(g_StateVMM.AddrDirectMapBase + KrGetPhysicalPageAddress(*pOutPageID));
+        *WorkflowAreaHead = (BYTE*)(g_StateVMM.VirtAddrDmapBase + KrGetPhysicalPageAddress(*pOutPageID));
         *WorkflowAreaCur = *WorkflowAreaHead;
         KrtlContiguousZeroBuffer(*WorkflowAreaHead, GetPhysmemmgmtState()->PageSize);
         return *WorkflowAreaCur; 
@@ -280,7 +280,7 @@ static UINTPTR __KrGetVirtualOfPTE(UINTPTR AddrPhysical)
         return KrReservedPhysToVirt(AddrPhysical);
     }
     // If the condition above is FALSE this page structure lives on memory acquired from Physmemmgmt.
-    return g_StateVMM.AddrDirectMapBase + AddrPhysical;
+    return g_StateVMM.VirtAddrDmapBase + AddrPhysical;
 }
 
 #endif // !YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H

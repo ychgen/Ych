@@ -26,6 +26,10 @@ KrPageTableEntry g_FrameBufferPD[KR_PAGE_STRUCTURE_ENTRY_COUNT]; // Referred as 
 static VOID KrInitStaticPages(VOID)
 {
     const UINT TWOMIB = 2 * 1024 * 1024;
+
+    g_StateVMM.VirtAddrDmapBase      = KR_MAKE_VIRTUAL(KR_DIRECT_MAP_PML4_INDEX, 0, 0, 0, 0);
+    g_StateVMM.VirtAddrRecursiveBase = KR_MAKE_VIRTUAL(KR_RECURSIVE_PML4_INDEX, 0, 0, 0, 0);
+    g_StateVMM.VirtAddrKernel        = KR_MAKE_VIRTUAL(KR_KERNEL_RESERVED_PML4_INDEX, KR_KERNEL_PDPT_KERNEL_INDEX, 0, 0, 0);
     
     // Set up static mapping (beware, we dont id-map lower-2MiB like Boot Elevate. So this is the moment we abandon idmapping of lower memory.)
     {
@@ -40,8 +44,6 @@ static VOID KrInitStaticPages(VOID)
         g_KernelPDPT[KR_KERNEL_PDPT_KERNEL_INDEX      ] = KrEncodeLargePageEntry(KrReservedVirtToPhys(g_KernelPD),      Flags, 0);
         g_KernelPDPT[KR_KERNEL_PDPT_FRAME_BUFFER_INDEX] = KrEncodeLargePageEntry(KrReservedVirtToPhys(g_FrameBufferPD), Flags, 0);
 
-        g_StateVMM.AddrDirectMapBase    = KR_MAKE_VIRTUAL(KR_DIRECT_MAP_PML4_INDEX, 0, 0, 0, 0);
-        g_StateVMM.AddrRecursiveMapBase = KR_MAKE_VIRTUAL(KR_RECURSIVE_PML4_INDEX, 0, 0, 0, 0);
     }
     
     // We map the kernel using Large Pages

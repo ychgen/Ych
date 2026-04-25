@@ -147,7 +147,7 @@ KrPageTableEntry* KrGetAddrOfPTE(KrVirtualAddress VirtAddr, KrPageHierarchy eHie
         return NULLPTR;
     }
     }
-    return ((KrPageTableEntry*) g_StateVMM.AddrRecursiveMapBase) + Idx;
+    return ((KrPageTableEntry*) g_StateVMM.VirtAddrRecursiveBase) + Idx;
 }
 
 #endif // !YCH_KERNEL_MEMORY_PTE_H

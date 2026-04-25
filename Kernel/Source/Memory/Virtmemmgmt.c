@@ -13,7 +13,7 @@
 #include "KRTL/Krnlmem.h"
 
 // Important stuff check (dead serious)
-KR_STATIC_ASSERT(sizeof(KrVirtualMemoryRegion) <= KR_PRIMITIVE_HEAP_STEPPING, "struct KrVirtualMemoryRegion does not fit within a Primitive Heap Stepping.");
+KR_STATIC_ASSERT(sizeof(KrVirtualMemoryRegion) <= KR_PRIMITIVE_HEAP_STEPPING, "struct `KrVirtualMemoryRegion` does not fit within a Primitive Heap 'Stepping'.");
 
 #define KR_DIRECT_MAP_PML4_INDEX          256 // Direct mapping starts at this PML4 index.
 #define KR_RECURSIVE_PML4_INDEX           510 // PML4[KR_RECURSIVE_PML4_INDEX] = PHYSICAL_OF(PML4)
@@ -28,6 +28,11 @@ KrVirtualMemoryRegion g_RootVMR;
 // Include these here (they depend on stuff from above)
 #include "PrivateVMM/Smapinit.h" // for KrInitStaticPages()
 #include "PrivateVMM/DmapInit.h" // for KrInitDirectMap()
+
+inline UINT KrGetRegionPageGranularity(WORD wRegionFlags)
+{
+    return wRegionFlags & KR_PAGE_FLAG_LARGE_PAGE ? 0x200000 : 0x1000;
+}
 
 BOOL KrInitVirtmemmgmt(VOID)
 {
@@ -71,6 +76,7 @@ BOOL KrInitVirtmemmgmt(VOID)
         return FALSE;
     }
 
+    // Initialize `Primitive Heap`, needed to allocate VirtualMemoryRegion nodes.
     if (!KrPrimitiveInit())
     {
         return FALSE;
@@ -79,32 +85,68 @@ BOOL KrInitVirtmemmgmt(VOID)
     // Create root node by hand
     // Root node will cover address 0 through 2MiB.
     // We create this reservation, so no fool can claim this space.
-    g_RootVMR.VirtAddrBase = 0;
-    g_RootVMR.szPageCount  = 1;
-    g_RootVMR.wAcquisitionType = 0;
-    g_RootVMR.wFlags = KR_PAGE_FLAG_LARGE_PAGE; // One 2MiB page.
-    g_RootVMR.pPrev = NULLPTR;
-    g_RootVMR.pNext = NULLPTR;
+    // Reason is: No one should map NULLPTR otherwise I am coming after them.
+    // Reason for anything other than NULLPTR: my dick wanted it that way so it is the way it is.
+    g_RootVMR.VirtAddrBase = 0; // Virtual address 0x0000000000000000, so like, NULLPTR and shit.
+    g_RootVMR.szPageCount  = 1; // 1 page.
+    g_RootVMR.wAcquisitionType = KR_PAGE_ACQUIRE_RESERVE; // Do not commit, duh.
+    g_RootVMR.wFlags = KR_PAGE_FLAG_HARD_RESERVE | KR_PAGE_FLAG_LARGE_PAGE; // One `2MiB` page. Also hard reserve so page is inaccessible.
+    g_RootVMR.uProcID = 0; // 0 = Invalid/HardHard Reserve, 1 = Kernel.
+    g_RootVMR.pPrev = NULLPTR; // We are the root node, duh.
+    g_RootVMR.pNext = NULLPTR; // Soon to come.
+
+    // TODO: Map nicely when we indeed have Code and Data segment and stuff separated with our custom format.
+    if (!KrMapVirt(g_StateVMM.VirtAddrKernel, g_KernelState.LoadInfo.AddrPhysicalBase, g_KernelState.LoadInfo.ReserveSize / 0x200000, KR_PAGE_ACQUIRE_RESERVE, KR_PAGE_FLAG_HARD_RESERVE | KR_PAGE_FLAG_LARGE_PAGE))
+    {
+        return FALSE;
+    }
 
     return TRUE;
 }
 
-BOOL KrMapVirt(UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags)
+KrMapResult KrMapVirt(UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags)
 {
-    KR_UNUSED(pAddrVirt);
-    KR_UNUSED(pAddrPhys);
-    KR_UNUSED(szRegionSize);
-    KR_UNUSED(wAcquisitionType);
-    KR_UNUSED(wFlags);
+    // Check contradictory flags
+    if ((wFlags & KR_PAGE_FLAG_WRITE_COMBINE) && (wFlags & KR_PAGE_FLAG_UNCACHEABLE))
+    {
+        return KR_MAP_RESULT_CONTRADICTION;
+    }
+    if (wAcquisitionType != KR_PAGE_ACQUIRE_RESERVE && (wFlags & KR_PAGE_FLAG_HARD_RESERVE))
+    {
+        return KR_MAP_RESULT_CONTRADICTION;
+    }
 
-    // TODO: Now we can code this.
+    const UINT PageGranularity = KrGetRegionPageGranularity(wFlags);
+    const SIZE PageCount = KR_CEILDIV(szRegionSize, PageGranularity);
+    const SIZE ByteCount = PageCount * PageGranularity; 
+    const UINTPTR pAddrVirtEnd = pAddrVirt + ByteCount;
+
+    KrVirtualMemoryRegion* pRegion = &g_RootVMR;
+    while (pRegion)
+    {
+        const UINT RegionPageGranularity = KrGetRegionPageGranularity(pRegion->wFlags);
+        const UINTPTR pRegionEnd = pRegion->VirtAddrBase + pRegion->szPageCount * RegionPageGranularity;
+        
+        if (pAddrVirt == pRegion->VirtAddrBase || (pAddrVirt > pRegion->VirtAddrBase && pAddrVirtEnd < pRegionEnd))
+        {
+            break;
+        }
+
+        pRegion = pRegion->pNext;
+    }
+
+    // Region set means that we didn't exhaust the entire chain, therefore the check condition failed.
+    if (pRegion)
+    {
+        return KR_MAP_RESULT_SPACE_ALREADY_TAKEN;
+    }
 
     return FALSE;
 }
 
 UINTPTR KrPhysToVirt(UINTPTR AddrPhys)
 {
-    return g_StateVMM.AddrDirectMapBase + AddrPhys;
+    return g_StateVMM.VirtAddrDmapBase + AddrPhys;
 }
 
 const KrVirtmemmgmtState* GetVirtmemmgmtState(VOID)
