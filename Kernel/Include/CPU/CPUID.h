@@ -15,6 +15,9 @@
 #define KR_CPUID_LEAF_BRAND_STR_2ND     0x80000003
 #define KR_CPUID_LEAF_BRAND_STR_3RD     0x80000004
 
+/** ECX */
+#define KR_CPUID_FEAT_ECX_X2APIC  (1 << 21)
+
 /** EDX */
 #define KR_CPUID_FEAT_EDX_APIC    (1 <<  9)
 #define KR_CPUID_FEAT_EDX_NX_BIT  (1 << 20)

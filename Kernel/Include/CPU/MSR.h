@@ -14,6 +14,12 @@ VOID  KrWriteModelSpecificRegister(DWORD RegisterID, QWORD qwData);
 #define KR_MSR_IA32_APIC_BASE_EXTD (1 << 10)
 #define KR_MSR_IA32_APIC_BASE_EN   (1 << 11)
 
+/** IA32_X2APIC_EOI */
+#define KR_MSR_IA32_X2APIC_EOI     0x80B
+
+/** IA32_X2APIC_ICR */
+#define KR_MSR_IA32_X2APIC_ICR     0x830
+
 /** IA32_PAT_MSR */
 #define KR_PAT_IA32_PAT_MSR        0x277
 

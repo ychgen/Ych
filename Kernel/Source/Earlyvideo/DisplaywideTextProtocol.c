@@ -77,6 +77,8 @@ VOID KrdwtpScroll(VOID)
 
     g_ProtocolState.CursorY--;
     g_ProtocolState.CursorX = 0;
+
+    __asm__ __volatile__ ("sfence\n\t");
 }
 
 VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
@@ -157,6 +159,7 @@ INT KrdwtpOutColoredText(CSTR pText, DWORD ForegroundColor, DWORD BackgroundColo
         KrdwtpOutColoredCharacter(*pText++, ForegroundColor, BackgroundColor);
         nWritten++;
     }
+    __asm__ __volatile__ ("sfence\n\t");
     return nWritten;
 }
 
@@ -292,6 +295,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
         }
         }
     }
+    __asm__ __volatile__ ("sfence\n\t");
     return nwritten;
 }
 

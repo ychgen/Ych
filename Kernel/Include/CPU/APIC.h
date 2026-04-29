@@ -3,12 +3,23 @@
 
 #include "Krnlych.h"
 
-// End of Interupt
-#define KR_LAPIC_REGISTER_EOI 0x0B0
+/**
+ * @brief Checks whether or not the processor is capable of x2APIC.
+ * 
+ * @return TRUE if capable, FALSE otherwise.
+ */
+BOOL Krx2CheckSupport(VOID);
 
-// Redundant, Local APIC is a prerequisite for Long Mode, which Kernelych is 64-bit, so always `true`.
-BOOL  KrProcessorSupportsAPIC(VOID);
-VOID  KrEnableAPIC(VOID);
-QWORD KrGetAPICPhysicalBase(VOID);
+/**
+ * @brief Enables APIC (x2APIC).
+ * 
+ * @return TRUE if enabled successfully, false if the processor is incapable of x2APIC.
+ */
+BOOL Krx2Enable(VOID);
+
+/**
+ * @brief Sends an EOI signal to the APIC.
+ */
+VOID Krx2SignalEndOfInterrupt(VOID);
 
 #endif // !YCH_KERNEL_CPU_APIC_H

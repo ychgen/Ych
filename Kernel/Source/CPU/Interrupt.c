@@ -7,8 +7,6 @@
 #include "Core/KernelState.h"
 #include "KRTL/Krnlmem.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"
-
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
 {
 #define _fcpy(x) .x = pInterruptFrame->x
@@ -59,8 +57,8 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     // Is this an IRQ? If so, since handler's been called, send an EOI.
     if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
-        // Send EOI signal to APIC. Writing anything works, 0 is traditional.
-        *(volatile DWORD*)(((UINTPTR) g_KernelState.LAPIC.VirtAddr) + KR_LAPIC_REGISTER_EOI) = 0;
+        // Send EOI signal to APIC.
+        Krx2SignalEndOfInterrupt();
     }
 }
 

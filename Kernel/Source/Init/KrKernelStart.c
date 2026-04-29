@@ -11,6 +11,7 @@
 #include "CPU/Identify.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
+#include "CPU/MSR.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "Earlyvideo/Dwtpfonts.h"
@@ -24,6 +25,8 @@
 /** Defined by the linker (see `Kernel.ld` linker script used to link the kernel). */
 extern CHAR __KR_LINK_BSS_START[];
 extern CHAR __KR_LINK_BSS_END[];
+
+extern int nints;
 
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 KR_SECTION(".text.KrKernelStart")
@@ -131,45 +134,18 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrInitInt();
     KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 
-    KrdwtpOutColoredText("Initialized local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText("Local APIC Physical Base Address = 0x%RX\n", g_KernelState.LAPIC.PhysAddr);
+    // Initialize x2APIC only AFTER initializing the interrupt subsystem via KrInitInt().
+    if (!Krx2Enable())
+    {
+        MDCODE mdCode = KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE;
+        CSTR szMdDesc = "Your processor is incapable of x2APIC. Please run this OS on a processor from the 2008~2009~2011 era.";
+        Krnlmeltdownimm(mdCode, szMdDesc);
+    }
 
     // Init Physmemmgmt & Virtmemmgmt
     KrInitMem();
 
-    // LAPIC stuff.
-    g_KernelState.LAPIC.PhysAddr = KrGetAPICPhysicalBase();
-    g_KernelState.LAPIC.VirtAddr = KR_MAKE_VIRTUAL(KR_KERNEL_RESERVED_PML4_INDEX, 0, 0, 0, 0);
-    if
-    (
-        KrMapVirt
-        (
-            KR_VMM_PROCID_KERNEL,
-            g_KernelState.LAPIC.VirtAddr,
-            g_KernelState.LAPIC.PhysAddr,
-            1, // will be rounded to page boundary so 4KiB
-            KR_ACQUIRE_STATIC,
-            KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_UNCACHEABLE
-        ) != KR_MAP_RESULT_SUCCESS
-    )
-    {
-        MDCODE mdCode = KR_MDCODE_LOCAL_APIC_MAP_FAILURE;
-        CSTR szDesc = "Failed to map the local APIC to the kernel virtual address space!";
-        Krnlmeltdownimm(mdCode, szDesc);
-    }
-    KrdwtpOutFormatText("Successfully mapped the Local APIC at virtual 0x%RX.\n", g_KernelState.LAPIC.VirtAddr);
-
-    // Enable APIC (best safe to do this after interrupt setup as it might fire interrupts before we fully initialize the interrupt subsystem)
-    // Also we doing this after mapping it with MMIO yk so we can send EOI.
-    KrEnableAPIC();
-
-    const KrVirtualMemoryRegion* pRegion = KrGetRootVMR();
-    while (pRegion)
-    {
-        KrdwtpOutFormatText("VMR -> Base : 0x%RX , PageCount : 0x%RX , Acq : 0x%X , Flg : 0x%X , PID : %u\n", pRegion->VirtAddrBase, pRegion->szPageCount, pRegion->wAcquisitionType, pRegion->wFlags, pRegion->uProcID);
-        pRegion = pRegion->pNext;
-    }
-
+    KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //
     KrProcessorHalt();
 
