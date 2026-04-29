@@ -12,7 +12,6 @@
 #include "KRTL/Krnlmem.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
-#include "Memory/Virtmemmgmt.h"
 
 KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
@@ -51,7 +50,9 @@ VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     QWORD CR2;
     __asm__ __volatile__ ("mov %%cr2, %0" : "=r"(CR2));
-    KrdwtpOutFormatText("#PF -> CR2 = 0x%X ; ErrorCode = 0x%X\nRecorded Pages %u\n", CR2, pInterruptFrame->ErrorCode, GetVirtmemmgmtState()->TotalPages);
+
+    KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
+    KrdwtpOutFormatText(" -> CR2 = 0x%RX\n -> ErrorCode = 0x%X\n", CR2, pInterruptFrame->ErrorCode);
     KrProcessorHalt();
 }
 

@@ -61,7 +61,7 @@ VOID* KrPrimitiveAcquire(SIZE szAcquisition)
         
         BYTE FreeStepping = (BYTE) __builtin_ctz(~pRegion->Bitmap);
         pRegion->Bitmap |= (1 << FreeStepping);
-        return ((BYTE*) pRegion) + FreeStepping * KR_PRIMITIVE_HEAP_STEPPING;
+        return ((BYTE*) KrPhysToVirt(KrGetPhysicalPageAddress(pRegion->PageID))) + FreeStepping * KR_PRIMITIVE_HEAP_STEPPING;
     }
     if (!pRegion) // No region found?
     {

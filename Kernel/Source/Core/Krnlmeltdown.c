@@ -18,6 +18,8 @@ CSTR Krnlmddesc(MDCODE code)
         /** MEMORY */
         mkcase(KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE);
         mkcase(KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE);
+        mkcase(KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE);
+        mkcase(KR_MDCODE_LOCAL_APIC_MAP_FAILURE);
         /** DEBUG */
         mkcase(KR_MDCODE_GENERAL_DEBUG);
         mkcase(KR_MDCODE_KERNEL_START_RETURNS);
@@ -63,7 +65,6 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot
             KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdcode, Krnlmddesc(code), pDesc);
         }
     }
-
 
     // Since frame buffer is mapped as WC (Write-Combining), let's wait until all that is flushed, and only then halt.
     __asm__ __volatile__ ("sfence\n\t" ::: "memory");

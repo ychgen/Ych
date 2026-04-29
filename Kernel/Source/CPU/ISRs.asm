@@ -6,7 +6,7 @@ extern KrDispatchInterrupt
 %macro ISR_WITHOUT_EC 1
 global KrInterruptServiceRoutine_%1
 KrInterruptServiceRoutine_%1:
-    PUSH 0  ; Push error code 0 indicating no error
+    PUSH 0  ; Push dummy error code for uniform KrInterruptFrame struct
     PUSH %1 ; IntNo
     JMP KrInterruptServiceRoutineWrapperCommon
 %endmacro

@@ -43,7 +43,7 @@ Bootelvt: ; `Boot Elevate` entry point
     ; Initialize to standard value with 1 thing different: Entry 4 uses WC
     MOV EAX, (PAT_UC << 24) | (PAT_UCMINUS << 16) | (PAT_WT << 8) | (PAT_WB << 0) ; LODWORD (keep as-is for backward compatibility)
     MOV EDX, (PAT_UC << 24) | (PAT_UCMINUS << 16) | (PAT_WT << 8) | (PAT_WC << 0) ; HIDWORD (modifiable. Bootelvt uses entry 4 for WC and maps frame buffer as such)
-    WRMSR ; Writes EDX:EAX to PAT MSRR
+    WRMSR ; Writes EDX:EAX to PAT MSR
     ; Enable caching again
     MOV RAX, CR0
     AND RAX, ~(1 << 30) ; CD unset (enable caching)

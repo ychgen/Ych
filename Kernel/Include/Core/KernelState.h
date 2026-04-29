@@ -36,6 +36,21 @@ typedef struct
     WORD    KernelDataSegmentSelector;
 } KrGlobalDescriptorTableState;
 
+typedef struct
+{
+    UINTPTR PhysAddr, VirtAddr;
+} KrLocalAPICInfo;
+
+typedef struct
+{
+    BYTE PA_UC  : 3; // PA entry that contains UC (Uncacheable)
+    BYTE PA_WC  : 3; // PA entry that contains WC (Write-Combining)
+    BYTE PA_WT  : 3; // PA entry that contains WT (Write-Through)
+    BYTE PA_WP  : 3; // PA entry that contains WP (Write-Protected)
+    BYTE PA_WB  : 3; // PA entry that contains WB (Write-Back)
+    BYTE PA_UCM : 3; // PA entry that contains UC- (Uncached)
+} KrPatMsrState;
+
 /**
  * @brief Global kernel state that applies everywhere
  */
@@ -46,6 +61,9 @@ typedef struct
 
     /** Kernel Load Information, containing fields like load address and certain area sizes. */
     KrLoadInfo LoadInfo;
+
+    /** PAT MSR state. */
+    KrPatMsrState PatMsrState; 
 
     /** Firmware Provided Memory Map */
     KrMemoryMapInfo MemoryMapInfo;
@@ -59,6 +77,9 @@ typedef struct
 
     /** Interrupt Descriptor Table Information */
     UINTPTR AddrIDT; // Address to IDT entries array.
+
+    /** Local APIC Information (Uniform across all logical processors) */
+    KrLocalAPICInfo LAPIC;
 
     /** GOP/VBE Frame Buffer Information (Non-Driver Related) */
     KrFrameBufferInfo FrameBufferInfo;

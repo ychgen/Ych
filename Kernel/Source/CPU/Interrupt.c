@@ -7,6 +7,8 @@
 #include "Core/KernelState.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
 {
 #define _fcpy(x) .x = pInterruptFrame->x
@@ -26,7 +28,7 @@ VOID KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
     // First 32 are reserved by CPU
     // KrInitInt normally registers these to KrCriticalProcessorInterrupt, but just in case, HLT.
     // Exclude int $3, it is breakpoint, also normally handled by KrBreakpointInterrupt.
-    if (pInterruptFrame->InterruptNo < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT || pInterruptFrame->InterruptNo != 3)
+    if (pInterruptFrame->InterruptNo < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT || pInterruptFrame->InterruptNo == 3)
     {
         KrProcessorHalt();
     }
@@ -54,10 +56,11 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
         }
     }
 
+    // Is this an IRQ? If so, since handler's been called, send an EOI.
     if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
         // Send EOI signal to APIC. Writing anything works, 0 is traditional.
-        //*(uint32_t*)(((uint8_t*) g_KernelState.StateLocalAPIC.BaseAddr) + KR_LOCAL_APIC_REGISTER_EOI) = 0;
+        *(volatile DWORD*)(((UINTPTR) g_KernelState.LAPIC.VirtAddr) + KR_LAPIC_REGISTER_EOI) = 0;
     }
 }
 

@@ -5,23 +5,23 @@ SECTIONS
 {
     . = 0xFFFFFFFF80000000;
 
-    .text ALIGN(16) :
+    .text ALIGN(4096) :
     {
         KEEP(*(.text.KrKernelStart))
         *(.text*)
     }
 
-    .rodata ALIGN(16) :
+    .rodata ALIGN(4096) :
     {
         *(.rodata*)
     }
 
-    .data ALIGN(16) :
+    .data ALIGN(4096) :
     {
         *(.data*)
     }
 
-    .bss ALIGN(16) :
+    .bss ALIGN(4096) :
     {
         __KR_LINK_BSS_START = .;
         *(COMMON)

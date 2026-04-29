@@ -56,9 +56,9 @@ static BOOL KrInitDirectMap(VOID)
 
     /* Pointers to the start of PDPT, PD and PT structures. No PML4 one because you use the global g_PML4. */
     /* NOTE: These are virtual addresses so we work with these. */
-    QWORD* pStructPDPT = NULLPTR;
-    QWORD* pStructPD   = NULLPTR;
-    QWORD* pStructPT   = NULLPTR;
+    KrPageTableEntry* pStructPDPT = NULLPTR;
+    KrPageTableEntry* pStructPD   = NULLPTR;
+    KrPageTableEntry* pStructPT   = NULLPTR;
 
     KrVirtualAddressMode ModeVA = KR_VAMODE_SMALL;
     KrPageTableEntryFlags TopLevelFlags = {0};
@@ -123,7 +123,7 @@ static BOOL KrInitDirectMap(VOID)
                     UINTPTR VirtAddr = g_PML4[VirtIndices.PML4] & 0xFFFFFFFFFF000;
                     pStructPDPT = (QWORD*) KrGetVirtualOfPTE(VirtAddr);
                 }
-                *((KrPageTableEntry*) (((BYTE*) pStructPDPT) + VirtIndices.PDPT * KR_PAGE_STRUCTURE_ENTRY_SIZE)) = KrEncodeHugePageTableEntry(PhysAddrRegionBase, Flags);
+                *((KrPageTableEntry*) (((BYTE*) pStructPDPT) + VirtIndices.PDPT * KR_PAGE_STRUCTURE_ENTRY_SIZE)) = KrEncodeHugePageTableEntry(PhysAddrRegionBase, Flags, 0);
 
                 // Update tracking (note: these are not just stats. page struct space allocation logic uses them!!!)
                 g_StateVMM.HugePages++;

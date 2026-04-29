@@ -20,6 +20,7 @@ typedef ULONG MDCODE;
 #define KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    1) // KrInitPhysmemmgmt() failure
 #define KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    2) // PMM Acquire/Relinquishment sanity check failure
 #define KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    3) // KrInitVirtmemmgmt() failure
+#define KR_MDCODE_LOCAL_APIC_MAP_FAILURE       (KR_CATEGORY_MDCODE_MEMORY +    4) // Couldn't map LAPIC
 
 /** DEBUG */
 

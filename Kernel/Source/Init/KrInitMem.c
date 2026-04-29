@@ -62,7 +62,7 @@ VOID KrInitMem(VOID)
     }
     KrdwtpOutColoredText("Initialized Virtmemmgmt (Virtual Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     {
-        const KrVirtmemmgmtState* pStateVMM = GetVirtmemmgmtState();
+        const KrVirtmemmgmtState* pStateVMM = KrGetVirtmemmgmtState();
         KrdwtpOutFormatText
         (
             "Virtual Memory DMAP Information:\n"

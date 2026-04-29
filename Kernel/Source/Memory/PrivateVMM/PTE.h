@@ -16,7 +16,7 @@ typedef struct KR_PACKED
     UINT bUserMode   : 1;
     UINT PWT         : 1;
     UINT PCD         : 1;
-    UINT PS          : 1;
+    UINT PS          : 1; // PAT bit in 4KiB page!
     UINT bGlobal     : 1;
     UINT bNoExecute  : 1;
 } KrPageTableEntryFlags;
@@ -31,7 +31,7 @@ static KrPageTableEntry KrEncodePageTableEntry
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) |
+        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) |
         ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
         ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
@@ -45,7 +45,7 @@ static KrPageTableEntry KrEncodeLargePageEntry
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(PAT) << 12) | ((QWORD)(pPhysicalAddress)) |
+        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(PAT) << 12) |
         ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
         ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
@@ -54,11 +54,12 @@ static KrPageTableEntry KrEncodeLargePageEntry
 static KrPageTableEntry KrEncodeHugePageTableEntry
 (
     UINTPTR pPhysicalAddress,
-    KrPageTableEntryFlags Flags
+    KrPageTableEntryFlags Flags,
+    BYTE PAT
 )
 {
     return (KrPageTableEntry)
-        ((QWORD)(GetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(Flags.bGlobal) << 8) |
+        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(PAT) << 12) | ((QWORD)(Flags.bGlobal) << 8) |
         ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) | ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
         ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
 }
