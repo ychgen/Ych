@@ -14,6 +14,7 @@ typedef ULONG MDCODE;
 /** PROCESSOR */
 
 #define KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION (KR_CATEGORY_MDCODE_PROCESSOR     +    1) // CPU Exception
+#define KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE   (KR_CATEGORY_MDCODE_PROCESSOR     +    2) // Processor incapable of x2APIC.
 
 /** MEMORY */
 
@@ -21,7 +22,7 @@ typedef ULONG MDCODE;
 #define KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    2) // PMM Acquire/Relinquishment sanity check failure
 #define KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    3) // KrInitVirtmemmgmt() failure
 #define KR_MDCODE_LOCAL_APIC_MAP_FAILURE       (KR_CATEGORY_MDCODE_MEMORY +    4) // Couldn't map LAPIC
-#define KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE   (KR_CATEGORY_MDCODE_MEMORY +    5) // Processor incapable of x2APIC.
+#define KR_MDCODE_PAGE_FAULT                   (KR_CATEGORY_MDCODE_MEMORY +    5) // No-nonsense page fault (like kernel accessing a kernel-level guard page.)
 
 /** DEBUG */
 

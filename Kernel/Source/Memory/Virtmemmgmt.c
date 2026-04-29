@@ -3,13 +3,16 @@
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
+#include "CPU/Interrupt.h"
 #include "CPU/CPUID.h"
 #include "CPU/MSR.h"
 #include "CPU/PAT.h"
+#include "CPU/CR.h"
 
 #include "Memory/BootstrapArena.h"
 #include "Memory/PrimitiveHeap.h"
 #include "Memory/Physmemmgmt.h"
+#include "Memory/PageFault.h"
 
 #include "KRTL/Krnlmem.h"
 
@@ -44,7 +47,7 @@ BOOL KrInitVirtmemmgmt(VOID)
         return FALSE;
     }
 
-    // Huge Page Support Check & NX Support Check + Activation
+    // Huge Page Support Check & NX Support Check + Activation via MSR.
     {
         DWORD EAX, EBX, ECX, EDX;
         KrCPUID(KR_CPUID_LEAF_EXT_FEAT_INFO, EAX, EBX, ECX, EDX);
@@ -62,6 +65,18 @@ BOOL KrInitVirtmemmgmt(VOID)
             // Used by encode PTE functions
             g_StateVMM.bNoExecuteSupport = TRUE;
         }
+    }
+
+    // Control Register Stuff
+    {
+        QWORD CR0; KrReadCR0(CR0);
+        QWORD CR4; KrReadCR4(CR4);
+
+        CR0 |=   KR_CR0_WP;
+        CR4 |=   KR_CR4_PSE | KR_CR4_PAE | KR_CR4_PGE;
+        
+        KrWriteCR0(CR0);
+        KrWriteCR4(CR4);
     }
 
     // PAT MSR setup
@@ -89,7 +104,7 @@ BOOL KrInitVirtmemmgmt(VOID)
 
     // Take control of paging.
     UINTPTR AddrPhysicalPML4 = KrReservedVirtToPhys(g_PML4);
-    __asm__ __volatile__ ("mov %0, %%cr3\n\t" : : "r"(AddrPhysicalPML4) : "memory");
+    KrWriteCR3(AddrPhysicalPML4);
 
     // Our paging configuration must be active before calling this. It depends on using pages it maps like scaffolding once it falls out of the bootstrap arena.
     // It also directly works on g_PML4 and such.
@@ -121,13 +136,13 @@ BOOL KrInitVirtmemmgmt(VOID)
     g_KrnlVMR.VirtAddrBase = g_KernelState.LoadInfo.AddrVirtualBase;
     g_KrnlVMR.szPageCount  = KR_CEILDIV(g_KernelState.LoadInfo.ReserveSize, 0x200000); // NOTE: Like this currently because kernel is mapped using all LARGE pages. Update for future where various ones are used for different sections.
     g_KrnlVMR.wAcquisitionType = KR_ACQUIRE_STATIC;
-    g_KrnlVMR.wFlags = KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE;
+    g_KrnlVMR.wFlags = KR_PAGE_FLAG_READ | KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE;
     g_KrnlVMR.uProcID = KR_VMM_PROCID_KERNEL;
 
     g_FrBufVMR.VirtAddrBase = g_KernelState.FrameBufferInfo.VirtualAddress;
     g_FrBufVMR.szPageCount  = KR_CEILDIV(g_KernelState.FrameBufferInfo.Size, 0x200000); // NOTE: Because FRBUF is mapped using LARGE pages.
     g_FrBufVMR.wAcquisitionType = KR_ACQUIRE_STATIC;
-    g_FrBufVMR.wFlags = KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE | KR_PAGE_FLAG_WRITE_COMBINE; // Mapped as WC by KrInitStaticPages
+    g_FrBufVMR.wFlags = KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE | KR_PAGE_FLAG_WRITE_COMBINE; // Mapped as WC by KrInitStaticPages already. NOTE: No READ flag! Please do not read from frbuf.
     g_FrBufVMR.uProcID = KR_VMM_PROCID_KERNEL;
 
     // Because the VMR linked list has to be sorted, see which one to link 1st and 2nd.
@@ -148,6 +163,13 @@ BOOL KrInitVirtmemmgmt(VOID)
     pRegion2nd->pPrev =  pRegion1st;
     pRegion2nd->pNext =  NULLPTR;
     g_pTailVMR        =  pRegion2nd;
+
+    // NOTE: Only and only after all initialization steps should we assign the Page Fault handler.
+    // Parameter `bOverwrite`=TRUE for overwrite! You must provide it as TRUE to overwrite the basic KrCriticalProcessorInterrupt handler.
+    if (!KrRegisterInterruptHandler(KR_INTERRUPTNO_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
+    {
+        return FALSE;
+    }
 
     return TRUE;
 }

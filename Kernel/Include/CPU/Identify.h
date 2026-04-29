@@ -6,6 +6,15 @@
 #define KR_PROCESSOR_MANUFACTURER_ID_SIZE 12
 #define KR_PROCESSOR_BRAND_STRING_SIZE    48
 
+typedef struct
+{
+    BYTE Stepping;
+    WORD Model;
+    WORD Family;
+} KrProcessorInfoAndFeatures;
+
+BOOL KrGetProcessorInfoAndFeatures(KrProcessorInfoAndFeatures* pOutStruct);
+
 /**
  * @brief Acquires the `Processor Manufacturer ID` of the CPU by using the relevant CPUID function.
  * This function only writes KR_PROCESSOR_MANUFACTURER_ID_SIZE characters, caller must ensure null terminator themselves if needed.

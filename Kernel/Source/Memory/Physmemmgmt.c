@@ -12,9 +12,9 @@ BYTE*   g_pAdvisoryBitmap;
 // The dynamic bitmap that changes with acquisitions and relinquishments.
 BYTE*   g_pBitmap;
 // Size of the bitmap in bytes.
-SIZE   g_szBitmap;
+SIZE    g_szBitmap;
 // Number of page entries in the bitmap itself, not ones described by the map.
-SIZE   g_noPages;
+SIZE    g_noPages;
 // Highest address ever discovered, calculated via `Base + PageCount * PageSize` on a map entry.
 UINTPTR g_AddrHighestDiscovered;
 // Page acquisition hint for performance.
@@ -32,9 +32,9 @@ BOOL KrInitPhysmemmgmt(void)
     g_szBitmap = 0;
 
     g_StatePMM.PageSize      = g_KernelState.MemoryMapInfo.PageSize;
-    g_StatePMM.TotalPages    =    0;
-    g_StatePMM.UnusablePages =    0;
-    g_StatePMM.AcquiredPages =    0;
+    g_StatePMM.TotalPages    = 0;
+    g_StatePMM.UnusablePages = 0;
+    g_StatePMM.AcquiredPages = 0;
 
     // 1st pass ; discovery
     for (QWORD i = 0; i < g_KernelState.MemoryMapInfo.EntryCount; i++)
@@ -344,7 +344,7 @@ BOOL KrIsUsableMemoryRegionType(DWORD dwType)
     return FALSE;
 }
 
-const KrPhysmemmgmtState* GetPhysmemmgmtState(VOID)
+const KrPhysmemmgmtState* KrGetPhysmemmgmtState(VOID)
 {
     return &g_StatePMM;
 }

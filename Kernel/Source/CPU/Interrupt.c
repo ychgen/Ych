@@ -57,26 +57,34 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     // Is this an IRQ? If so, since handler's been called, send an EOI.
     if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
-        // Send EOI signal to APIC.
+        // Send EOI signal to APIC, if we don't, it will go radio silent.
         Krx2SignalEndOfInterrupt();
     }
 }
 
-BOOL KrRegisterInterruptHandler(uint8_t interruptNo, KrInterruptHandler pHandler)
+BOOL KrRegisterInterruptHandler(ULONG IntNo, KrInterruptHandler pHandler, BOOL bOverwrite)
 {
-    if (g_pInterruptHandlers[interruptNo])
+    if (IntNo > 0xFF)
     {
         return FALSE;
     }
-    g_pInterruptHandlers[interruptNo] = pHandler;
+    if (g_pInterruptHandlers[IntNo] && !bOverwrite)
+    {
+        return FALSE;
+    }
+    g_pInterruptHandlers[IntNo] = pHandler;
     return TRUE;
 }
 
-BOOL KrUnregisterInterruptHandler(uint8_t interruptNo)
+BOOL KrUnregisterInterruptHandler(ULONG IntNo)
 {
-    if (g_pInterruptHandlers[interruptNo])
+    if (IntNo > 0xFF)
     {
-        g_pInterruptHandlers[interruptNo] = NULLPTR;
+        return FALSE;
+    }
+    if (g_pInterruptHandlers[IntNo])
+    {
+        g_pInterruptHandlers[IntNo] = NULLPTR;
         return TRUE;
     }
     return FALSE;

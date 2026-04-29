@@ -1,41 +1,23 @@
 #include "Core/Krnlmeltdown.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"
-
 #include "Core/KernelState.h"
+
+#include "CPU/Interrupt.h"
 #include "CPU/Halt.h"
+#include "CPU/CR.h"
+
+#include "Earlyvideo/DisplaywideTextProtocol.h"\
 
 #define MDMSGPREFIX  "\n!!!KERNEL MELTDOWN!!!\nMDCODE=0x%RX(%s),MDDESC=`%s`\n"
 #define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, only God can resurrect the system as-is.\nHard reset your machine, the system is now halted.\n"
 
-CSTR Krnlmddesc(MDCODE code)
-{
-    switch (code)
-    {
-    #define mkcase(x) case x: return #x
-        /** PROCESSOR */
-        mkcase(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION);
-        /** MEMORY */
-        mkcase(KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE);
-        mkcase(KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE);
-        mkcase(KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE);
-        mkcase(KR_MDCODE_LOCAL_APIC_MAP_FAILURE);
-        mkcase(KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE);
-        /** DEBUG */
-        mkcase(KR_MDCODE_GENERAL_DEBUG);
-        mkcase(KR_MDCODE_KERNEL_START_RETURNS);
-    #undef mkcase
-    default: break;
-    }
-    return "IVLDMDCODE"; // InVaLiD MeltDown CODE
-}
+CSTR Krnlmddesc(MDCODE mdCode);
 
-KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot)
+KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnapshot* pSnapshot)
 {
-    __asm__ __volatile__("cli\n\t");
+    KrDisableInterrupts();
     g_KernelState.bMeltdown = TRUE;
 
-    uint64_t mdcode = (uint64_t) code;
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
         // Clear fbuf and move cursor to start.
@@ -43,6 +25,11 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot
 
         if (pSnapshot)
         {
+            QWORD CR0; KrReadCR0(CR0);
+            QWORD CR2; KrReadCR2(CR2);
+            QWORD CR3; KrReadCR3(CR3);
+            QWORD CR4; KrReadCR4(CR4);
+
             KrdwtpOutFormatText
             (
                  MDMSGPREFIX "\n"
@@ -51,27 +38,47 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot
                 "RDI=0x%RX\nRSI=0x%RX\nRBP=0x%RX\nRDX=0x%RX\n"
                 "RCX=0x%RX\nRBX=0x%RX\nRAX=0x%RX\nRSP=0x%RX\n"
                 "RFLAGS=0x%RX\nRIP=0x%RX\n"
+                "CR0=0x%RX\nCR2=0x%RX\nCR3=0x%RX\nCR4=0x%RX\n"
                  MDMSGPOSTFIX,
 
-                mdcode, Krnlmddesc(code), pDesc,
+                mdCode, Krnlmddesc(mdCode), szDesc,
                 pSnapshot->R15, pSnapshot->R14, pSnapshot->R13, pSnapshot->R12,
                 pSnapshot->R11, pSnapshot->R10, pSnapshot->R9,  pSnapshot->R8,
                 pSnapshot->RDI, pSnapshot->RSI, pSnapshot->RBP, pSnapshot->RDX,
                 pSnapshot->RCX, pSnapshot->RBX, pSnapshot->RAX, pSnapshot->RSP,
-                pSnapshot->RFLAGS, pSnapshot->RIP
+                pSnapshot->RFLAGS, pSnapshot->RIP,
+                CR0, CR2, CR3, CR4
             );
         }
         else
         {
-            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdcode, Krnlmddesc(code), pDesc);
+            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdCode, Krnlmddesc(mdCode), szDesc);
         }
     }
 
-    // Since frame buffer is mapped as WC (Write-Combining), let's wait until all that is flushed, and only then halt.
-    __asm__ __volatile__ ("sfence\n\t" ::: "memory");
     // Halt indefinitely.
-    while (1)
+    KrProcessorHalt();
+}
+
+CSTR Krnlmddesc(MDCODE mdCode)
+{
+    switch (mdCode)
     {
-        __asm__ __volatile__("cli\n\thlt\n\t");
+    #define mkcase(x) case x: return #x
+        /** PROCESSOR */
+        mkcase(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION);
+        mkcase(KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE);
+        /** MEMORY */
+        mkcase(KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE);
+        mkcase(KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE);
+        mkcase(KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE);
+        mkcase(KR_MDCODE_LOCAL_APIC_MAP_FAILURE);
+        mkcase(KR_MDCODE_PAGE_FAULT);
+        /** DEBUG */
+        mkcase(KR_MDCODE_GENERAL_DEBUG);
+        mkcase(KR_MDCODE_KERNEL_START_RETURNS);
+    #undef mkcase
+    default: break;
     }
+    return "IVLDMDCODE"; // InVaLiD MeltDown CODE
 }

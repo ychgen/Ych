@@ -46,50 +46,6 @@ static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_C
 VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
-VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    QWORD CR2;
-    __asm__ __volatile__ ("mov %%cr2, %0" : "=r"(CR2));
-
-    KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText(" -> CR2 = 0x%RX\n -> ErrorCode = 0x%X\n", CR2, pInterruptFrame->ErrorCode);
-    KrProcessorHalt();
-}
-
-VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    WORD CS, SS, DS, ES, FS, GS;
-    QWORD CR0, CR3, CR4;
-
-    __asm__ __volatile__ ("mov %%cr0, %0" : "=r"(CR0));
-    __asm__ __volatile__ ("mov %%cr3, %0" : "=r"(CR3));
-    __asm__ __volatile__ ("mov %%cr4, %0" : "=r"(CR4));
-
-    __asm__ __volatile__ ("mov %%cs, %0" : "=r"(CS));
-    __asm__ __volatile__ ("mov %%ss, %0" : "=r"(SS));
-    __asm__ __volatile__ ("mov %%ds, %0" : "=r"(DS));
-    __asm__ __volatile__ ("mov %%es, %0" : "=r"(ES));
-    __asm__ __volatile__ ("mov %%fs, %0" : "=r"(FS));
-    __asm__ __volatile__ ("mov %%gs, %0" : "=r"(GS));
-
-    KrdwtpOutColoredText("!!!GENERAL PROTECTION FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText
-    (
-        " -> CR0 = %Ru\n"
-        " -> CR3 = %Ru\n"
-        " -> CR4 = %Ru\n"
-        " ->  CS = %u\n"
-        " ->  SS = %u\n"
-        " ->  DS = %u\n"
-        " ->  ES = %u\n"
-        " ->  FS = %u\n"
-        " ->  GS = %u\n"
-        " ->  EC = %Ru\n",
-        CR0, CR3, CR4, CS, SS, DS, ES, FS, GS, pInterruptFrame->ErrorCode
-    );
-    KrProcessorHalt();
-}
-
 VOID KrInitInt(VOID)
 {
     EncodeAllISRs(); // 0 to 2 and 4 to 255
@@ -108,16 +64,14 @@ VOID KrInitInt(VOID)
     g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;
 
     KrInitializeInterruptSystem();
-    KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt);
-    KrRegisterInterruptHandler(KR_INTERRUPTNO_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt);
-    KrRegisterInterruptHandler(KR_INTERRUPTNO_PAGE_FAULT, KrPageFaultInterrupt);
+    KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt, FALSE);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
     // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,
     // so our original ones are intact.
-    for (int i = 0; i < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT; i++)
+    for (BYTE i = 0; i < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT; i++)
     {
-        KrRegisterInterruptHandler(i, KrCriticalProcessorInterrupt);
+        KrRegisterInterruptHandler(i, KrCriticalProcessorInterrupt, FALSE);
     }
 }
 

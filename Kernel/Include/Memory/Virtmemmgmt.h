@@ -45,29 +45,31 @@
  * @brief Will reserve the pages, but they won't be committed until accessed, the first access to each individual page will commit that specific one.
  * This is just purely address space reservation.
  */
-#define KR_ACQUIRE_RESERVE   (1 << 0)
+#define KR_ACQUIRE_RESERVE 1
 // Will make sure there is actual physical backing to the pages.
-#define KR_ACQUIRE_COMMIT    (1 << 1)
-// 
-#define KR_ACQUIRE_STATIC    (1 << 2)
+#define KR_ACQUIRE_COMMIT  2
+// Mapped and committed (to the given fixed physical addr) immediately, immutable. Persisent during system uptime, effective until total system reset.
+#define KR_ACQUIRE_STATIC  4
 
 /** ===================================== */
 /** Various flags for page allocation.    */
 /** NOTE: No READ flag. If a page exists, it is readable, period. */
 /** ===================================== */
 
+// Pages are readable from.
+#define KR_PAGE_FLAG_READ           (1 << 0)
 // Pages are writable to.
-#define KR_PAGE_FLAG_WRITE          (1 << 0)
+#define KR_PAGE_FLAG_WRITE          (1 << 1)
 // Pages can be executed as if containing code. NOTE: If NX bit is unsupported, ineffective. Check GetVirtmemmgmtState()->bNoExecuteSupport (after init).
-#define KR_PAGE_FLAG_EXECUTE        (1 << 1)
+#define KR_PAGE_FLAG_EXECUTE        (1 << 2)
 // All accesses to the pages are uncacheable and write combining is allowed enabling burst writes. Mutually exclusive with KR_PAGE_FLAG_UNCACHEABLE.
-#define KR_PAGE_FLAG_WRITE_COMBINE  (1 << 2)
+#define KR_PAGE_FLAG_WRITE_COMBINE  (1 << 3)
 // Specifies the allocation of large pages of 2MiB.
-#define KR_PAGE_FLAG_LARGE          (1 << 3)
+#define KR_PAGE_FLAG_LARGE          (1 << 4)
 // Can only be used with AcquisitionType=RESERVE, it means any access to this page is considered a fatal oopsy daisy (Kernel Meltdown or Process Termination).
-#define KR_PAGE_FLAG_GUARD          (1 << 4)
-// The processor cannot cache this page. All read and write operations occur normally with no cache involvement. Mutually exclusive with KR_PAGE_FLAG_WRITE_COMBINE.
-#define KR_PAGE_FLAG_UNCACHEABLE    (1 << 5)
+#define KR_PAGE_FLAG_GUARD          (1 << 5)
+// The processor cannot cache the pages. All read and write operations occur normally with no cache involvement. Mutually exclusive with KR_PAGE_FLAG_WRITE_COMBINE.
+#define KR_PAGE_FLAG_UNCACHEABLE    (1 << 6)
 
 /** ===================================== */
 /** Relinquishment types */
@@ -82,7 +84,8 @@
 /** Return types */
 /** ===================================== */
 
-typedef DWORD KrMapResult;
+typedef        DWORD                   KrMapResult;
+
 #define KR_MAP_RESULT_SUCCESS        ((KrMapResult)  0)
 #define KR_MAP_RESULT_CONTRADICTION  ((KrMapResult)  1)
 #define KR_MAP_RESULT_SPACE_OCCUPIED ((KrMapResult)  2)
@@ -102,18 +105,18 @@ typedef struct
     /* ================== */
     /* Direct Map Related */
     /* ================== */
+        // Total Page Table Entry Structures
+        ULONG TotalPTEs;
 
-    // Total Page Table Entry Structures
-    ULONG TotalPTEs;
+        ULONG HugePages;  // Number of huge  (1GiB) pages.
+        ULONG LargePages; // Number of large (2MiB) pages.
+        ULONG SmallPages; // Number of small (4KiB) pages.
+        ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
 
-    ULONG HugePages;  // Number of huge  (1GiB) pages.
-    ULONG LargePages; // Number of large (2MiB) pages.
-    ULONG SmallPages; // Number of small (4KiB) pages.
-    ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
-
-    /** @brief Base virtual address of where direct mapping of system memory starts. */
-    UINTPTR VirtAddrDmapBase;
+        /** @brief Base virtual address of where direct mapping of system memory starts. */
+        UINTPTR VirtAddrDmapBase;
     /* ================== */
+    /* DMap Related Sect End... */
     /* ================== */
 
     /** @brief This one is like a cheat code to edit PTEs directly. Use KrGetAddrOfPTE(). */

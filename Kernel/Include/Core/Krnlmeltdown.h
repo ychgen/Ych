@@ -18,11 +18,11 @@ CSTR Krnlmddesc(MDCODE code);
  * @brief Triggers a kernel meltdown (kernel panic), ceasing all normal kernel functionality.
  * This function won't return, will do minimal logging, notify user about error and hang the system indefinitely.
  * 
- * @param code The crash code, i.e. the reason for this meltdown.
- * @param pDesc Detailed description about this crash. Leave as NULL for kernel to populate it if `code` is a standard meltdown code.
+ * @param mdCode The crash code, i.e. the reason for this meltdown.
+ * @param szDesc Detailed description about this crash. Leave as NULL for kernel to populate it if `code` is a standard meltdown code.
  * @param pSnapshot The snapshot of the processor at the moment of error.
  */
-KR_NORETURN VOID Krnlmeltdown(MDCODE code, CSTR pDesc, const KrProcessorSnapshot* pSnapshot);
+KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnapshot* pSnapshot);
 
 /**
  * This macro takes an instant snapshot of the processor and invokes Krnlmeltdown, causing a kernel meltdown.

@@ -254,7 +254,7 @@ static BYTE* __KrAcquirePTE(PAGEID* pOutPageID, BYTE** WorkflowAreaHead, BYTE** 
         *pOutPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
         *WorkflowAreaHead = (BYTE*)(g_StateVMM.VirtAddrDmapBase + KrGetPhysicalPageAddress(*pOutPageID));
         *WorkflowAreaCur = *WorkflowAreaHead;
-        KrtlContiguousZeroBuffer(*WorkflowAreaHead, GetPhysmemmgmtState()->PageSize);
+        KrtlContiguousZeroBuffer(*WorkflowAreaHead, KrGetPhysmemmgmtState()->PageSize);
         return *WorkflowAreaCur; 
     }
 }

@@ -103,10 +103,13 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         (void*) g_KernelState.LoadInfo.AddrPhysicalBase,
         (void*) g_KernelState.LoadInfo.AddrVirtualBase,
         (UINT)(g_KernelState.LoadInfo.ReserveSize / 1024 / 1024));
-    KrdwtpOutFormatText("UEFI GOP Frame Buffer lives at physical %p\n", (const void*) SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress);
+    KrdwtpOutFormatText("Frame Buffer lives at physical 0x%RX ; virtual 0x%RX\n", SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress, FRAMEBUFFER_VIRTUAL_ADDR);
     KrdwtpOutFormatText("Framebuffer resolution is %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
     {
+        KrProcessorInfoAndFeatures PrcInfnFeats;
+        KrGetProcessorInfoAndFeatures(&PrcInfnFeats);
+
         CHAR ManufacturerID[KR_PROCESSOR_MANUFACTURER_ID_SIZE + 1];
         KrGetProcessorManufacturerID(ManufacturerID);
         ManufacturerID[KR_PROCESSOR_MANUFACTURER_ID_SIZE] = 0;
@@ -119,9 +122,13 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         (
             "Processor Information:\n"
             " -> Manufacturer : %s\n"
-            " -> Brand String : %s\n",
+            " -> Brand String : %s\n"
+            " -> Stepping     : 0x%X\n"
+            " -> Model        : 0x%X\n"
+            " -> Family       : 0x%X\n",
 
-            ManufacturerID, BrandStr
+            ManufacturerID, BrandStr,
+            PrcInfnFeats.Stepping, PrcInfnFeats.Model, PrcInfnFeats.Family
         );
     }
 
@@ -142,7 +149,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
 
-    // Init Physmemmgmt & Virtmemmgmt
+    // Init Physmemmgmt & Virtmemmgmt.
     KrInitMem();
 
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);

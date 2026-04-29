@@ -2,6 +2,32 @@
 
 #include "CPU/CPUID.h"
 
+BOOL KrGetProcessorInfoAndFeatures(KrProcessorInfoAndFeatures* pOutStruct)
+{
+    if (!pOutStruct)
+    {
+        return FALSE;
+    }
+
+    DWORD EAX, EBX, ECX, EDX;
+    KrCPUID(KR_CPUID_LEAF_PRC_INF_FEAT_BITS, EAX, EBX, ECX, EDX);
+
+    // EAX
+    {
+        pOutStruct->Stepping = EAX & 0xF;
+        
+        WORD BaseModel  = (EAX >>  4) & 0xF;
+        WORD BaseFamily = (EAX >>  8) & 0xF;
+        WORD ExtdModel  = (EAX >> 16) & 0xF;
+        WORD ExtdFamily = (EAX >> 20) & 0xFF;
+
+        pOutStruct->Model  = (BaseFamily == 6 || BaseFamily == 15) ? ((ExtdModel << 4) + BaseModel) : (BaseModel);
+        pOutStruct->Family = (BaseFamily == 15) ? (ExtdFamily + BaseFamily) : (BaseFamily);
+    }
+    
+    return TRUE;
+}
+
 VOID KrGetProcessorManufacturerID(CHAR* pOut)
 {
     DWORD EAX, EBX, ECX, EDX;

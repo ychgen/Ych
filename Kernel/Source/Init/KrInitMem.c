@@ -19,7 +19,7 @@ VOID KrInitMem(VOID)
     }
     KrdwtpOutColoredText("Initialized Physmemmgmt (Physical Memory Management).\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     {
-        const KrPhysmemmgmtState* pStatePMM = GetPhysmemmgmtState();
+        const KrPhysmemmgmtState* pStatePMM = KrGetPhysmemmgmtState();
         KrdwtpOutFormatText
         (
             "Physical Memory Information:\n"

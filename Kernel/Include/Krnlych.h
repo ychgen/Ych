@@ -17,6 +17,9 @@
 #ifndef YCH_KERNEL_KRNLYCH_H
 #define YCH_KERNEL_KRNLYCH_H
 
+#define __KR_STRINGIZE_INNER(X) #X
+#define KR_STRINGIZE(X) __KR_STRINGIZE_INNER(X)
+
 // Ceiling divide
 #define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / (Divisor))
 

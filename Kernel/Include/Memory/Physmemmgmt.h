@@ -66,6 +66,6 @@ BOOL  KrIsUsableMemoryRegionType(DWORD dwType);
  * 
  * @return Pointer to the state struct if initialized, NULLPTR otherwise.
  */
-const KrPhysmemmgmtState* GetPhysmemmgmtState(VOID);
+const KrPhysmemmgmtState* KrGetPhysmemmgmtState(VOID);
 
 #endif // !YCH_KERNEL_MEMORY_PHYSMEMMGMT_H

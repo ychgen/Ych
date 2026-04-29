@@ -51,11 +51,21 @@ KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* 
 typedef VOID(*KrInterruptHandler)(const KrInterruptFrame* pInterruptFrame);
 
 VOID KrInitializeInterruptSystem(VOID);
-// Called by ISRs after setting up iFrame.
+
+// Called by ISRs after setting up the InterruptFrame.
 VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame);
 
-BOOL KrRegisterInterruptHandler(BYTE interruptNo, KrInterruptHandler pHandler);
+/**
+ * @brief Registers an interrupt handler for a specific interrupt vector.
+ * 
+ * @param IntNo The interrupt vector that the handler will handle.
+ * @param pHandler Pointer to the handler function.
+ * @param bOverwrite If TRUE, if any handler is registered already, it will be overwritten. If FALSE and a handler is registered, the function will fail.
+ * @return TRUE if registered, FALSE if already registered (and bOverwrite is FALSE) or registration failure.
+ */
+BOOL KrRegisterInterruptHandler(ULONG IntNo, KrInterruptHandler pHandler, BOOL bOverwrite);
+
 // USE CAREFULLY!
-BOOL KrUnregisterInterruptHandler(BYTE interruptNo);
+BOOL KrUnregisterInterruptHandler(ULONG IntNo);
 
 #endif // !YCH_KERNEL_CPU_INTERRUPT_H
