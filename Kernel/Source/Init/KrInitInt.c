@@ -4,6 +4,7 @@
 #include "CPU/Interrupt.h"
 #include "CPU/Halt.h"
 #include "CPU/IDT.h"
+#include "CPU/CR.h"
 
 #include "Core/KernelState.h"
 #include "Core/Krnlmeltdown.h"
@@ -12,6 +13,10 @@
 #include "KRTL/Krnlmem.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
+
+// If you are having #PF during early boot (before VMM can reassign #PF handler), set this to TRUE so you can see the error code.
+// Otherwise, keep as FALSE. Especially for shipping/distribution compilations!
+#define KR_INITINT_USE_DEBUG_PAGE_FAULT TRUE
 
 KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
@@ -44,6 +49,7 @@ static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_C
 };
 
 VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
+VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame);
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
 VOID KrInitInt(VOID)
@@ -64,7 +70,10 @@ VOID KrInitInt(VOID)
     g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;
 
     KrInitializeInterruptSystem();
-    KrRegisterInterruptHandler(KR_INTERRUPTNO_BREAKPOINT, KrBreakpointInterrupt, FALSE);
+#if KR_INITINT_USE_DEBUG_PAGE_FAULT
+    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrPageFaultInterrupt,  FALSE);
+#endif // KR_INITINT_USE_DEBUG_PAGE_FAULT
+    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_BREAKPOINT, KrBreakpointInterrupt, FALSE);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
     // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,
@@ -90,6 +99,15 @@ VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
     // Kernel meltdown (panic)
     KrProcessorSnapshot snapshot = KrInterruptFrameToProcessorSnapshot(pInterruptFrame);
     Krnlmeltdown(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION, pDesc, &snapshot);
+}
+
+VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    QWORD CR2; KrReadCR2(CR2);
+    KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
+    KrdwtpOutFormatText(" -> Faulting Virtual Address: 0x%RX\n -> Processor Error Code: 0x%RX\n", CR2, pInterruptFrame->ErrorCode);
+    KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
+    KrProcessorHalt();
 }
 
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)

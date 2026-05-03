@@ -30,7 +30,7 @@ KrVirtualMemoryRegion  g_FrBufVMR = {0};
 KrVirtualMemoryRegion* g_pTailVMR = NULLPTR;
 
 // Include these here (they depend on stuff from above)
-#include "PrivateVMM/Smapinit.h" // for KrInitStaticPages()
+#include "PrivateVMM/BSmapInit.h" // for KrInitBootstrapStaticPages()
 #include "PrivateVMM/DmapInit.h" // for KrInitDirectMap()
 
 inline UINT KrGetRegionPageGranularity(WORD wRegionFlags)
@@ -39,10 +39,24 @@ inline UINT KrGetRegionPageGranularity(WORD wRegionFlags)
     return wRegionFlags & KR_PAGE_FLAG_LARGE ? 0x200000 : 0x1000;
 }
 
+const KrVirtualMemoryRegion* KrLocateVMR(UINTPTR VirtAddr)
+{
+    KrVirtualMemoryRegion* pRegion = &g_RootVMR;
+    while (pRegion)
+    {
+        if (VirtAddr >= pRegion->VirtAddrBase && VirtAddr < pRegion->VirtAddrBase + pRegion->szPageCount * KrGetRegionPageGranularity(pRegion->wFlags))
+        {
+            return pRegion;
+        }
+        pRegion = pRegion->pNext;
+    }
+    return NULLPTR;
+}
+
 BOOL KrInitVirtmemmgmt(VOID)
 {
     // See if we are already initialized or sumn
-    if (g_PML4[KR_KERNEL_RESERVED_PML4_INDEX])
+    if (g_StateVMM.bInitialized)
     {
         return FALSE;
     }
@@ -97,10 +111,11 @@ BOOL KrInitVirtmemmgmt(VOID)
         g_KernelState.PatMsrState.PA_UCM = 2; // Uncached
 
         KrLoadPatMsr(qwPatMsr);
+        g_pslDefault = KrSelectPat(KR_PAT_WRITE_BACK);
     }
 
     // This keeps our current mapping and unmapping identity-mapped lower 2MiB (L bozo).
-    KrInitStaticPages();
+    KrInitBootstrapStaticPages();
 
     // Take control of paging.
     UINTPTR AddrPhysicalPML4 = KrReservedVirtToPhys(g_PML4);
@@ -166,39 +181,13 @@ BOOL KrInitVirtmemmgmt(VOID)
 
     // NOTE: Only and only after all initialization steps should we assign the Page Fault handler.
     // Parameter `bOverwrite`=TRUE for overwrite! You must provide it as TRUE to overwrite the basic KrCriticalProcessorInterrupt handler.
-    if (!KrRegisterInterruptHandler(KR_INTERRUPTNO_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
+    if (!KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
     {
         return FALSE;
     }
 
+    g_StateVMM.bInitialized = TRUE;
     return TRUE;
-}
-
-KrPageTableEntry* KrSmapGetOrAcquireStruct(BOOL* bWasAcquire, KrPageTableEntry* pMaster, UINT Idx)
-{
-    KR_STATIC_ASSERT(KR_PAGE_SIZE == 4096, "This function assumes a physical page is 4KiB, exactly the size of a page structure. Verily, the problem is on another scale, KR_PAGE_SIZE is not 4096. Congratulations, you just broke modern computing.");
-
-    if (pMaster[Idx] & 1) // P bit
-    {
-        if (bWasAcquire)
-        {
-            *bWasAcquire = FALSE;
-        }
-        return (KrPageTableEntry*) KrPhysToVirt(pMaster[Idx] & 0xFFFFFFFFFF000);
-    }
-    
-    PAGEID PageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-    if (PageID == KR_INVALID_PAGEID)
-    {
-        return NULLPTR;
-    }
-    if (bWasAcquire)
-    {
-        *bWasAcquire = TRUE;
-    }
-    KrPageTableEntry* pResult = (KrPageTableEntry*) KrPhysToVirt(KrGetPhysicalPageAddress(PageID));
-    KrtlContiguousZeroBuffer(pResult, KR_PAGE_SIZE);
-    return pResult;
 }
 
 KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags)
@@ -217,7 +206,7 @@ KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE s
     {
         return KR_MAP_RESULT_CONTRADICTION;
     }
-    // Acquisition cannot be COMMIT/STATIC while flags specificies GUARD (page with access = illegal)
+    // Acquisition cannot be COMMIT/STATIC while flags specificies GUARD (GUARD means page, with access being highly illegal)
     if (wAcquisitionType != KR_ACQUIRE_RESERVE && (wFlags & KR_PAGE_FLAG_GUARD))
     {
         return KR_MAP_RESULT_CONTRADICTION;
@@ -302,103 +291,38 @@ KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE s
         g_pTailVMR = pThisNode; // we are the tuff boy now
     }
 
-    // This is our command to map NOW, IMMEDIATELY.
-    // Static mapping is for things like: Kernel, Frame Buffer, MMIO etc.
-    // No memory management involved, we map given physical to given virtual, effective immediately!
-    // Static mapping regions can never be unmapped or modified in any way through VMM API.
-    // Once registered, the mapping remains effective as-is until a system reset.
-    if (wAcquisitionType == KR_ACQUIRE_STATIC)
-    {
-        // NOTE: We won't keep track of these PTEs because it's a static mapping.
-        // So we literally just ask the PMM for pages to use as page structures when needed.
-        KrVirtualAddressMode eVirtAddrMode = (wFlags & KR_PAGE_FLAG_LARGE) ? KR_VAMODE_LARGE : KR_VAMODE_SMALL;
-        KrVirtualAddress VirtIndices;
-
-        KrPageTableEntry* pPDPT = NULLPTR,
-                        * pPD   = NULLPTR,
-                        * pPT   = NULLPTR;
-
-        KrPageTableEntryFlags TopLevelFlags = {0};
-        TopLevelFlags.bPresent  = TRUE;
-        TopLevelFlags.bWritable = TRUE;
-        TopLevelFlags.bUserMode = (uProcID > KR_VMM_PROCID_KERNEL ) ? TRUE  : FALSE;
-
-        // NOTE: The reason we explicitly convert to FALSE/TRUE is because Flags fields are bit fields and compiler likes to mess them up if you give direct exprs.
-        KrPageTableEntryFlags Flags = {0};
-        Flags.bPresent   = TRUE;
-        Flags.bWritable  = (wFlags  & KR_PAGE_FLAG_WRITE   ) ? TRUE  : FALSE;
-        Flags.bUserMode  = (uProcID > KR_VMM_PROCID_KERNEL ) ? TRUE  : FALSE;
-        Flags.PS         = (wFlags  & KR_PAGE_FLAG_LARGE   ) ? TRUE  : FALSE;
-        Flags.bNoExecute = (wFlags  & KR_PAGE_FLAG_EXECUTE ) ? FALSE : TRUE ;
-
-        // Cache behavior
-        KrPatSelect PatSel;
-        if (wFlags & KR_PAGE_FLAG_UNCACHEABLE)
-        {
-            PatSel = KrSelectPat(KR_PAT_UNCACHEABLE);
-        }
-        else if (wFlags & KR_PAGE_FLAG_WRITE_COMBINE)
-        {
-            PatSel = KrSelectPat(KR_PAT_WRITE_COMBINING);
-        }
-        else
-        {
-            PatSel = KrSelectPat(KR_PAT_WRITE_BACK); // default cache behavior
-        }
-        Flags.PCD = PatSel.PCD;
-        Flags.PWT = PatSel.PWT;
-        if (!(wFlags & KR_PAGE_FLAG_LARGE))
-        {
-            Flags.PS = PatSel.PAT; // In a PT, bit 7 is the PAT bit whereas large and huge pages use bit 12, so their functions take in an extra PAT param.
-        }
-
-        BOOL bWasAcquire = FALSE; // OUT info param of KrSmapGetOrAcquireStruct()
-        for (SIZE i = 0; i < pThisNode->szPageCount; i++)
-        {
-            VirtIndices = KrVirtBreakdown(pAddrVirt + i * PageGranularity, eVirtAddrMode);
-
-            pPDPT = KrSmapGetOrAcquireStruct(&bWasAcquire, g_PML4, VirtIndices.PML4);
-            if (bWasAcquire)
-            {
-                g_PML4[VirtIndices.PML4] = KrEncodePageTableEntry(KrVirtToPhys((UINTPTR) pPDPT), TopLevelFlags);
-            }
-
-            pPD = KrSmapGetOrAcquireStruct(&bWasAcquire, pPDPT, VirtIndices.PDPT);
-            if (bWasAcquire)
-            {
-                pPDPT[VirtIndices.PDPT] = KrEncodePageTableEntry(KrVirtToPhys((UINTPTR) pPD), TopLevelFlags);
-            }
-            
-            if (eVirtAddrMode == KR_PAGE_FLAG_LARGE)
-            {
-                pPD[VirtIndices.PD] = KrEncodeLargePageEntry(pAddrPhys + i * PageGranularity, Flags, PatSel.PAT);
-                continue; // Do NOT execute lower VAMODE logic with PT.
-            }
-
-            pPT = KrSmapGetOrAcquireStruct(&bWasAcquire, pPD, VirtIndices.PD);
-            if (bWasAcquire)
-            {
-                pPD[VirtIndices.PD] = KrEncodePageTableEntry(KrVirtToPhys((UINTPTR) pPT), TopLevelFlags);
-            }
-            pPT[VirtIndices.PT] = KrEncodePageTableEntry(pAddrPhys + i * PageGranularity, Flags);
-        }
-
-        // yeah... should be mapped now. i can't say the same about my will to live.
-    }
-
     g_StateVMM.NumVMRs++; // oh, wow.
 
     return KR_MAP_RESULT_SUCCESS;
 }
 
+// Private function
+KrCommitResult KrCommitVirtInternal(KrVirtualMemoryRegion* pRegion, SIZE IndexToPage)
+{
+    KR_UNUSED(pRegion);
+    KR_UNUSED(IndexToPage);
+    return KR_COMMIT_RESULT_SUCCESS;
+}
+
+KrCommitResult KrCommitVirt(UINTPTR VirtAddr)
+{
+    KR_UNUSED(VirtAddr);
+    return KR_COMMIT_RESULT_SUCCESS;
+}
+
 UINTPTR KrPhysToVirt(UINTPTR AddrPhys)
 {
-    return g_StateVMM.VirtAddrDmapBase + AddrPhys;
+    return g_StateVMM.DmapInfo.VirtAddrBase + AddrPhys;
 }
 
 UINTPTR KrVirtToPhys(UINTPTR AddrVirt)
 {
-    return AddrVirt - g_StateVMM.VirtAddrDmapBase;
+    return AddrVirt - g_StateVMM.DmapInfo.VirtAddrBase;
+}
+
+BOOL KrIsVirtmemmgmtInitialized(VOID)
+{
+    return g_StateVMM.bInitialized;
 }
 
 const KrVirtmemmgmtState* KrGetVirtmemmgmtState(VOID)

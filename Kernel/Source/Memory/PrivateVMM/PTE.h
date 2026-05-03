@@ -5,65 +5,6 @@
 
 #include "Memory/Virtmemmgmt.h"
 
-#define KR_PAGE_STRUCTURE_ENTRY_COUNT 512
-#define KR_PAGE_STRUCTURE_ENTRY_SIZE    8
-#define KR_PAGE_STRUCTURE_SIZE       ( KR_PAGE_STRUCTURE_ENTRY_COUNT * KR_PAGE_STRUCTURE_ENTRY_SIZE ) // 512 * 8 = 4 KiB per structure like PML4, PDPT, PD and PT.
-
-typedef struct KR_PACKED
-{
-    UINT bPresent    : 1;
-    UINT bWritable   : 1;
-    UINT bUserMode   : 1;
-    UINT PWT         : 1;
-    UINT PCD         : 1;
-    UINT PS          : 1; // PAT bit in 4KiB page!
-    UINT bGlobal     : 1;
-    UINT bNoExecute  : 1;
-} KrPageTableEntryFlags;
-
-// 8 bytes
-typedef QWORD KrPageTableEntry;
-
-static KrPageTableEntry KrEncodePageTableEntry
-(
-    UINTPTR pPhysicalAddress,
-    KrPageTableEntryFlags Flags
-)
-{
-    return (KrPageTableEntry)
-        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) |
-        ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
-        ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
-        ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
-}
-
-static KrPageTableEntry KrEncodeLargePageEntry
-(
-    UINTPTR pPhysicalAddress,
-    KrPageTableEntryFlags Flags,
-    BYTE PAT
-)
-{
-    return (KrPageTableEntry)
-        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(0) << 52) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(PAT) << 12) |
-        ((QWORD)(0) << 9) | ((QWORD)(Flags.bGlobal) << 8) | ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) |
-        ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
-        ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
-}
-
-static KrPageTableEntry KrEncodeHugePageTableEntry
-(
-    UINTPTR pPhysicalAddress,
-    KrPageTableEntryFlags Flags,
-    BYTE PAT
-)
-{
-    return (KrPageTableEntry)
-        ((QWORD)(KrGetVirtmemmgmtState()->bNoExecuteSupport ? Flags.bNoExecute : 0) << 63) | ((QWORD)(pPhysicalAddress)) | ((QWORD)(PAT) << 12) | ((QWORD)(Flags.bGlobal) << 8) |
-        ((QWORD)(Flags.PS) << 7) | ((QWORD)(0) << 5) | ((QWORD)(Flags.PCD) << 4) | ((QWORD)(Flags.PWT) << 3) | ((QWORD)(Flags.bUserMode) << 2) |
-        ((QWORD)(Flags.bWritable) << 1) | (QWORD)(Flags.bPresent);
-}
-
 typedef struct
 {
     UINT PML4;
@@ -98,6 +39,8 @@ static KrVirtualAddress KrVirtBreakdown(UINTPTR pAddrVirt, KrVirtualAddressMode 
     {
         Result.PD     = (pAddrVirt >> 21) & 0x1FF;
         Result.Offset = (pAddrVirt >> 12) & 0x1FFFFF;
+
+        Result.PT = 0;
         break;
     }
     case KR_VAMODE_HUGE:
@@ -118,7 +61,7 @@ typedef enum
     KR_PAGE_HIERARCHY_PT
 } KrPageHierarchy;
 
-KrPageTableEntry* KrGetAddrOfPTE(KrVirtualAddress VirtAddr, KrPageHierarchy eHierarchy)
+PTE* KrGetAddrOfPTE(KrVirtualAddress VirtAddr, KrPageHierarchy eHierarchy)
 {
     QWORD Idx = 0;
     switch (eHierarchy)
@@ -148,7 +91,7 @@ KrPageTableEntry* KrGetAddrOfPTE(KrVirtualAddress VirtAddr, KrPageHierarchy eHie
         return NULLPTR;
     }
     }
-    return ((KrPageTableEntry*) g_StateVMM.VirtAddrRecursiveBase) + Idx;
+    return ((PTE*) g_StateVMM.VirtAddrRecursiveBase) + Idx;
 }
 
 #endif // !YCH_KERNEL_MEMORY_PTE_H

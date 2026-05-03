@@ -7,6 +7,8 @@
 #include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
 
+#include "KRTL/Krnlstring.h"
+
 /** TODO: When we move to SMP, this has to be apart of Thread-Local data. Since we are single-core for now, it's okay. */
 static BOOL g_bInprocFault = FALSE;
 
@@ -47,5 +49,7 @@ VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
     g_bInprocFault = FALSE;
     // return here normally, but since we don't have the complete function implemented as of now, we'll just invoke meltdown
 
-    GiveUp(NULLPTR, pInterruptFrame);
+    CHAR BUF[64];
+    KrtlUnsignedToString(BUF, pInterruptFrame->ErrorCode, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
+    GiveUp(BUF, pInterruptFrame);
 }

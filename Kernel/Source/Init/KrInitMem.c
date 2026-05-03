@@ -23,14 +23,12 @@ VOID KrInitMem(VOID)
         KrdwtpOutFormatText
         (
             "Physical Memory Information:\n"
-            " -> Page Size: %Ru (%Ru KiB)\n"
             " -> Total Pages: %Ru (%Ru MiB)\n"
             " -> Unusable Pages: %Ru (%Ru MiB)\n"
             " -> Total Usable Pages: %Ru (%Ru MiB)\n",
-            pStatePMM->PageSize, pStatePMM->PageSize / 1024,
-            pStatePMM->TotalPages, pStatePMM->TotalPages * pStatePMM->PageSize / 1024 / 1024,
-            pStatePMM->UnusablePages, pStatePMM->UnusablePages * pStatePMM->PageSize / 1024 / 1024,
-            (pStatePMM->TotalPages - pStatePMM->UnusablePages), (pStatePMM->TotalPages - pStatePMM->UnusablePages) * pStatePMM->PageSize / 1024 / 1024
+            pStatePMM->TotalPages, pStatePMM->TotalPages * KR_PAGE_SIZE / 1024 / 1024,
+            pStatePMM->UnusablePages, pStatePMM->UnusablePages * KR_PAGE_SIZE / 1024 / 1024,
+            (pStatePMM->TotalPages - pStatePMM->UnusablePages), (pStatePMM->TotalPages - pStatePMM->UnusablePages) * KR_PAGE_SIZE / 1024 / 1024
         );
     }
 
@@ -51,6 +49,9 @@ VOID KrInitMem(VOID)
             Krnlmeltdownimm(code, pDesc);
         }
         KrdwtpOutColoredText("Relinquished test page to Physmemmgmt.\n", KRDWTP_COLOR_CYAN, KRDWTP_BACKGROUND);
+    
+        // Hacky, but I want it to not waste that nice page.
+        KrSetPhysicalPageAcquisitionHint(TestPageID);
     }
 
     // Init VMM
@@ -69,8 +70,10 @@ VOID KrInitMem(VOID)
             " -> Huge  Pages (1GiB) : %Ru\n"
             " -> Large Pages (2MiB) : %Ru\n"
             " -> Small Pages (4KiB) : %Ru\n"
-            " -> Total Pages (H+L+S): %Ru\n",
-            pStateVMM->HugePages, pStateVMM->LargePages, pStateVMM->SmallPages, pStateVMM->TotalPages
+            " -> Total Pages (H+L+S): %Ru\n"
+            "; Allocated total paging structures: %Ru\n",
+            pStateVMM->DmapInfo.HugePages, pStateVMM->DmapInfo.LargePages, pStateVMM->DmapInfo.SmallPages, pStateVMM->DmapInfo.TotalPages,
+            pStateVMM->DmapInfo.TotalPageStructs
         );
     }
 }

@@ -106,6 +106,15 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutFormatText("Frame Buffer lives at physical 0x%RX ; virtual 0x%RX\n", SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress, FRAMEBUFFER_VIRTUAL_ADDR);
     KrdwtpOutFormatText("Framebuffer resolution is %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
+    // Initialize flat Global Descriptor Table.
+    KrInitGDT();
+    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    
+    // Initialize IDT and ISRs. Overall initializing interrupt handling.
+    // Bye bye Triple Fault!
+    KrInitInt();
+    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+
     {
         KrProcessorInfoAndFeatures PrcInfnFeats;
         KrGetProcessorInfoAndFeatures(&PrcInfnFeats);
@@ -121,25 +130,15 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         KrdwtpOutFormatText
         (
             "Processor Information:\n"
-            " -> Manufacturer : %s\n"
-            " -> Brand String : %s\n"
-            " -> Stepping     : 0x%X\n"
-            " -> Model        : 0x%X\n"
-            " -> Family       : 0x%X\n",
+            " -> Processor : %s %s\n"
+            " -> Stepping  : 0x%X\n"
+            " -> Model     : 0x%X\n"
+            " -> Family    : 0x%X\n",
 
             ManufacturerID, BrandStr,
             PrcInfnFeats.Stepping, PrcInfnFeats.Model, PrcInfnFeats.Family
         );
     }
-
-    // Initialize flat Global Descriptor Table.
-    KrInitGDT();
-    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    
-    // Initialize IDT and ISRs. Overall initializing interrupt handling.
-    // Bye bye Triple Fault!
-    KrInitInt();
-    KrdwtpOutColoredText("Initialized the interrupt subsystem.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 
     // Initialize x2APIC only AFTER initializing the interrupt subsystem via KrInitInt().
     if (!Krx2Enable())
@@ -148,9 +147,22 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         CSTR szMdDesc = "Your processor is incapable of x2APIC. Please run this OS on a processor from the 2008~2009~2011 era.";
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
+    KrdwtpOutColoredText("Initialized the local x2APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND); 
 
     // Init Physmemmgmt & Virtmemmgmt.
     KrInitMem();
+
+    BYTE* ADDRREAD = (BYTE*) KrPhysToVirt(0x8100000);
+    *ADDRREAD = 20;
+
+    for (int i = 0; i < 1000; i++)
+    {
+        ADDRREAD += 0x1000;
+        if (*ADDRREAD == 20)
+        {
+            KrdwtpOutFormatText("no.\n");
+        }
+    }
 
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //

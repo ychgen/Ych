@@ -11,9 +11,6 @@
 #include "Core/Private/meltdowncodes.h"
 #include "CPU/ProcessorSnapshot.h"
 
-// MDCODE descriptor
-CSTR Krnlmddesc(MDCODE code);
-
 /**
  * @brief Triggers a kernel meltdown (kernel panic), ceasing all normal kernel functionality.
  * This function won't return, will do minimal logging, notify user about error and hang the system indefinitely.

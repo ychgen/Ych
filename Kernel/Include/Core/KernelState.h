@@ -51,6 +51,11 @@ typedef struct
     BYTE PA_UCM : 3; // PA entry that contains UC- (Uncached)
 } KrPatMsrState;
 
+typedef struct
+{
+    UINT NumIvldEncodeOfPTEs; // Number of times KrpteEncodeEntry failed.
+} KrDevCheckStats;
+
 /**
  * @brief Global kernel state that applies everywhere
  */
@@ -61,6 +66,9 @@ typedef struct
 
     /** Kernel Load Information, containing fields like load address and certain area sizes. */
     KrLoadInfo LoadInfo;
+
+    /** Developer-Check Statistics */
+    KrDevCheckStats DevCheckStats;
 
     /** PAT MSR state. */
     KrPatMsrState PatMsrState; 

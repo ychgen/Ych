@@ -53,7 +53,8 @@
 
 /** ===================================== */
 /** Various flags for page allocation.    */
-/** NOTE: No READ flag. If a page exists, it is readable, period. */
+/** NOTE: READ flag ineffective. If a page exists, it is readable, period. */
+/** Do NOT rely on this and always make your intent explicit either way. */
 /** ===================================== */
 
 // Pages are readable from.
@@ -84,29 +85,35 @@
 /** Return types */
 /** ===================================== */
 
-typedef        DWORD                   KrMapResult;
+typedef        DWORD                      KrMapResult;
+#define KR_MAP_RESULT_SUCCESS           ((KrMapResult)  0)
+#define KR_MAP_RESULT_CONTRADICTION     ((KrMapResult)  1)
+#define KR_MAP_RESULT_SPACE_OCCUPIED    ((KrMapResult)  2)
+#define KR_MAP_RESULT_UNALIGNED         ((KrMapResult)  3)
+#define KR_MAP_RESULT_UNIMPLEMENTED     ((KrMapResult)  4)
+#define KR_MAP_RESULT_UNPAGED           ((KrMapResult)  5)
 
-#define KR_MAP_RESULT_SUCCESS        ((KrMapResult)  0)
-#define KR_MAP_RESULT_CONTRADICTION  ((KrMapResult)  1)
-#define KR_MAP_RESULT_SPACE_OCCUPIED ((KrMapResult)  2)
-#define KR_MAP_RESULT_UNALIGNED      ((KrMapResult)  3)
-#define KR_MAP_RESULT_UNIMPLEMENTED  ((KrMapResult)  4)
-#define KR_MAP_RESULT_UNPAGED        ((KrMapResult)  5)
+typedef        DWORD                      KrCommitResult;
+#define KR_COMMIT_RESULT_SUCCESS        ((KrCommitResult) 0)
+#define KR_COMMIT_RESULT_OUT_OF_MEMORY  ((KrCommitResult) 1)
+#define KR_COMMIT_RESULT_ILLEGAL        ((KrCommitResult) 2)
+#define KR_COMMIT_RESULT_INVALID_REGION ((KrCommitResult) 2)
 
 /** ===================================== */
 
 typedef struct
 {
+    BOOL bInitialized : 1;
+    
     /** If TRUE, the processor is capable of 1GiB huge pages. */
     BOOL  bHugePageSupport  : 1;
     /** If TRUE, the processor is capable of pages being NX. */
     BOOL  bNoExecuteSupport : 1;
 
-    /* ================== */
     /* Direct Map Related */
-    /* ================== */
-        // Total Page Table Entry Structures
-        ULONG TotalPTEs;
+    struct {
+        // Total Paging Structures allocated for direct-mapping.
+        ULONG TotalPageStructs;
 
         ULONG HugePages;  // Number of huge  (1GiB) pages.
         ULONG LargePages; // Number of large (2MiB) pages.
@@ -114,10 +121,8 @@ typedef struct
         ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
 
         /** @brief Base virtual address of where direct mapping of system memory starts. */
-        UINTPTR VirtAddrDmapBase;
-    /* ================== */
-    /* DMap Related Sect End... */
-    /* ================== */
+        UINTPTR VirtAddrBase;
+    } DmapInfo;
 
     /** @brief This one is like a cheat code to edit PTEs directly. Use KrGetAddrOfPTE(). */
     UINTPTR VirtAddrRecursiveBase;
@@ -162,6 +167,8 @@ BOOL KrInitVirtmemmgmt(VOID);
  */
 KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags);
 
+KrCommitResult KrCommitVirt(UINTPTR VirtAddr);
+
 /**
  * @brief Converts a physical conventional memory address to a virtual one the kernel
  * can access any time after `KrInitVirtmemmgmt(VOID)` was called and it had succeeded.
@@ -182,6 +189,7 @@ UINTPTR KrPhysToVirt(UINTPTR AddrPhys);
  */
 UINTPTR KrVirtToPhys(UINTPTR AddrVirt);
 
+BOOL KrIsVirtmemmgmtInitialized(VOID);
 const KrVirtmemmgmtState* KrGetVirtmemmgmtState(VOID);
 const KrVirtualMemoryRegion* KrGetRootVMR(VOID);
 

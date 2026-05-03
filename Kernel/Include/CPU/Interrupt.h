@@ -3,29 +3,30 @@
 
 #include "CPU/ProcessorSnapshot.h"
 
-#define KR_PROCESSOR_RESERVED_INTERRUPT_COUNT           32
-#define KR_INTERRUPTNO_DIVIDE_BY_ZERO                   0
-#define KR_INTERRUPTNO_DEBUG_EXCEPTION                  1
-#define KR_INTERRUPTNO_NON_MASKABLE_INTERRUPT           2
-#define KR_INTERRUPTNO_BREAKPOINT                       3
-#define KR_INTERRUPTNO_OVERFLOW                         4
-#define KR_INTERRUPTNO_BOUND_RANGE_EXCEEDED             5
-#define KR_INTERRUPTNO_INVALID_OPCODE                   6
-#define KR_INTERRUPTNO_DEVICE_NOT_AVAILABLE             7
-#define KR_INTERRUPTNO_DOUBLE_FAULT                     8
-#define KR_INTERRUPTNO_COPROCESSOR_SEGMENT_OVERRUN      9
-#define KR_INTERRUPTNO_INVALID_TSS                      10
-#define KR_INTERRUPTNO_SEGMENT_NOT_PRESENT              11
-#define KR_INTERRUPTNO_STACK_SEGMENT_FAULT              12
-#define KR_INTERRUPTNO_GENERAL_PROTECTION_FAULT         13
-#define KR_INTERRUPTNO_PAGE_FAULT                       14
-//                                             reserved 15
-#define KR_INTERRUPTNO_X87_FPU_FLOATING_POINT_ERROR     16
-#define KR_INTERRUPTNO_ALIGNMENT_CHECK                  17
-#define KR_INTERRUPTNO_MACHINE_CHECK                    18
-#define KR_INTERRUPTNO_SIMD_FLOATING_POINT_EXCEPTION    19
-#define KR_INTERRUPTNO_VIRTUALIZATION_EXCEPTION         20
-#define KR_INTERRUPTNO_CONTROL_PROTECTION_EXCEPTION     21
+/** Processor Exceptions */
+#define KR_PROCESSOR_RESERVED_INTERRUPT_COUNT                32
+#define KR_INTERRUPT_VECTOR_DIVIDE_BY_ZERO                    0
+#define KR_INTERRUPT_VECTOR_DEBUG_EXCEPTION                   1
+#define KR_INTERRUPT_VECTOR_NON_MASKABLE_INTERRUPT            2
+#define KR_INTERRUPT_VECTOR_BREAKPOINT                        3
+#define KR_INTERRUPT_VECTOR_OVERFLOW                          4
+#define KR_INTERRUPT_VECTOR_BOUND_RANGE_EXCEEDED              5
+#define KR_INTERRUPT_VECTOR_INVALID_OPCODE                    6
+#define KR_INTERRUPT_VECTOR_DEVICE_NOT_AVAILABLE              7
+#define KR_INTERRUPT_VECTOR_DOUBLE_FAULT                      8
+#define KR_INTERRUPT_VECTOR_COPROCESSOR_SEGMENT_OVERRUN       9
+#define KR_INTERRUPT_VECTOR_INVALID_TSS                      10
+#define KR_INTERRUPT_VECTOR_SEGMENT_NOT_PRESENT              11
+#define KR_INTERRUPT_VECTOR_STACK_SEGMENT_FAULT              12
+#define KR_INTERRUPT_VECTOR_GENERAL_PROTECTION_FAULT         13
+#define KR_INTERRUPT_VECTOR_PAGE_FAULT                       14
+//                                                  reserved 15
+#define KR_INTERRUPT_VECTOR_X87_FPU_FLOATING_POINT_ERROR     16
+#define KR_INTERRUPT_VECTOR_ALIGNMENT_CHECK                  17
+#define KR_INTERRUPT_VECTOR_MACHINE_CHECK                    18
+#define KR_INTERRUPT_VECTOR_SIMD_FLOATING_POINT_EXCEPTION    19
+#define KR_INTERRUPT_VECTOR_VIRTUALIZATION_EXCEPTION         20
+#define KR_INTERRUPT_VECTOR_CONTROL_PROTECTION_EXCEPTION     21
 
 // Disables maskable interrupts.
 #define KrDisableInterrupts() __asm__ __volatile__("cli\n\t")

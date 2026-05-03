@@ -17,6 +17,8 @@ typedef struct
     BYTE PAT : 1;
 } KrPatSelect;
 
+extern KrPatSelect g_pslDefault;
+
 VOID        KrLoadPatMsr(QWORD qwPatMsr);
 KrPatSelect KrSelectPat(BYTE MemType);
 

@@ -2,6 +2,8 @@
 
 #include "Core/KernelState.h"
 
+KrPatSelect g_pslDefault = {0};
+
 static KrPatSelect g_PatSelectTable[8] =
 {
     { .PAT = 0, .PCD = 0, .PWT = 0 },

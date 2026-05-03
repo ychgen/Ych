@@ -8,16 +8,15 @@
 
 KrDisplaywideTextProtocolState g_ProtocolState;
 
-KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, BYTE factor)
+KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, BYTE ScaleFactor)
 {
-    KrDisplaywideTextProtocolFont result = *pFont;
-    result.ScaleFactor *= factor;
-    return result;
+    KrDisplaywideTextProtocolFont Result = *pFont;
+    Result.ScaleFactor *= ScaleFactor;
+    return Result;
 }
 
 VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FrameBufferSize, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine)
 {
-    g_ProtocolState.bIsActive         = TRUE;
     g_ProtocolState.FrameBufferSize   = FrameBufferSize;
     g_ProtocolState.FrameBufferWidth  = FramebufferWidth;
     g_ProtocolState.FrameBufferHeight = FramebufferHeight;

@@ -96,4 +96,15 @@ typedef          long  PTRDIFF; // The result of subtracting two pointers, i.e. 
 #define HIBYTE(XW)  ((BYTE)((LOWORD(XW))   >>  8))
 #define LOBYTE(XW)  ((BYTE)((LOWORD(XW))        ))
 
+// Type value ranges
+
+#define BYTE_MIN  ((BYTE)  0)
+#define WORD_MIN  ((WORD)  0)
+#define DWORD_MIN ((DWORD) 0)
+#define QWORD_MIN ((QWORD) 0)
+#define BYTE_MAX  (~(BYTE_MIN))
+#define WORD_MAX  (~(WORD_MIN))
+#define DWORD_MAX (~(DWORD_MIN))
+#define QWORD_MAX (~(QWORD_MIN))
+
 #endif // !YCH_KERNEL_KRNLYCH_H
