@@ -120,10 +120,23 @@ DWORD KrAcquirePhysicalPages(PAGEID idHint, DWORD dwAcquisitionMethod, PAGEID* p
     {
         return 0;
     }
-    if (dwAcquisitionMethod > KR_PMM_ACQUIRE_DENSE)
+    // Validate dwAcquisitionMethod
     {
-        return 0;
+        const UINT MaskvalSparseBaseOut = KR_PMM_ACQUIRE_SPARSE | KR_PMM_BASE_OUT_ONLY;
+        const UINT MaskvalSparseDense   = KR_PMM_ACQUIRE_SPARSE | KR_PMM_ACQUIRE_DENSE;
+
+        UINT MaskedSparseBaseOut = dwAcquisitionMethod & MaskvalSparseBaseOut;
+        UINT MaskedSparseDense   = dwAcquisitionMethod & MaskvalSparseDense;
+        if (
+             MaskedSparseBaseOut == MaskvalSparseBaseOut ||
+             MaskedSparseDense   == MaskvalSparseDense   ||
+            !MaskedSparseDense
+        )
+        {
+            return 0;
+        }
     }
+
     // This is a bit of a lie until near the end of the function where they are actually claimed.
     // Until then it acts more like a counter.
     UINT uNoAcquired = 0;
@@ -138,43 +151,72 @@ DWORD KrAcquirePhysicalPages(PAGEID idHint, DWORD dwAcquisitionMethod, PAGEID* p
     }
     
 Hunt:
+    // NOTE: Logic code block itself inside these two for loops do not check if uToAcquire was reached, because the outer loops handle it.
     for (SIZE i = PageID / 8; i < g_szBitmap && uNoAcquired < uToAcquire && (bIsReroll ? PageID < InitialSearchID : TRUE); i++)
     {
         BYTE* pRegion = g_pPrimaryBitmap + i;
         for (BYTE BitOffset = PageID % 8; BitOffset < 8 && uNoAcquired < uToAcquire; BitOffset++, PageID++)
         {
             BYTE RegionData = *pRegion;
-            if (!(RegionData & (1 << BitOffset)) && !KrIsPhysicalPageReserved(PageID))
+
+            // Page unavailable. This block contains the ruined logic for DENSE as well. SPARSE simply does not care.
+            if (RegionData & (1 << BitOffset) || KrIsPhysicalPageReserved(PageID))
             {
-                if
-                (
-                    uNoAcquired
-                    &&
-                    dwAcquisitionMethod == KR_PMM_ACQUIRE_DENSE
-                    &&
-                    pOutIDs[uNoAcquired - 1] != PageID - 1
-                )
+                if (dwAcquisitionMethod & KR_PMM_ACQUIRE_DENSE)
                 {
                     uNoAcquired = 0;
                 }
-                pOutIDs[uNoAcquired++] = PageID;
+            }
+            // Page available for acquisition
+            else
+            {
+                if (dwAcquisitionMethod & KR_PMM_BASE_OUT_ONLY)
+                {
+                    if (uNoAcquired++ == 0)
+                    {
+                        *pOutIDs = PageID;
+                    }
+                }
+                else
+                {
+                    pOutIDs[uNoAcquired++] = PageID;
+                }
             }
         }
     }
 
+    // See if we started our first iteration from a nonzero page, if so, wraparound so we search the area we skipped.
     if ((!bIsReroll && InitialSearchID != 0) && uNoAcquired < uToAcquire)
     {
+        // Wraparound ruins DENSE streak.
+        if (dwAcquisitionMethod & KR_PMM_ACQUIRE_DENSE)
+        {
+            uNoAcquired = 0;
+        }
         PageID = 0;
         bIsReroll = TRUE;
         goto Hunt;
     }
 
+    // Acquired jackshit? Let's just not run any more code below.
     if (!uNoAcquired)
     {
         return 0;
     }
 
-    if (dwAcquisitionMethod == KR_PMM_ACQUIRE_DENSE)
+    // Our function spec says:
+    /* State of `pOutIDs` post-return of this function is (UNLESS BASE_OUT_ONLY WAS SPECIFIED):
+     * Index `0` to Index `(NumAcquiredPages i.e. Return Value - 1)` are valid Page IDs to newly-acquired pages.
+     * Index `NumAcquiredPages i.e. Return Value` to `dwToAcquire` are set to KR_INVALID_PAGEID. */
+    if (!(dwAcquisitionMethod & KR_PMM_BASE_OUT_ONLY))
+    {
+        for (UINT i = uNoAcquired; i < uToAcquire; i++)
+        {
+            pOutIDs[i] = KR_INVALID_PAGEID;
+        }
+    }
+
+    if (dwAcquisitionMethod & KR_PMM_ACQUIRE_DENSE)
     {
         KrSetPhysicalPageStatus(g_pPrimaryBitmap, *pOutIDs, uNoAcquired, KR_PHYSICAL_PAGE_STATUS_UNAVAILABLE);
     }
@@ -190,7 +232,9 @@ Hunt:
         }
     }
 
-    g_StatePMM.AcquireHint = pOutIDs[uNoAcquired - 1] + 1;
+    g_StatePMM.AcquiredPages += uNoAcquired;
+    g_StatePMM.AcquireHint = (dwAcquisitionMethod & KR_PMM_BASE_OUT_ONLY) ? *pOutIDs + uNoAcquired : pOutIDs[uNoAcquired - 1] + 1;
+
     return uNoAcquired;
 }
 

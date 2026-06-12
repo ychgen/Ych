@@ -26,8 +26,6 @@
 extern CHAR __KR_LINK_BSS_START[];
 extern CHAR __KR_LINK_BSS_END[];
 
-extern int nints;
-
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 KR_SECTION(".text.KrKernelStart")
 KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
@@ -151,18 +149,6 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Init Physmemmgmt & Virtmemmgmt.
     KrInitMem();
-
-    BYTE* ADDRREAD = (BYTE*) KrPhysToVirt(0x8100000);
-    *ADDRREAD = 20;
-
-    for (int i = 0; i < 1000; i++)
-    {
-        ADDRREAD += 0x1000;
-        if (*ADDRREAD == 20)
-        {
-            KrdwtpOutFormatText("no.\n");
-        }
-    }
 
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //

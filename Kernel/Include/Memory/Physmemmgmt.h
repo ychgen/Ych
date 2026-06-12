@@ -24,9 +24,11 @@ typedef            DWORD    PAGEID;
 /** KR_PMM_ACQUIRE_XXX for KrAcquirePhysicalPages() */
 
 // Pages acquired are not guaranteed to be contiguous.
-#define KR_PMM_ACQUIRE_SPARSE 1U
+#define KR_PMM_ACQUIRE_SPARSE (1 << 0)
 // Pages acquired are guaranteed to be contiguous.
-#define KR_PMM_ACQUIRE_DENSE  2U
+#define KR_PMM_ACQUIRE_DENSE  (1 << 1)
+// Only valid with KR_PMM_ACQUIRE_DENSE. Modifies behavior so that only the starting page ID is written to *pOutIDs.
+#define KR_PMM_BASE_OUT_ONLY  (1 << 2)
 
 /** =============================================== */
 
@@ -51,12 +53,12 @@ BOOL KrInitPhysmemmgmt(VOID);
  * Whether or not the pages are contiguous depends on `dwAcquisitionMethod`.
  * 
  * State of `pOutIDs` post-return of this function is:
- * Index `0` to Index `(NumAcquiredPages i.e. Return Value - 1)` are valid Page IDs to newly-acquired pages.
- * Index `NumAcquiredPages i.e. Return Value` to `dwToAcquire` are set to KR_INVALID_PAGEID.
+ * Range `0` to `(NumAcquiredPages i.e. Return Value - 1)` is valid Page IDs to newly-acquired pages.
+ * Range `NumAcquiredPages i.e. Return Value` to `dwToAcquire - 1` is set to KR_INVALID_PAGEID.
  * 
  * @param idHint Hint for the search algorithm. Will try to find pages near this one.
  * @param dwAcquisitionMethod Specifies how the allocation should be done. Uses KR_PMM_ACQUIRE_XXX macros.
- * @param pOutIDs Output array to write the acquired page IDs to. Caller is responsible for making sure pOutIDs contains at least `dwToAcquire` element slots.
+ * @param pOutIDs Output array to write the acquired page IDs to. Caller is responsible for making sure pOutIDs contains at least `dwToAcquire` element slots UNLESS base-out-only mode where function only uses 1 slot.
  * @param uToAcquire The number of pages to acquire.
  * @return The amount of pages actually acquired. The result might be partial. Caller is responsible for handling that.
  */

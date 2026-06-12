@@ -10,6 +10,8 @@ BOOT_INFO_MAGIC_OFFSET     equ 0
 BOOT_INFO_FBUF_OFFSET      equ 68
 BOOT_INFO_FBUFSZ_OFFSET    equ (BOOT_INFO_FBUF_OFFSET + 8)
 
+%define BOOT_INFO_MAX_SIZE 8192
+
 PAT_UC      equ 0 ; Uncacheable
 PAT_WC      equ 1 ; Write-Combining
 PAT_WT      equ 4 ; Write-Through
@@ -22,6 +24,10 @@ PAT_UCMINUS equ 7 ; Uncacheable-
 ;   RSI = Pointer to the KrSystemInfoPack structure.
 Bootelvt: ; `Boot Elevate` entry point
     CLI ; Being pedantic about interrupts does not hurt anyone.
+    CLD ; Again, just in case. I'm not taking any chances.
+
+    CMP RCX, BOOT_INFO_MAX_SIZE
+    JG ProcessorHalt
 
     ; Keep a copy of the KrSystemInfoPack, will be lost when we change to paging
     MOV [abs BOOT_INFO_PACK_SIZE], RCX
@@ -146,7 +152,7 @@ ProcessorHalt:
         JMP .InternalHaltCycle
 
 BOOT_INFO_PACK_SIZE: dq 0
-BOOT_INFO:           times 4096 db 0 ; Reserve 4KiB for KrSystemInfoPack. Should be more than enough...
+BOOT_INFO:           times BOOT_INFO_MAX_SIZE db 0 ; Reserve 4KiB for KrSystemInfoPack. Should be more than enough...
 
 align 4096
 PML4:        times PAGE_HIERARCHY_TOTAL_SIZE db 0
