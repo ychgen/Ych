@@ -1,61 +1,12 @@
 #include "BootContract/BootContract.h"
 
-#include <efi.h>
-#include <efilib.h>
-#include "blstd.h"
+#include "Utilities.h"
 
 #define YCH_COMBINE_INNER(x, y) x##y
 #define YCH_COMBINE(x, y) YCH_COMBINE_INNER(x, y)
 
 #define BOOTELVT_FILE_NAME_ON_DISK_U16LE YCH_COMBINE(L, BOOTELVT_FILE_NAME)
 #define KERNEL_FILE_NAME_ON_DISK_U16LE YCH_COMBINE(L, KERNEL_FILE_NAME)
-
-EFI_STATUS YchReadFile(EFI_FILE_PROTOCOL* root, const CHAR16* filepath, VOID* ldAddr, UINT64* pOutFileSize)
-{
-    EFI_FILE_PROTOCOL* file;
-    EFI_STATUS status = uefi_call_wrapper(root->Open, 5, root, &file, filepath, EFI_FILE_MODE_READ, 0);
-    if (EFI_ERROR(status))
-    {
-        Print(L"Failed to open file `%s`: %r\n", filepath, status);
-        return status;
-    }
-
-    EFI_FILE_INFO* fileInfo;
-    UINTN fileInfoSize = sizeof(EFI_FILE_INFO) + 1024;
-    fileInfo = (EFI_FILE_INFO*) uefi_call_wrapper(AllocatePool, 1, fileInfoSize);
-    status = uefi_call_wrapper(file->GetInfo, 4, file, &gEfiFileInfoGuid, &fileInfoSize, fileInfo);
-    if (EFI_ERROR(status))
-    {
-        Print(L"Failed to get file size `%s`: %r\n", filepath, status);
-        return status;
-    }
-    UINTN szFile = (UINTN) fileInfo->FileSize;
-    uefi_call_wrapper(FreePool, 1, fileInfo);
-
-    status = uefi_call_wrapper(file->Read, 3, file, &szFile, ldAddr);
-    if (EFI_ERROR(status))
-    {
-        Print(L"Failed to load file into memory `%s`: %r\n", filepath, status);
-        return status;
-    }
-    uefi_call_wrapper(file->Close, 1, file);
-    if(pOutFileSize)
-    {
-        *pOutFileSize = szFile;
-    }
-    return status;
-}
-
-BOOLEAN IsOVMF(void)
-{
-    CHAR16 *fwVendor = ST->FirmwareVendor;
-    if (fwVendor == NULL) return FALSE;
-
-    if (StrStr(fwVendor, L"EDK II") != NULL) {
-        return TRUE;
-    }
-    return FALSE;
-}
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTable)
 {
@@ -193,6 +144,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     bootInfo.GraphicsInfo.FramebufferWidth = pGOP->Mode->Info->HorizontalResolution;
     bootInfo.GraphicsInfo.FramebufferHeight = pGOP->Mode->Info->VerticalResolution;
     bootInfo.GraphicsInfo.PixelsPerScanLine = pGOP->Mode->Info->PixelsPerScanLine;
+
+    // RSDP
+    bootInfo.PhysAddrRSDP = YchLocateRSDP(pSystemTable);
 
     UINTN szMemoryMap = 0;
     EFI_MEMORY_DESCRIPTOR* pMemoryMap = NULL;

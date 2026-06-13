@@ -27,6 +27,7 @@ CSTR Krnlmddesc(MDCODE code);
 #define KR_MDCODE_LOCAL_APIC_MAP_FAILURE       (KR_CATEGORY_MDCODE_MEMORY +    4) // Couldn't map LAPIC
 #define KR_MDCODE_PAGE_FAULT                   (KR_CATEGORY_MDCODE_MEMORY +    5) // No-nonsense page fault (like kernel accessing a kernel-level guard page.)
 #define KR_MDCODE_DMAP_SETUP_OOM               (KR_CATEGORY_MDCODE_MEMORY +    6)
+#define KR_MDCODE_PMM_META_OOM                 (KR_CATEGORY_MDCODE_MEMORY +    7)
 
 /** KR_CATEGORY_MDCODE_DEBUG */
 

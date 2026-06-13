@@ -58,7 +58,7 @@ BOOL KrInitPhysmemmgmt(void)
         }
     }
 
-    // noPages is based on highest addressable point.
+    // noPages is based on highest addressable usable memory point.
     g_NumPages        = (g_PhysAddrHighest + KR_PAGE_SIZE - 1) / KR_PAGE_SIZE;
     g_szBitmap        = (g_NumPages + 7) / 8;
     g_pAdvisoryBitmap = KrBootstrapArenaAcquire(g_szBitmap);
@@ -111,6 +111,27 @@ BOOL KrInitPhysmemmgmt(void)
     KrtlContiguousCopyBuffer(g_pPrimaryBitmap, g_pAdvisoryBitmap, g_szBitmap);
 
     g_bInitPMM = TRUE;
+    return TRUE;
+}
+
+BOOL KrInitPhysMetaArray(VOID)
+{
+    const UINT MetasPerPhysicalPage    = KR_PAGE_SIZE / sizeof(KrPhysicalPageMeta);
+    const UINT NeededPageCountForArray = KR_CEILDIV(g_StatePMM.TotalPages, MetasPerPhysicalPage);
+
+    PAGEID BasePage;
+    DWORD dwNumAcqPages = KrAcquirePhysicalPages(
+        KR_INVALID_PAGEID,
+        KR_PMM_ACQUIRE_DENSE | KR_PMM_BASE_OUT_ONLY,
+        &BasePage,
+        NeededPageCountForArray
+    );
+
+    if (dwNumAcqPages < NeededPageCountForArray)
+    {
+        return FALSE;
+    }
+
     return TRUE;
 }
 

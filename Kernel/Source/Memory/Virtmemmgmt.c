@@ -128,6 +128,15 @@ BOOL KrInitVirtmemmgmt(VOID)
         return FALSE;
     }
 
+    // After direct map initialization we can finally do this
+    if (!KrInitPhysMetaArray())
+    {
+        MDCODE MdCode  = KR_MDCODE_PMM_META_OOM;
+        CSTR   pMdDesc = "Dense acquisition for PMM physical page metadata linear array failed! Either memory is too low or fragmentation is too high.";
+        Krnlmeltdownimm(MdCode, pMdDesc);
+    }
+    
+
     // Initialize `Primitive Heap`, needed to allocate VirtualMemoryRegion nodes.
     if (!KrPrimitiveInit())
     {

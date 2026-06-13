@@ -34,12 +34,24 @@ typedef            DWORD    PAGEID;
 
 typedef struct
 {
+    UINTPTR PhysAddrMetaArray;
+    UINTPTR VirtAddrMetaArray;
+
     ULONG  TotalPages;    // Total amount of physical pages.
     ULONG  UnusablePages; // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
     ULONG  AcquiredPages; // Total amount of physical pages currently acquired and managed by Physmemmgmt.
-
     PAGEID AcquireHint;   // Current default page acquisition hint.
 } KrPhysmemmgmtState;
+
+typedef struct // Never mark this struct as packed!
+{
+    UINT OwnerID;  // 0 = Ivld/Unowned, 1 = Kernel, anything else = Process ID.
+    WORD RefCount;
+    WORD Flags;
+    BYTE Type;
+    BYTE Order;
+    WORD Auxiliary;
+} KrPhysicalPageMeta;
 
 /**
  * @brief Initializes the PMM (Physical Memory Management) subsystem.
@@ -47,6 +59,14 @@ typedef struct
  * @return TRUE if initialization was successful, FALSE otherwise or if already initialized.
  */
 BOOL KrInitPhysmemmgmt(VOID);
+
+/**
+ * @brief Initializes the `struct KrPhysicalPageMeta[]` array.
+ * Must be called after PMM initialization and VMM d-map initialization.
+ * 
+ * @return TRUE if successful, FALSE otherwise.
+ */
+BOOL KrInitPhysMetaArray(VOID);
 
 /**
  * @brief Acquires a set amount of physical pages.

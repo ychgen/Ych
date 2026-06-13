@@ -1,3 +1,5 @@
+#include <efi.h>
+
 CHAR16* StrStr(const CHAR16* haystack, const CHAR16* needle) {
     if (!*needle) return (CHAR16*)haystack;
 

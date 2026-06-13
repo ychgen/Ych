@@ -71,6 +71,8 @@ typedef struct __attribute__((packed))
 
     KrGraphicsInfo  GraphicsInfo;
     KrMemoryMapInfo MemoryMapInfo;
+
+    uintptr_t       PhysAddrRSDP;
 } KrSystemInfoPack;
 
 #endif // !YCH_BOOT_CONTRACT_STRUCTURES
