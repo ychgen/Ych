@@ -13,4 +13,8 @@ VOID* KrtlContiguousZeroBuffer(VOID* pDest, SIZE N);
 VOID* KrtlContiguousCopyBuffer(VOID* restrict pDest, const VOID* restrict pSrc, SIZE N);
 VOID* KrtlContiguousMoveBuffer(VOID*          pDest, const VOID*          pSrc, SIZE N);
 
+// memcmp and related-ish functions
+
+BOOL  KrtlBufferEqual(const VOID* pLHS, const VOID* pRHS, SIZE N);
+
 #endif // !YCH_KERNEL_KRTL_KRNLMEMORY_H

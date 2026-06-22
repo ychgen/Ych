@@ -128,7 +128,7 @@ VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD Backgroun
                     UINT FramebufferOffsetY = dwStartY + Row * pFont->ScaleFactor + ScalarY;
                     UINT FramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + ScalarX;
                     ((DWORD*) g_ProtocolState.AddrFrameBuffer)[FramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
-                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_COLOR_DARK_RED : BackgroundColor); // BIG HACK!
+                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
                 }
             }
         }

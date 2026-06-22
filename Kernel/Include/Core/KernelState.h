@@ -2,7 +2,10 @@
 #define YCH_KERNEL_KERNEL_STATE_H
 
 #include "Krnlych.h"
+#include "ACPI/ACPI.h"
 #include "BootContract/BootContract.h"
+
+#define MAX_SMP_PROCESSORS 256
 
 typedef enum
 {
@@ -38,11 +41,6 @@ typedef struct
 
 typedef struct
 {
-    UINTPTR PhysAddr, VirtAddr;
-} KrLocalAPICInfo;
-
-typedef struct
-{
     BYTE PA_UC  : 3; // PA entry that contains UC (Uncacheable)
     BYTE PA_WC  : 3; // PA entry that contains WC (Write-Combining)
     BYTE PA_WT  : 3; // PA entry that contains WT (Write-Through)
@@ -50,6 +48,27 @@ typedef struct
     BYTE PA_WB  : 3; // PA entry that contains WB (Write-Back)
     BYTE PA_UCM : 3; // PA entry that contains UC- (Uncached)
 } KrPatMsrState;
+
+typedef struct
+{
+    KrAcpiRsdp* pRsdp;
+    KrAcpiSdtHeader* pXsdt;
+} KrAcpiInfo;
+
+typedef struct
+{
+    UINT IdealProcessorCount;  // Ideal amount of processor that should be active after AP bringup.
+    UINT ActiveProcessorCount; // How many logical processors currently active.
+
+    struct
+    {
+        BOOL  E_V : 1; // Entry_Valid
+        BOOL  BSP : 1; // 0 if AP, 1 if BSP
+        BOOL  RFD : 1; // Reported for Duty (set once upon AP reaches common kernel entry point alongside his accomplices)
+        DWORD AcpiID;
+        DWORD LocalApicID;
+    } ProcInfo[MAX_SMP_PROCESSORS];
+} KrSmpInfo;
 
 typedef struct
 {
@@ -86,8 +105,11 @@ typedef struct
     /** Interrupt Descriptor Table Information */
     UINTPTR AddrIDT; // Address to IDT entries array.
 
-    /** Local APIC Information (Uniform across all logical processors) */
-    KrLocalAPICInfo LAPIC;
+    /** ACPI stuff */
+    KrAcpiInfo AcpiInfo;
+
+    /** Symmetric Multi-Processing */
+    KrSmpInfo SmpInfo;
 
     /** GOP/VBE Frame Buffer Information (Non-Driver Related) */
     KrFrameBufferInfo FrameBufferInfo;

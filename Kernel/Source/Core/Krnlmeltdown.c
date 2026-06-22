@@ -19,7 +19,7 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnaps
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
         // Clear fbuf and move cursor to start.
-        KrdwtpResetState(KRDWTP_COLOR_RED);
+        KrdwtpResetState(KRDWTP_COLOR_DARK_PURPLE);
 
         if (pSnapshot)
         {

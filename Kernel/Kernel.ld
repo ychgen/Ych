@@ -28,4 +28,11 @@ SECTIONS
         *(.bss*)
         __KR_LINK_BSS_END = .;
     }
+
+    .apbootstrap ALIGN(4096) :
+    {
+        __KR_LINK_APBOOTSTRAP_START = .;
+        KEEP(*(.apbootstrap))
+        __KR_LINK_APBOOTSTRAP_END = .;
+    }
 }

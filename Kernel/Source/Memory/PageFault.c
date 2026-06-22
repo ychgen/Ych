@@ -8,6 +8,7 @@
 #include "Memory/Virtmemmgmt.h"
 
 #include "KRTL/Krnlstring.h"
+#include "KRTL/Krnlmem.h"
 
 /** TODO: When we move to SMP, this has to be apart of Thread-Local data. Since we are single-core for now, it's okay. */
 static BOOL g_bInprocFault = FALSE;
@@ -49,7 +50,11 @@ VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
     g_bInprocFault = FALSE;
     // return here normally, but since we don't have the complete function implemented as of now, we'll just invoke meltdown
 
-    CHAR BUF[64];
-    KrtlUnsignedToString(BUF, pInterruptFrame->ErrorCode, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
-    GiveUp(BUF, pInterruptFrame);
+    const CHAR strErrorPrefix[] = "ADDR in CR2. #PF Error Code: ";
+    CHAR ErrorMessage[64];
+
+    KrtlContiguousCopyBuffer(ErrorMessage, strErrorPrefix, sizeof(strErrorPrefix));
+    KrtlUnsignedToString(ErrorMessage + sizeof(strErrorPrefix) - 1, pInterruptFrame->ErrorCode, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
+    
+    GiveUp(ErrorMessage, pInterruptFrame);
 }

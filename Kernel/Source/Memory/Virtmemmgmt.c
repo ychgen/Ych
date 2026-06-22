@@ -10,7 +10,6 @@
 #include "CPU/CR.h"
 
 #include "Memory/BootstrapArena.h"
-#include "Memory/PrimitiveHeap.h"
 #include "Memory/Physmemmgmt.h"
 #include "Memory/PageFault.h"
 
@@ -19,9 +18,6 @@
 // TODO: Remove later, these are for debugging currently
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "CPU/Halt.h"
-
-// Important stuff check (dead serious)
-KR_STATIC_ASSERT(sizeof(KrVirtualMemoryRegion) <= KR_PRIMITIVE_HEAP_STEPPING, "struct `KrVirtualMemoryRegion` does not fit within a Primitive Heap 'Stepping'.");
 
 KrVirtmemmgmtState     g_StateVMM = {0};
 KrVirtualMemoryRegion  g_RootVMR  = {0};
@@ -134,13 +130,6 @@ BOOL KrInitVirtmemmgmt(VOID)
         MDCODE MdCode  = KR_MDCODE_PMM_META_OOM;
         CSTR   pMdDesc = "Dense acquisition for PMM physical page metadata linear array failed! Either memory is too low or fragmentation is too high.";
         Krnlmeltdownimm(MdCode, pMdDesc);
-    }
-    
-
-    // Initialize `Primitive Heap`, needed to allocate VirtualMemoryRegion nodes.
-    if (!KrPrimitiveInit())
-    {
-        return FALSE;
     }
 
     // Create root node by hand (cus KrMapVirt needs at least a proper root node to exist to function.)
@@ -280,7 +269,8 @@ KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE s
         pInsertAfter = g_pTailVMR;
     }
 
-    KrVirtualMemoryRegion* pThisNode = KrPrimitiveAcquire(sizeof(KrVirtualMemoryRegion));
+    // TODO: Implement allocator
+    KrVirtualMemoryRegion* pThisNode /*= KrPrimitiveAcquire(sizeof(KrVirtualMemoryRegion))*/;
     pThisNode->VirtAddrBase = pAddrVirt;
     pThisNode->szPageCount  = PageCount;
     pThisNode->wAcquisitionType = wAcquisitionType;

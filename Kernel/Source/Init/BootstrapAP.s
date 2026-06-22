@@ -1,0 +1,20 @@
+SECTION .apboostrap
+[BITS 16]
+[ORG  0x8000]
+
+MOV AL, 1
+LOCK XADD [0x7008], AL
+
+MOV [0x7000], BYTE 'H'
+MOV [0x7001], BYTE 'E'
+MOV [0x7002], BYTE 'L'
+MOV [0x7003], BYTE 'L'
+MOV [0x7004], BYTE 'O'
+MOV [0x7005], BYTE '!'
+MOV [0x7006], BYTE '!'
+MOV [0x7007], BYTE '!'
+
+Halt:
+    CLI
+    HLT
+    JMP Halt

@@ -92,9 +92,15 @@ static BOOL KrInitDirectMap(VOID)
     const QWORD qwLeafFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX;
     const KrPatSelect pslDefault = KrSelectPat(KR_PAT_WRITE_BACK);
     
-    for (UINT i = 0; i < g_KernelState.NumCanonicalMapEntries; i++)
+    UINT i = 0;
+    UINT LastGlobalLoopIdx = 0xFFFFFFFF; // Do not change this bro ACPI explodes
+    UINT LoopCnt = g_KernelState.NumCanonicalMapEntries;
+    KrMemoryDescriptor* pMap = g_KernelState.CanonicalMemoryMap;
+
+Loop:
+    for (i = 0; i < LoopCnt; i++)
     {
-        KrMemoryDescriptor* pRegion = g_KernelState.CanonicalMemoryMap + i;
+        KrMemoryDescriptor* pRegion = pMap + i;
 
         UINTPTR PhysAddrRegion = pRegion->PhysicalBase;
         ULONG   szRegionSize   = pRegion->PageCount * KR_PAGE_SIZE;
@@ -165,6 +171,18 @@ static BOOL KrInitDirectMap(VOID)
                 break;
             }
             }
+        }
+    }
+
+    for (LastGlobalLoopIdx = LastGlobalLoopIdx + 1; LastGlobalLoopIdx < g_KernelState.MemoryMapInfo.EntryCount; LastGlobalLoopIdx++)
+    {
+        KrMemoryDescriptor* pDesc = g_KernelState.MemoryMap + LastGlobalLoopIdx;
+        if (pDesc->Type == KR_MEMORY_TYPE_ACPI_MEMORY_NVS)
+        {
+            i = 0;
+            LoopCnt = 1;
+            pMap = pDesc;
+            goto Loop;
         }
     }
 

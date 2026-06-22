@@ -3,6 +3,6 @@
 
 #include "Krnlych.h"
 
-VOID KrInitACPI(VOID);
+VOID KrInitACPI(UINTPTR PhysAddrRSDP);
 
 #endif // !YCH_KERNEL_INIT_KR_INIT_ACPI_H

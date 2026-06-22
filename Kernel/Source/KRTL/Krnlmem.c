@@ -58,3 +58,12 @@ VOID* KrtlContiguousMoveBuffer(VOID* pDest, const VOID* pSrc, SIZE N)
 
     return pDest;
 }
+
+BOOL KrtlBufferEqual(const VOID* pLHS, const VOID* pRHS, SIZE N)
+{
+    const BYTE* pLeftBytes = (const BYTE*) pLHS;
+    const BYTE* pRightBytes = (const BYTE*) pRHS;
+
+    while (*pLeftBytes++ == *pRightBytes++ && N--);
+    return !N;
+}

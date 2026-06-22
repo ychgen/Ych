@@ -1,9 +1,11 @@
 #include "Init/KrKernelStart.h"
 
 #include "Init/KrInitMemmap.h"
+#include "Init/KrInitACPI.h"
 #include "Init/KrInitGDT.h"
 #include "Init/KrInitInt.h"
 #include "Init/KrInitMem.h"
+#include "Init/KrInitSMP.h"
 
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
@@ -45,6 +47,12 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
+    g_KernelState.SmpInfo.ActiveProcessorCount = 1; // The Bootstrap Processor
+    
+    // Count-in the current processor running this code, the bootstrap processor (BSP)
+    // g_KernelState.SmpInfo.IdealProcessorCount = 1;
+    // g_KernelState.SmpInfo.ActiveProcessorCount = 1;
+
     // Copy pSystemInfoPack so we don't lose it when we unmap the ID-mapped lower 2MiB.
     KrSystemInfoPack SysInfoPack;
     KrtlContiguousCopyBuffer(&SysInfoPack, pSystemInfoPack, sizeof(KrSystemInfoPack));
@@ -149,6 +157,27 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Init Physmemmgmt & Virtmemmgmt.
     KrInitMem();
+
+    // Init ACPI
+    KrInitACPI(SysInfoPack.PhysAddrRSDP);
+    KrdwtpOutColoredText("ACPI initialization sucessful.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    
+    KrdwtpOutColoredText("Processor topology:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND); 
+    for (UINT i = 0; i < MAX_SMP_PROCESSORS; i++)
+    {
+        if (!g_KernelState.SmpInfo.ProcInfo[i].E_V)
+        {
+            continue;
+        }
+        KrdwtpOutFormatText(" -> Logical CPU `APIC %u / ACPI %u` %s\n",
+            g_KernelState.SmpInfo.ProcInfo[i].LocalApicID,
+            g_KernelState.SmpInfo.ProcInfo[i].AcpiID,
+            g_KernelState.SmpInfo.ProcInfo[i].BSP ? "BSP" : "AP"
+        ); 
+    }
+
+    // Init SMP
+    KrInitSMP();
 
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //

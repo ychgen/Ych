@@ -7,6 +7,9 @@ TARGET       := $(BUILD_PATH)/$(TARGET_NAME)
 SOURCES := $(shell find $(SOURCE_PATH) \( -name "*.c" -o -name "*.asm" \))
 OBJECTS := $(SOURCES:%=$(BUILD_PATH)/Int/%.o)
 
+APBOOTSTRAP_SRC ?= $(SOURCE_PATH)/Init/BootstrapAP.s
+APBOOTSTRAP_TARGET ?= $(BUILD_PATH)/Int/BootstrapAP.bin
+
 GUEST_CFLAGS ?=
 CFLAGS ?= -O2 -I$(INCLUDE_PATH) -m64 -mcmodel=kernel -ffreestanding -mno-red-zone \
 		  -fno-pie -fno-pic -fno-stack-protector -Wall -Wextra -MMD -MP $(GUEST_CFLAGS)
@@ -19,10 +22,15 @@ ECHO  ?= echo
 NASM  ?= nasm
 MKDIR ?= mkdir
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(APBOOTSTRAP_TARGET) $(OBJECTS)
 	@$(MKDIR) -p $(dir $@)
 	@$(ECHO) Linking final binary \"$@\"...
-	@$(CC) $(LDFLAGS) -T Kernel.ld -o $@ $^
+	@$(CC) $(LDFLAGS) -T Kernel.ld -o $@ $(OBJECTS)
+
+$(APBOOTSTRAP_TARGET): $(APBOOTSTRAP_SRC) 
+	@$(MKDIR) -p $(dir $@)
+	@$(ECHO) Assembling \"$<\" to \"$@\"...
+	@$(NASM) -f bin $< -o $@
 
 $(BUILD_PATH)/Int/%.c.o: %.c
 	@$(MKDIR) -p $(dir $@)

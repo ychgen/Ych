@@ -19,6 +19,12 @@ CSTR Krnlmddesc(MDCODE mdCode)
         mkcase(KR_MDCODE_GENERAL_DEBUG);
         mkcase(KR_MDCODE_KERNEL_START_RETURNS);
         mkcase(KR_MDCODE_DMAP_SETUP_DEVCHECK);
+        mkcase(KR_MDCODE_ISSUE_IPI_DEVCHECK);
+        /** FIRMWARE */
+        mkcase(KR_MDCODE_CORRUPT_ACPI_RSDP);
+        mkcase(KR_MDCODE_ACPI_SDT_CHECKSUM_NV);
+        mkcase(KR_MDCODE_ACPI_TABLE_NOT_FOUND);
+        mkcase(KR_MDCODE_ACPI_TABLE_CORRUPT);
     #undef mkcase
     default: break;
     }
