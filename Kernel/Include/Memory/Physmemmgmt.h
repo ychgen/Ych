@@ -15,43 +15,66 @@
 // Size of `physical` pages. Don't be a fool and use this for anything virtual-related.
 #define KR_PAGE_SIZE 4096
 
-/* Physical Page ID. DWORD_MAX * KR_PAGE_SIZE = ~16TiB addressable. Way more than enough in my entire life time probably. */
-typedef            DWORD    PAGEID;
-// This page ID as always reserved as INVALID.
-#define KR_INVALID_PAGEID ((PAGEID) -1)
+typedef            DWORD    PAGEID; /* Physical Page ID. DWORD_MAX * KR_PAGE_SIZE = ~16TiB addressable. Way more than enough in my entire life time probably. */
+#define IVLDPGID ((PAGEID) -1) // This page ID as always reserved as INVALID.
 
-/** =============================================== */
-/** KR_PMM_ACQUIRE_XXX for KrAcquirePhysicalPages() */
+#define PAGE_ACQ_SPARSE         (1 << 0) // Pages acquired are not guaranteed to be contiguous.
+#define PAGE_ACQ_DENSE          (1 << 1) // Pages acquired are guaranteed to be contiguous.
+#define PAGE_ACQ_BASE_OUT_ONLY  (1 << 2) // Only valid with PAGE_ACQ_DENSE. Modifies behavior so that only the starting page ID is written to *pOutIDs.
+#define PAGE_ACQ_FOR_USER       (1 << 3)
 
-// Pages acquired are not guaranteed to be contiguous.
-#define KR_PMM_ACQUIRE_SPARSE (1 << 0)
-// Pages acquired are guaranteed to be contiguous.
-#define KR_PMM_ACQUIRE_DENSE  (1 << 1)
-// Only valid with KR_PMM_ACQUIRE_DENSE. Modifies behavior so that only the starting page ID is written to *pOutIDs.
-#define KR_PMM_BASE_OUT_ONLY  (1 << 2)
+#define PAGE_TYPE_INVALID     0
+#define PAGE_TYPE_GENERAL     1 // General purpose allocation
+#define PAGE_TYPE_PAGE_STRUCT 2 // Paging level structure like PDPT structure, PD structure, PT structure.
+#define PAGE_TYPE_RNA         3 // Is a `Region Node Allocator` page containing RNA pages storing KrVirtualMemoryRegion nodes.
+#define PAGE_TYPE_BOOKKEEPING 4 // Contains KrPhysicalPageMeta[] structures
+#define PAGE_TYPE_RESERVED    5 // Page reserved before PMM bringup completion
 
-/** =============================================== */
+#define PAGE_FLAG_PINNED (1 << 0)
+#define PAGE_FLAG_USER   (1 << 1) // Page is user-level, non-kernel acquired.
+
+typedef struct // Never mark this struct as packed! Also keep it as small as humanly possible.
+{
+    WORD RefCount;
+    union
+    {
+        // 16 bit field whose value depends on Meta.Type
+        WORD Auxiliary;
+    };
+    BYTE Flags;
+    BYTE Type;
+} KrPhysicalPageMeta;
+
+typedef enum
+{
+    PMM_INIT_STAGE_NONE        = 0,
+    PMM_INIT_STAGE_BASIC       = 1,
+    PMM_INIT_STAGE_BOOKKEEPING = 2,
+
+    PMM_INIT_STAGE_FULLY_OPERATIONAL = PMM_INIT_STAGE_BOOKKEEPING
+} PmmInitStage;
 
 typedef struct
 {
-    UINTPTR PhysAddrMetaArray;
-    UINTPTR VirtAddrMetaArray;
+    PmmInitStage InitStage;
 
+    struct
+    {
+        UINTPTR PaddrMetaArray;
+        UINTPTR VaddrMetaArray;
+
+        UINTPTR PaddrHighest;
+        BYTE* pAdvisoryBitmap;
+        BYTE* pPrimaryBitmap;
+        SIZE  BitmapSize;
+        UINT  NrPages;
+    } Private;
+    
     ULONG  TotalPages;    // Total amount of physical pages.
     ULONG  UnusablePages; // Total amount of physical pages that cannot be used for reasons like reserved by the platform, MMIO, kernel reserved etc.
     ULONG  AcquiredPages; // Total amount of physical pages currently acquired and managed by Physmemmgmt.
     PAGEID AcquireHint;   // Current default page acquisition hint.
 } KrPhysmemmgmtState;
-
-typedef struct // Never mark this struct as packed!
-{
-    UINT OwnerID;  // 0 = Ivld/Unowned, 1 = Kernel, anything else = Process ID.
-    WORD RefCount;
-    WORD Flags;
-    BYTE Type;
-    BYTE Order;
-    WORD Auxiliary;
-} KrPhysicalPageMeta;
 
 /**
  * @brief Initializes the PMM (Physical Memory Management) subsystem.
@@ -74,25 +97,25 @@ BOOL KrInitPhysMetaArray(VOID);
  * 
  * State of `pOutIDs` post-return of this function is:
  * Range `0` to `(NumAcquiredPages i.e. Return Value - 1)` is valid Page IDs to newly-acquired pages.
- * Range `NumAcquiredPages i.e. Return Value` to `dwToAcquire - 1` is set to KR_INVALID_PAGEID.
+ * Range `NumAcquiredPages i.e. Return Value` to `dwToAcquire - 1` is set to IVLDPGID.
  * 
- * @param idHint Hint for the search algorithm. Will try to find pages near this one.
- * @param dwAcquisitionMethod Specifies how the allocation should be done. Uses KR_PMM_ACQUIRE_XXX macros.
  * @param pOutIDs Output array to write the acquired page IDs to. Caller is responsible for making sure pOutIDs contains at least `dwToAcquire` element slots UNLESS base-out-only mode where function only uses 1 slot.
  * @param uToAcquire The number of pages to acquire.
+ * @param dwAcquisitionMethod Specifies how the allocation should be done. Uses KR_PMM_ACQUIRE_XXX macros.
+ * @param HintID Hint for the search algorithm. Will try to find pages near this one.
  * @return The amount of pages actually acquired. The result might be partial. Caller is responsible for handling that.
  */
-DWORD KrAcquirePhysicalPages(PAGEID idHint, DWORD dwAcquisitionMethod, PAGEID* pOutIDs, UINT uToAcquire);
+DWORD KrAcquirePhysicalPages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAcquisitionMethod, PAGEID HintID);
 
 /**
  * @brief Acquires a singular physical page. Useful when you genuinely need only one singular physical case.
  * In any case where you need more than one, consider using KrAcquirePhysicalPages(). You can configure it way more in-depth as well.
  * This function internally uses it anyway, asks for 1 page.
  * 
- * @param idHint Hint for the search algorithm. Will try to find a page near this one.
- * @return ID to the acquired page if the acquisition was successful, KR_INVALID_PAGEID otherwise.
+ * @param HintID Hint for the search algorithm. Will try to find a page near this one.
+ * @return ID to the acquired page if the acquisition was successful, IVLDPGID otherwise.
  */
-PAGEID KrAcquirePhysicalPage(PAGEID idHint);
+PAGEID KrAcquirePhysicalPage(BYTE PageType, PAGEID HintID);
 
 /**
  * @brief Relinquishes a physical page back to the PMM.
@@ -141,15 +164,10 @@ UINTPTR KrGetPhysicalPageAddress(PAGEID PageID);
  */
 PAGEID  KrGetPhysicalPageID(UINTPTR PhysAddr);
 
+KrPhysicalPageMeta* KrGetPageMeta(PAGEID PageID);
+
 CSTR    KrMemoryRegionTypeToString(DWORD dwType);
 BOOL    KrIsUsableMemoryRegionType(DWORD dwType);
-
-/**
- * @brief Checks if the PMM subsystem has been initialized.
- * 
- * @return TRUE if initialized, FALSE otherwise.
- */
-BOOL    KrIsPhysmemmgmtInitialized(VOID);
 
 /**
  * @brief Gets the current PMM state.

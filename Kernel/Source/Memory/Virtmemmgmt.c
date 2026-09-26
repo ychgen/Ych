@@ -19,35 +19,17 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "CPU/Halt.h"
 
-KrVirtmemmgmtState     g_StateVMM = {0};
-KrVirtualMemoryRegion  g_RootVMR  = {0};
-KrVirtualMemoryRegion  g_KrnlVMR  = {0};
-KrVirtualMemoryRegion  g_FrBufVMR = {0};
-KrVirtualMemoryRegion* g_pTailVMR = NULLPTR;
+KrVirtmemmgmtState g_StateVMM = {0};
 
 // Include these here (they depend on stuff from above)
 #include "PrivateVMM/BSmapInit.h" // for KrInitBootstrapStaticPages()
 #include "PrivateVMM/DmapInit.h" // for KrInitDirectMap()
+#include "PrivateVMM/RegionNodeAllocator.h"
 
-inline UINT KrGetRegionPageGranularity(WORD wRegionFlags)
-{
-    // 2MiB if LARGE_PAGE, 4KiB otherwise.
-    return wRegionFlags & KR_PAGE_FLAG_LARGE ? 0x200000 : 0x1000;
-}
+KR_STATIC_ASSERT(sizeof(KrVirtualMemoryRegion) <= RNA_SLOT_SIZE, "VMR node struct size exceeds RNA slot size.");
 
-const KrVirtualMemoryRegion* KrLocateVMR(UINTPTR VirtAddr)
-{
-    KrVirtualMemoryRegion* pRegion = &g_RootVMR;
-    while (pRegion)
-    {
-        if (VirtAddr >= pRegion->VirtAddrBase && VirtAddr < pRegion->VirtAddrBase + pRegion->szPageCount * KrGetRegionPageGranularity(pRegion->wFlags))
-        {
-            return pRegion;
-        }
-        pRegion = pRegion->pNext;
-    }
-    return NULLPTR;
-}
+static VOID KrVmmInitCpu(VOID);
+static BOOL KrInitKrnlAddrSpace(VOID);
 
 BOOL KrInitVirtmemmgmt(VOID)
 {
@@ -57,6 +39,246 @@ BOOL KrInitVirtmemmgmt(VOID)
         return FALSE;
     }
 
+    // Feature checking, control registers, PAT MSR setup etc.
+    KrVmmInitCpu();
+
+    // This keeps our current mapping and unmapping identity-mapped lower 2 MiB.
+    KrVmmInitKernelStaticPages();
+    
+    // Take control of paging.
+    UINTPTR AddrPhysicalPML4 = KrReservedVirtToPhys(g_PML4);
+    KrWriteCR3(AddrPhysicalPML4);
+
+    // Our paging configuration must be active before calling this. It depends on using pages it maps like scaffolding once it falls out of the bootstrap arena.
+    // It also directly works on g_PML4 and such.
+    if (!KrInitDirectMap())
+    {
+        return FALSE;
+    }
+
+    // After direct map initialization we can finally do this
+    if (!KrInitPhysMetaArray())
+    {
+        MDCODE MdCode  = KR_MDCODE_PMM_META_OOM;
+        CSTR   pMdDesc = "Dense acquisition for PMM physical page metadata linear array failed! Either memory is too low or fragmentation is too high.";
+        Krnlmeltdownimm(MdCode, pMdDesc);
+    }
+
+    if (!RnaInit())
+    {
+        MDCODE MdCode = KR_MDCODE_RNA_INIT_FAILURE;
+        CSTR   MdDesc = "Failed to initialize the Region Node Allocator for Virtmemmgmt, initialization cannot proceed.";
+        Krnlmeltdownimm(MdCode, MdDesc);
+    }
+
+    // Initialize g_StateVMM.KernelAddressSpace & the basic VMRs for the kernel.
+    if (!KrInitKrnlAddrSpace())
+    {
+        MDCODE MdCode = KR_MDCODE_KERNEL_ADDRESS_SPACE_CREATION_FAILURE;
+        CSTR MdDesc = "Failed to create the kernel address space and its initial VMRs.";
+        Krnlmeltdownimm(MdCode, MdDesc);
+    }
+
+    // NOTE: Only and only after all initialization steps should we assign the Page Fault handler.
+    // Parameter `bOverwrite`=TRUE for overwrite! You must provide it as TRUE to overwrite the basic KrCriticalProcessorInterrupt handler.
+    if (!KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
+    {
+        return FALSE;
+    }
+
+    g_StateVMM.bInitialized = TRUE;
+    return TRUE;
+}
+
+KrVirtualMemoryRegion* KrLocateVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr)
+{
+    if (!pAddressSpace)
+    {
+        return NULLPTR;
+    }
+
+    KrVirtualMemoryRegion* pNode = pAddressSpace->pRootVMR;
+    while (pNode)
+    {
+        if (Vaddr >= pNode->VaddrStart && Vaddr < pNode->VaddrEnd)
+        {
+            break;
+        }
+
+        pNode = pNode->pNext;
+    }
+
+    return pNode;
+}
+
+BOOL KrVrangeOverlapsVMR(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd)
+{
+    if (!pNode)
+    {
+        return FALSE;
+    }
+    if (VaddrStart >= VaddrEnd)
+    {
+        return FALSE;
+    }
+    if (VaddrStart < pNode->VaddrEnd && VaddrEnd > pNode->VaddrStart)
+    {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd)
+{
+    if (!pAddressSpace)
+    {
+        return FALSE;
+    }
+    if (VaddrStart >= VaddrEnd)
+    {
+        return FALSE;
+    }
+
+    KrVirtualMemoryRegion* pNode = pAddressSpace->pRootVMR;
+    while (pNode)
+    {
+        if (VaddrEnd <= pNode->VaddrStart)
+        {
+            return FALSE; // does not overlap since range end is before the region even starts
+        }
+        if (KrVrangeOverlapsVMR(pNode, VaddrStart, VaddrEnd))
+        {
+            return TRUE;
+        }
+        pNode = pNode->pNext;
+    }
+
+    return FALSE;
+}
+
+BOOL KrFindInsertPointVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter)
+{
+    if (!pAddressSpace)
+    {
+        return FALSE;
+    }
+    if (VaddrStart >= VaddrEnd)
+    {
+        return FALSE;
+    }
+
+    KrVirtualMemoryRegion* pNode = pAddressSpace->pRootVMR;
+    while (pNode)
+    {
+        if (VaddrEnd <= pNode->VaddrStart)
+        {
+            // Insert before me
+            if (pBefore) *pBefore = pNode;
+            if (pAfter)  *pAfter = pNode->pPrev;
+
+            return TRUE;
+        }
+
+        // Vrange must be ahead of pNode but before pNode->pNext (if any, otherwise irrelevant)
+        if (VaddrStart >= pNode->VaddrEnd)
+        {
+            if (pNode->pNext)
+            {
+                if (VaddrEnd >= pNode->pNext->VaddrStart)
+                {
+                    return FALSE; // Ahead of pNode, but overlaps pNext
+                }
+            }
+            
+            // insert after me, i.e. before my next
+            if (pAfter)  *pAfter  = pNode;
+            if (pBefore) *pBefore = pNode->pNext;
+
+            return TRUE;
+        }
+        pNode = pNode->pNext;
+    }
+
+    return FALSE;
+}
+
+KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags)
+{
+    if (!pAddressSpace)
+    {
+        return NULLPTR;
+    }
+
+    KrVirtualMemoryRegion* pInsertBefore = NULLPTR, *pInsertAfter = NULLPTR;
+    if (!KrFindInsertPointVMR(pAddressSpace, VaddrStart, VaddrEnd, &pInsertBefore, &pInsertAfter))
+    {
+        return NULLPTR;
+    }
+
+    KrVirtualMemoryRegion* pNode = RnaAcquireNode();
+    if (!pNode)
+    {
+        return NULLPTR;
+    }
+
+    KrdwtpOutFormatText("IB %p, IA = %p\n", pInsertBefore, pInsertAfter);
+
+    pNode->pAddressSpace = pAddressSpace;
+    pNode->VaddrStart = VaddrStart;
+    pNode->VaddrEnd = VaddrEnd;
+    pNode->Flags = Flags;
+
+    if (pInsertBefore)
+    {
+        pInsertBefore->pPrev = pNode;
+    }
+    if (pInsertAfter)
+    {
+        pInsertAfter->pNext = pNode;
+    }
+    pNode->pPrev = pInsertAfter;
+    pNode->pNext = pInsertBefore;
+
+    if (pInsertBefore == pAddressSpace->pRootVMR)
+    {
+        pAddressSpace->pRootVMR = pNode;
+    }
+    if (pInsertAfter == pAddressSpace->pTailVMR)
+    {
+        pAddressSpace->pTailVMR = pNode;
+    }
+
+    pAddressSpace->NrVMRs++;
+    return pNode;
+}
+
+UINTPTR KrPhysToVirt(UINTPTR AddrPhys)
+{
+    return g_StateVMM.DmapInfo.VirtAddrBase + AddrPhys;
+}
+
+UINTPTR KrVirtToPhys(UINTPTR AddrVirt)
+{
+    return AddrVirt - g_StateVMM.DmapInfo.VirtAddrBase;
+}
+
+const KrVirtmemmgmtState* KrGetVirtmemmgmtState(VOID)
+{
+    return &g_StateVMM;
+}
+
+BOOL KrIsVirtmemmgmtInitialized(VOID)
+{
+    return g_StateVMM.bInitialized;
+}
+
+KrAddressSpace* KrGetKernelAddressSpace(VOID)
+{
+    return &g_StateVMM.KernelAddressSpace;
+}
+
+static VOID KrVmmInitCpu(VOID)
+{
     // Huge Page Support Check & NX Support Check + Activation via MSR.
     {
         DWORD EAX, EBX, ECX, EDX;
@@ -109,227 +331,44 @@ BOOL KrInitVirtmemmgmt(VOID)
         KrLoadPatMsr(qwPatMsr);
         g_pslDefault = KrSelectPat(KR_PAT_WRITE_BACK);
     }
+}
 
-    // This keeps our current mapping and unmapping identity-mapped lower 2MiB (L bozo).
-    KrInitBootstrapStaticPages();
-
-    // Take control of paging.
-    UINTPTR AddrPhysicalPML4 = KrReservedVirtToPhys(g_PML4);
-    KrWriteCR3(AddrPhysicalPML4);
-
-    // Our paging configuration must be active before calling this. It depends on using pages it maps like scaffolding once it falls out of the bootstrap arena.
-    // It also directly works on g_PML4 and such.
-    if (!KrInitDirectMap())
+static BOOL KrInitKrnlAddrSpace(VOID)
+{
+    g_StateVMM.KernelAddressSpace.PaddrRoot = KrReservedVirtToPhys(g_PML4);
+    
+    KrVirtualMemoryRegion* pBinaryNode = RnaAcquireNode();
+    KrVirtualMemoryRegion* pFrameBufferNode = RnaAcquireNode();
+    
+    if (!(pBinaryNode && pFrameBufferNode))
     {
         return FALSE;
     }
+    
+    pBinaryNode->pAddressSpace = &g_StateVMM.KernelAddressSpace;
+    pBinaryNode->VaddrStart = g_KernelState.LoadInfo.AddrVirtualBase;
+    pBinaryNode->VaddrEnd = pBinaryNode->VaddrStart + g_KernelState.LoadInfo.ReserveSize;
+    pBinaryNode->Flags = VMR_FLAG_STATIC | VMR_FLAG_READABLE | VMR_FLAG_ALLOW_CODE_EXEC | VMR_FLAG_PAGE_SIZE;
 
-    // After direct map initialization we can finally do this
-    if (!KrInitPhysMetaArray())
+    pFrameBufferNode->pAddressSpace = &g_StateVMM.KernelAddressSpace;
+    pFrameBufferNode->VaddrStart = g_KernelState.FrameBufferInfo.VirtualAddress;
+    pFrameBufferNode->VaddrEnd = pBinaryNode->VaddrStart + g_KernelState.FrameBufferInfo.Size;
+    pFrameBufferNode->Flags = VMR_FLAG_STATIC | VMR_FLAG_WRITABLE | VMR_FLAG_PAGE_SIZE;
+
+    if (pBinaryNode->VaddrStart < pFrameBufferNode->VaddrStart)
     {
-        MDCODE MdCode  = KR_MDCODE_PMM_META_OOM;
-        CSTR   pMdDesc = "Dense acquisition for PMM physical page metadata linear array failed! Either memory is too low or fragmentation is too high.";
-        Krnlmeltdownimm(MdCode, pMdDesc);
-    }
-
-    // Create root node by hand (cus KrMapVirt needs at least a proper root node to exist to function.)
-    // Root node will cover address 0 through 2MiB.
-    // We create this reservation, so no fool can claim this space.
-    // Reason is: No one should map NULLPTR otherwise I am coming after them.
-    // Reason for anything other than the NULLPTR reason: my dick wanted it that way so it is the way it is.
-    g_RootVMR.VirtAddrBase = 0; // Virtual address 0x0000000000000000, so like, NULLPTR and shit.
-    g_RootVMR.szPageCount  = 1; // 1 page.
-    g_RootVMR.wAcquisitionType = KR_ACQUIRE_STATIC; // Do not commit, duh.
-    g_RootVMR.wFlags = KR_PAGE_FLAG_GUARD | KR_PAGE_FLAG_LARGE; // One `2MiB` page. Also hard reserve so page is inaccessible.
-    g_RootVMR.uProcID = KR_VMM_PROCID_INVALID; // KrMapVirt() would reject this but we are not asking him right now.
-    g_RootVMR.pPrev = NULLPTR; // We are the root node, duh.
-
-    // Kernel and Frame Buffer were already physically mapped by KrInitStaticPages() so they have PTEs and stuff,
-    // so we just need to create nodes for them. No need to use KrMapVirt.
-    g_KrnlVMR.VirtAddrBase = g_KernelState.LoadInfo.AddrVirtualBase;
-    g_KrnlVMR.szPageCount  = KR_CEILDIV(g_KernelState.LoadInfo.ReserveSize, 0x200000); // NOTE: Like this currently because kernel is mapped using all LARGE pages. Update for future where various ones are used for different sections.
-    g_KrnlVMR.wAcquisitionType = KR_ACQUIRE_STATIC;
-    g_KrnlVMR.wFlags = KR_PAGE_FLAG_READ | KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE;
-    g_KrnlVMR.uProcID = KR_VMM_PROCID_KERNEL;
-
-    g_FrBufVMR.VirtAddrBase = g_KernelState.FrameBufferInfo.VirtualAddress;
-    g_FrBufVMR.szPageCount  = KR_CEILDIV(g_KernelState.FrameBufferInfo.Size, 0x200000); // NOTE: Because FRBUF is mapped using LARGE pages.
-    g_FrBufVMR.wAcquisitionType = KR_ACQUIRE_STATIC;
-    g_FrBufVMR.wFlags = KR_PAGE_FLAG_WRITE | KR_PAGE_FLAG_EXECUTE | KR_PAGE_FLAG_LARGE | KR_PAGE_FLAG_WRITE_COMBINE; // Mapped as WC by KrInitStaticPages already. NOTE: No READ flag! Please do not read from frbuf.
-    g_FrBufVMR.uProcID = KR_VMM_PROCID_KERNEL;
-
-    // Because the VMR linked list has to be sorted, see which one to link 1st and 2nd.
-    KrVirtualMemoryRegion* pRegion1st, *pRegion2nd;
-    if (g_KernelState.LoadInfo.AddrVirtualBase < g_KernelState.FrameBufferInfo.VirtualAddress)
-    {
-        pRegion1st = &g_KrnlVMR;
-        pRegion2nd = &g_FrBufVMR;
+        g_StateVMM.KernelAddressSpace.pRootVMR = pBinaryNode;
+        g_StateVMM.KernelAddressSpace.pTailVMR = pFrameBufferNode;
     }
     else
     {
-        pRegion1st = &g_FrBufVMR;
-        pRegion2nd = &g_KrnlVMR;
-    }
-    g_RootVMR.pNext   =  pRegion1st;
-    pRegion1st->pPrev = &g_RootVMR;
-    pRegion1st->pNext =  pRegion2nd;
-    pRegion2nd->pPrev =  pRegion1st;
-    pRegion2nd->pNext =  NULLPTR;
-    g_pTailVMR        =  pRegion2nd;
-
-    // NOTE: Only and only after all initialization steps should we assign the Page Fault handler.
-    // Parameter `bOverwrite`=TRUE for overwrite! You must provide it as TRUE to overwrite the basic KrCriticalProcessorInterrupt handler.
-    if (!KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
-    {
-        return FALSE;
+        g_StateVMM.KernelAddressSpace.pRootVMR = pFrameBufferNode;
+        g_StateVMM.KernelAddressSpace.pTailVMR = pBinaryNode;
     }
 
-    g_StateVMM.bInitialized = TRUE;
+    g_StateVMM.KernelAddressSpace.pRootVMR->pNext = g_StateVMM.KernelAddressSpace.pTailVMR;
+    g_StateVMM.KernelAddressSpace.pTailVMR->pPrev = g_StateVMM.KernelAddressSpace.pRootVMR;
+
+    g_StateVMM.KernelAddressSpace.NrVMRs = 2;
     return TRUE;
-}
-
-KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags)
-{
-    if (szRegionSize == 0)
-    {
-        return KR_MAP_RESULT_UNPAGED;
-    }
-    if (uProcID == KR_VMM_PROCID_INVALID) // the fuck are you even tryna do bruh???
-    {
-        return KR_MAP_RESULT_UNIMPLEMENTED;
-    }
-
-    // Check contradictory flags
-    if ((wFlags & (KR_PAGE_FLAG_WRITE_COMBINE | KR_PAGE_FLAG_UNCACHEABLE)) == (KR_PAGE_FLAG_WRITE_COMBINE | KR_PAGE_FLAG_UNCACHEABLE))
-    {
-        return KR_MAP_RESULT_CONTRADICTION;
-    }
-    // Acquisition cannot be COMMIT/STATIC while flags specificies GUARD (GUARD means page, with access being highly illegal)
-    if (wAcquisitionType != KR_ACQUIRE_RESERVE && (wFlags & KR_PAGE_FLAG_GUARD))
-    {
-        return KR_MAP_RESULT_CONTRADICTION;
-    }
-
-    const UINT PageGranularity = KrGetRegionPageGranularity(wFlags);
-    if ((pAddrVirt & (PageGranularity - 1)) || (pAddrPhys & (PageGranularity - 1))) // Must be aligned otherwise I'll be under your bed
-    {
-        return KR_MAP_RESULT_UNALIGNED;
-    }
-
-    const SIZE    PageCount    = KR_CEILDIV(szRegionSize, PageGranularity);
-    const SIZE    ByteCount    = PageCount * PageGranularity; 
-    const UINTPTR pAddrVirtEnd = pAddrVirt + ByteCount;
-
-    KrVirtualMemoryRegion* pRegion      = &g_RootVMR; // Start from root
-    KrVirtualMemoryRegion* pInsertAfter =  NULLPTR;
-
-    // First check this to potentially avoid iteration.
-    // If requested virtual address is ahead of the tail, we know we have to insert after the tail.
-    // If this is the case the if block won't be entered and the NULLPTR check of pInsertAfter will set it to tail.
-    if (pAddrVirt <= g_pTailVMR->VirtAddrBase + g_pTailVMR->szPageCount * KrGetRegionPageGranularity(g_pTailVMR->wFlags))
-    {
-        while (pRegion)
-        {
-            const UINT    RegionPageGranularity = KrGetRegionPageGranularity(pRegion->wFlags);
-            const UINTPTR pRegionEnd = pRegion->VirtAddrBase + pRegion->szPageCount * RegionPageGranularity;
-
-            if (pAddrVirt == pRegion->VirtAddrBase || (pAddrVirt > pRegion->VirtAddrBase && pAddrVirtEnd < pRegionEnd))
-            {
-                break;
-            }
-
-            KrVirtualMemoryRegion* const pNextRegion = pRegion->pNext;
-            if (pNextRegion)
-            {
-                // Currently, we know this virtual address range is ahead of pRegion.
-                // So we will check if this virtual address range is behind pNextRegion.
-                // If so, we'll directly insert our new node after pRegion and update linked list accordingly.
-                // This way, it is sorted by virtual address on insertion directly.
-                // We want to keep our linked list sorted by virtual address, because I said so.
-
-                if (pAddrVirtEnd < pNextRegion->VirtAddrBase)
-                {
-                    // Found our boy I'm so happy boy wherever you're taking me, I got 24 hours away from ma wife!
-                    pInsertAfter = pRegion;
-                    pRegion = NULLPTR;
-                    break;
-                }
-            }
-            pRegion = pNextRegion;
-        }
-
-        if (pRegion) // not exhausted? or not broken out?
-        {
-            return KR_MAP_RESULT_SPACE_OCCUPIED;
-        }
-    }
-    
-    if (!pInsertAfter)
-    {
-        pInsertAfter = g_pTailVMR;
-    }
-
-    // TODO: Implement allocator
-    KrVirtualMemoryRegion* pThisNode /*= KrPrimitiveAcquire(sizeof(KrVirtualMemoryRegion))*/;
-    pThisNode->VirtAddrBase = pAddrVirt;
-    pThisNode->szPageCount  = PageCount;
-    pThisNode->wAcquisitionType = wAcquisitionType;
-    pThisNode->wFlags = wFlags;
-    pThisNode->uProcID = uProcID;
-    pThisNode->pPrev = pInsertAfter;
-    pThisNode->pNext = pInsertAfter->pNext;
-
-    // Basically update the node structures so they don't act like uncs and get a twisted sense of reality.
-    if (pInsertAfter->pNext)
-    {
-        pInsertAfter->pNext->pPrev = pThisNode;
-    }
-    pInsertAfter->pNext = pThisNode;
-    if (pInsertAfter == g_pTailVMR)
-    {
-        g_pTailVMR = pThisNode; // we are the tuff boy now
-    }
-
-    g_StateVMM.NumVMRs++; // oh, wow.
-
-    return KR_MAP_RESULT_SUCCESS;
-}
-
-// Private function
-KrCommitResult KrCommitVirtInternal(KrVirtualMemoryRegion* pRegion, SIZE IndexToPage)
-{
-    KR_UNUSED(pRegion);
-    KR_UNUSED(IndexToPage);
-    return KR_COMMIT_RESULT_SUCCESS;
-}
-
-KrCommitResult KrCommitVirt(UINTPTR VirtAddr)
-{
-    KR_UNUSED(VirtAddr);
-    return KR_COMMIT_RESULT_SUCCESS;
-}
-
-UINTPTR KrPhysToVirt(UINTPTR AddrPhys)
-{
-    return g_StateVMM.DmapInfo.VirtAddrBase + AddrPhys;
-}
-
-UINTPTR KrVirtToPhys(UINTPTR AddrVirt)
-{
-    return AddrVirt - g_StateVMM.DmapInfo.VirtAddrBase;
-}
-
-BOOL KrIsVirtmemmgmtInitialized(VOID)
-{
-    return g_StateVMM.bInitialized;
-}
-
-const KrVirtmemmgmtState* KrGetVirtmemmgmtState(VOID)
-{
-    return &g_StateVMM;
-}
-
-const KrVirtualMemoryRegion* KrGetRootVMR(VOID)
-{
-    return &g_RootVMR;
 }

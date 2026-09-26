@@ -20,18 +20,18 @@ PAT_WB      equ 6 ; Write-Back
 PAT_UCMINUS equ 7 ; Uncacheable-
 
 ; Bootloader ensures that:
-;   RCX = Size of the KrSystemInfoPack structure.
-;   RSI = Pointer to the KrSystemInfoPack structure.
+;   ECX = Size of the KrSystemInfoPack structure.
+;   ESI = Pointer to the KrSystemInfoPack structure.
 Bootelvt: ; `Boot Elevate` entry point
     CLI ; Being pedantic about interrupts does not hurt anyone.
     CLD ; Again, just in case. I'm not taking any chances.
 
-    CMP RCX, BOOT_INFO_MAX_SIZE
-    JG ProcessorHalt
+    CMP ECX, BOOT_INFO_MAX_SIZE
+    JA ProcessorHalt
 
     ; Keep a copy of the KrSystemInfoPack, will be lost when we change to paging
-    MOV [abs BOOT_INFO_PACK_SIZE], RCX
-    MOV RDI, BOOT_INFO
+    MOV [abs BOOT_INFO_PACK_SIZE], ECX
+    MOV EDI, BOOT_INFO
     REP MOVSB
 
     MOV EAX, [BOOT_INFO + BOOT_INFO_MAGIC_OFFSET]
@@ -40,8 +40,8 @@ Bootelvt: ; `Boot Elevate` entry point
 
     ; Setup PAT stage 1, disable caching
     MOV RAX, CR0
-    OR  RAX,  (1 << 30) ; CD set (disable caching)
-    AND RAX, ~(1 << 29) ; NW unset
+    OR  EAX,  (1 << 30) ; CD set (disable caching)
+    AND EAX, ~(1 << 29) ; NW unset
     MOV CR0, RAX
     WBINVD
     ; Setup PAT
@@ -52,85 +52,85 @@ Bootelvt: ; `Boot Elevate` entry point
     WRMSR ; Writes EDX:EAX to PAT MSR
     ; Enable caching again
     MOV RAX, CR0
-    AND RAX, ~(1 << 30) ; CD unset (enable caching)
+    AND EAX, ~(1 << 30) ; CD unset (enable caching)
     MOV CR0, RAX
 
-    MOV RDX, PML4
-    MOV RAX, KRNL_PDPT
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX + 511 * PAGE_HIERARCHY_ENTRY_SIZE], RAX ; PML4[511] = KRNL_PDPT
-    MOV RAX, IDPAGE_PDPT
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX], RAX ; PML4[0] = IDPAGE_PDPT
+    MOV EDX, PML4
+    MOV EAX, KRNL_PDPT
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX + 511 * PAGE_HIERARCHY_ENTRY_SIZE], EAX ; PML4[511] = KRNL_PDPT
+    MOV EAX, IDPAGE_PDPT
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX], EAX ; PML4[0] = IDPAGE_PDPT
 
-    MOV RDX, KRNL_PDPT
-    MOV RAX, KRNL_PD
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX + 510 * PAGE_HIERARCHY_ENTRY_SIZE], RAX ; KRNL_PDPT[510] = KRNL_PD
-    MOV RAX, FBUF_PD
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX + 511 * PAGE_HIERARCHY_ENTRY_SIZE], RAX ; KRNL_PDPT[511] = FBUF_PD
+    MOV EDX, KRNL_PDPT
+    MOV EAX, KRNL_PD
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX + 510 * PAGE_HIERARCHY_ENTRY_SIZE], EAX ; KRNL_PDPT[510] = KRNL_PD
+    MOV EAX, FBUF_PD
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX + 511 * PAGE_HIERARCHY_ENTRY_SIZE], EAX ; KRNL_PDPT[511] = FBUF_PD
 
-    MOV RDX, KRNL_PD
-    MOV RBX, 0x200000 ; Kernel loaded at physical 2MiB
-    MOV RCX, KERNEL_RESERVE_SIZE / 0x200000 ; Kernel reserves 128MiB, 128MiB / 2MiB = 64 Large Pages
+    MOV EDX, KRNL_PD
+    MOV EBX, 0x200000 ; Kernel loaded at physical 2MiB
+    MOV ECX, KERNEL_RESERVE_SIZE / 0x200000 ; Kernel reserves 128MiB, 128MiB / 2MiB = 64 Large Pages
     .PopulateKernelPages:
-        MOV RAX, RBX
-        OR  RAX, 0x83 ; P + W + PS(2MiB)
-        MOV [RDX], RAX
-        ADD RDX, PAGE_HIERARCHY_ENTRY_SIZE
-        ADD RBX, 0x200000 ; Next 2MiB of kernel.
+        MOV EAX, EBX
+        OR  EAX, 0x83 ; P + W + PS(2MiB)
+        MOV [RDX], EAX
+        ADD EDX, PAGE_HIERARCHY_ENTRY_SIZE
+        ADD EBX, 0x200000 ; Next 2MiB of kernel.
         LOOP .PopulateKernelPages
     
-    XOR RDX, RDX
-    MOV RAX, [BOOT_INFO + BOOT_INFO_FBUFSZ_OFFSET] ; Frame Buffer Size
-    MOV RBX,  0x200000
-    DIV RBX ; FBSIZE / 2MiB in RAX after thus
+    XOR EDX, EDX
+    MOV EAX, [BOOT_INFO + BOOT_INFO_FBUFSZ_OFFSET] ; Frame Buffer Size
+    MOV EBX,  0x200000
+    DIV EBX ; FBSIZE / 2MiB in RAX after thus
 
-    CMP RDX, 0
+    CMP EDX, 0
     JE .Proceed
-    INC RAX
+    INC EAX
 
 .Proceed:
 
-    MOV RDX, FBUF_PD
-    MOV RBX, [BOOT_INFO + BOOT_INFO_FBUF_OFFSET] ; Physical Frame Buffer Address
-    MOV RCX, RAX ; No. 2MiB pages, calculated above
+    MOV EDX, FBUF_PD
+    MOV EBX, [BOOT_INFO + BOOT_INFO_FBUF_OFFSET] ; Physical Frame Buffer Address
+    MOV ECX, EAX ; No. 2MiB pages, calculated above
     .PopulateFrameBufferPages:
-        MOV RAX, RBX
-        OR  RAX, 0x1083 ; P + W + PS(2MiB) + PAT entry 4 (PAT:1,PWT:0,PCD:0) [WC]
-        MOV [RDX], RAX
-        ADD  RDX, PAGE_HIERARCHY_ENTRY_SIZE
-        ADD  RBX, 0x200000 ; Next 2MiB
+        MOV EAX, EBX
+        OR  EAX, 0x1083 ; P + W + PS(2MiB) + PAT entry 4 (PAT:1,PWT:0,PCD:0) [WC]
+        MOV [RDX], EAX
+        ADD  EDX, PAGE_HIERARCHY_ENTRY_SIZE
+        ADD  EBX, 0x200000 ; Next 2MiB
         LOOP .PopulateFrameBufferPages
 
-    MOV RDX, IDPAGE_PDPT
-    MOV RAX, IDPAGE_PD
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX], RAX ; IDPAGE_PDPT[0] = IDPAGE_PD
+    MOV EDX, IDPAGE_PDPT
+    MOV EAX, IDPAGE_PD
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX], EAX ; IDPAGE_PDPT[0] = IDPAGE_PD
 
-    MOV RDX, IDPAGE_PD
-    MOV RAX, IDPAGE_PT
-    OR  RAX, 0x03 ; P + W
-    MOV [RDX], RAX ; IDPAGE_PD[0] = IDPAGE_PT
+    MOV EDX, IDPAGE_PD
+    MOV EAX, IDPAGE_PT
+    OR  EAX, 0x03 ; P + W
+    MOV [RDX], EAX ; IDPAGE_PD[0] = IDPAGE_PT
 
     ; Identity map lower 2MiB of memory since we are at there for now (keeps RIP as Register Instrucion Pointer and not Rest in Peace)
-    MOV RDX, IDPAGE_PT
-    XOR RBX, RBX
-    MOV RCX, 0x200000 / 0x1000 ; 2MiB/4KiB=512
+    MOV EDX, IDPAGE_PT
+    XOR EBX, EBX
+    MOV ECX, 0x200000 / 0x1000 ; 2MiB/4KiB=512
     .PopulateIDMapPages:
-        MOV  RAX, RBX
-        OR   RAX, 0x3 ; P + W
-        MOV [RDX], RAX
-        ADD  RDX, PAGE_HIERARCHY_ENTRY_SIZE
-        ADD  RBX, 0x1000 ; Next 4KiB
+        MOV  EAX, EBX
+        OR   EAX, 0x3 ; P + W
+        MOV [RDX], EAX
+        ADD  EDX, PAGE_HIERARCHY_ENTRY_SIZE
+        ADD  EBX, 0x1000 ; Next 4KiB
         LOOP .PopulateIDMapPages
 
     MOV RAX, CR4
-    OR  RAX, (1 << 4) | (1 << 5) ; Page Size Extension + Physical Address Extension
+    OR  EAX, (1 << 4) | (1 << 5) ; Page Size Extension + Physical Address Extension
     MOV CR4, RAX
 
-    MOV RAX, PML4
+    MOV EAX, PML4
     MOV CR3, RAX  ; Load PML4 into CR3 (specifies physical address! fine because we are identity-mapped as of now.)
 
     MOV  RSP, (KERNEL_VIRTUAL_ADDRESS + KERNEL_RESERVE_SIZE - 16) ; Stack placed at the top of kernel reserved area.
@@ -139,7 +139,7 @@ Bootelvt: ; `Boot Elevate` entry point
                                                         ; The reserved stack space is always 2MiB at the very end no matter exact location.
                                                         ; In accordance to this, we put it quite near the top. 
     MOV  RAX, KERNEL_VIRTUAL_ADDRESS
-    MOV  RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
+    MOV  EDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
     CALL RAX ; KrKernelStart (Important: use `CALL`, if you use `JMP`, your stack is fucked.)
 
     ; Kernel returned? Somebody is drunk.

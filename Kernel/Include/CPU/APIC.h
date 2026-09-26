@@ -3,25 +3,32 @@
 
 #include "Krnlych.h"
 
-#define KRX2APIC_IPI_DELIVERY_FIXED       0
-#define KRX2APIC_IPI_DELIVERY_SMI         2
-#define KRX2APIC_IPI_DELIVERY_NMI         4
-#define KRX2APIC_IPI_DELIVERY_INIT        5
-#define KRX2APIC_IPI_DELIVERY_SIPI        6
+#define IPI_DELIVERY_FIXED       0
+#define IPI_DELIVERY_SMI         2
+#define IPI_DELIVERY_NMI         4
+#define IPI_DELIVERY_INIT        5
+#define IPI_DELIVERY_SIPI        6
 
-#define KRX2APIC_IPI_DESTINATION_PHYSICAL 0
-#define KRX2APIC_IPI_DESTINATION_LOGICAL  1
+#define IPI_DESTINATION_PHYSICAL 0
+#define IPI_DESTINATION_LOGICAL  1
 
-#define KRX2APIC_IPI_LEVEL_DEASSERT       0
-#define KRX2APIC_IPI_LEVEL_ASSERT         1
+#define IPI_LEVEL_DEASSERT       0
+#define IPI_LEVEL_ASSERT         1
 
-#define KRX2APIC_IPI_TRIGGER_EDGE         0
-#define KRX2APIC_IPI_TRIGGER_LEVEL        1
+#define IPI_TRIGGER_EDGE         0
+#define IPI_TRIGGER_LEVEL        1
 
-#define KRX2APIC_IPI_SHORTHAND_NONE       0 // Issues IPI to dwDestApic
-#define KRX2APIC_IPI_SHORTHAND_SELF       1 // Self
-#define KRX2APIC_IPI_SHORTHAND_ALL_ISLF   2 // All including self
-#define KRX2APIC_IPI_SHORTHAND_ALL_XSLF   3 // All excluding self
+#define IPI_SHORTHAND_NONE       0 // Issues IPI to dwDestApic
+#define IPI_SHORTHAND_SELF       1 // Self
+#define IPI_SHORTHAND_ALL_ISLF   2 // All including self
+#define IPI_SHORTHAND_ALL_XSLF   3 // All excluding self
+
+#define APIC_REG_ID  0x020
+#define APIC_REG_VER 0x030
+#define APIC_REG_TPR 0x080 // Task Priority Register
+#define APIC_REG_APR 0x090 // Arbitration Priority Register
+#define APIC_REG_PPR 0x0A0 // Processor Priority Register
+#define APIC_REG_EOI 0x0B0 // End of Interrupt
 
 typedef struct
 {
@@ -32,40 +39,29 @@ typedef struct
     UCHAR eLevel;
     UCHAR eTrigMode;
     UCHAR eDestShorthand;
-} Krx2ApicIpiConfig;
+} KrIpiConfig;
 
 typedef enum
 {
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_SUCCESS,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_DEST_APIC_TOO_BIG,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_DELIVERY_MODE_NV,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_DESTMODE_NV,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_LEVEL_NV,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_TRIGMODE_NV,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_DEST_SHORTHAND_NV,
-    KRX2APIC_IPI_CONFIG_STRUCT_VALIDATION_RESULT_SHORTHAND_WITH_TARGET_ID
-} Krx2ApicIpiConfigStructValidationResult;
-Krx2ApicIpiConfigStructValidationResult KrValidatex2ApicIpiConfigStruct(const Krx2ApicIpiConfig* pConfig);
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_SUCCESS,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_DEST_APIC_TOO_BIG,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_DELIVERY_MODE_NV,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_DESTMODE_NV,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_LEVEL_NV,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_TRIGMODE_NV,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_DEST_SHORTHAND_NV,
+    IPI_CONFIG_STRUCT_VALIDATION_RESULT_SHORTHAND_WITH_TARGET_ID
+} KrIpiConfigStructValidationResult;
+KrIpiConfigStructValidationResult KrValidateIpiConfigStruct(const KrIpiConfig* pConfig);
 
-/**
- * @brief Checks whether or not the processor is capable of x2APIC.
- * 
- * @return TRUE if capable, FALSE otherwise.
- */
-BOOL Krx2CheckSupport(VOID);
+UINTPTR KrApicGetPhysicalBase(VOID);
+VOID KrApicSetPhysicalBase(UINTPTR PhysAddr);
 
-/**
- * @brief Enables APIC (x2APIC).
- * 
- * @return TRUE if enabled successfully, false if the processor is incapable of x2APIC.
- */
-BOOL Krx2Enable(VOID);
+BOOL KrApicCheckSupport(VOID);
+BOOL KrApicInit(VOID);
 
-/**
- * @brief Sends an EOI signal to the APIC.
- */
-VOID Krx2SignalEndOfInterrupt(VOID);
+VOID KrApicIssueEndOfInt(VOID);
 
-VOID Krx2ApicIssueIPI(const Krx2ApicIpiConfig* pConfig);
+VOID KrApicIssueIpi(const KrIpiConfig* pConfig);
 
 #endif // !YCH_KERNEL_CPU_APIC_H

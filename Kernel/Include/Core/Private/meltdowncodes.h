@@ -17,31 +17,34 @@ CSTR Krnlmddesc(MDCODE code);
 
 /** KR_CATEGORY_MDCODE_PROCESSOR */
 
-#define KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION (KR_CATEGORY_MDCODE_PROCESSOR +    1) // CPU Exception
-#define KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE   (KR_CATEGORY_MDCODE_PROCESSOR +    2) // Processor incapable of x2APIC.
+#define KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION          (KR_CATEGORY_MDCODE_PROCESSOR +    1) // CPU Exception
+#define KR_MDCODE_LOCAL_APIC_INIT_FAILURE               (KR_CATEGORY_MDCODE_PROCESSOR +    2) // Processor incapable of x2APIC.
 
 /** KR_CATEGORY_MDCODE_MEMORY */
 
-#define KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    1) // KrInitPhysmemmgmt() failure
-#define KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    2) // PMM Acquire/Relinquishment sanity check failure
-#define KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE     (KR_CATEGORY_MDCODE_MEMORY +    3) // KrInitVirtmemmgmt() failure
-#define KR_MDCODE_LOCAL_APIC_MAP_FAILURE       (KR_CATEGORY_MDCODE_MEMORY +    4) // Couldn't map LAPIC
-#define KR_MDCODE_PAGE_FAULT                   (KR_CATEGORY_MDCODE_MEMORY +    5) // No-nonsense page fault (like kernel accessing a kernel-level guard page.)
-#define KR_MDCODE_DMAP_SETUP_OOM               (KR_CATEGORY_MDCODE_MEMORY +    6)
-#define KR_MDCODE_PMM_META_OOM                 (KR_CATEGORY_MDCODE_MEMORY +    7)
+#define KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE              (KR_CATEGORY_MDCODE_MEMORY +    1) // KrInitPhysmemmgmt() failure
+#define KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE              (KR_CATEGORY_MDCODE_MEMORY +    2) // PMM Acquire/Relinquishment sanity check failure
+#define KR_MDCODE_VIRTMEMMGMT_INIT_FAILURE              (KR_CATEGORY_MDCODE_MEMORY +    3) // KrInitVirtmemmgmt() failure
+#define KR_MDCODE_LOCAL_APIC_MAP_FAILURE                (KR_CATEGORY_MDCODE_MEMORY +    4) // Couldn't map LAPIC
+#define KR_MDCODE_PAGE_FAULT                            (KR_CATEGORY_MDCODE_MEMORY +    5) // No-nonsense page fault (like kernel accessing a kernel-level guard page.)
+#define KR_MDCODE_DMAP_SETUP_OOM                        (KR_CATEGORY_MDCODE_MEMORY +    6)
+#define KR_MDCODE_PMM_META_OOM                          (KR_CATEGORY_MDCODE_MEMORY +    7)
+#define KR_MDCODE_PINNED_PAGE_RELINQUISHED              (KR_CATEGORY_MDCODE_MEMORY +    8)
+#define KR_MDCODE_RNA_INIT_FAILURE                      (KR_CATEGORY_MDCODE_MEMORY +    9)
+#define KR_MDCODE_KERNEL_ADDRESS_SPACE_CREATION_FAILURE (KR_CATEGORY_MDCODE_MEMORY +   10)
 
 /** KR_CATEGORY_MDCODE_DEBUG */
 
-#define KR_MDCODE_GENERAL_DEBUG                (KR_CATEGORY_MDCODE_DEBUG  +    1) // General Debug (use for debug meltdowns)
-#define KR_MDCODE_KERNEL_START_RETURNS         (KR_CATEGORY_MDCODE_DEBUG  +    2) // KrKernelStart returned
-#define KR_MDCODE_DMAP_SETUP_DEVCHECK          (KR_CATEGORY_MDCODE_DEBUG  +    3)
-#define KR_MDCODE_ISSUE_IPI_DEVCHECK           (KR_CATEGORY_MDCODE_DEBUG  +    4)
+#define KR_MDCODE_GENERAL_DEBUG                         (KR_CATEGORY_MDCODE_DEBUG  +    1) // General Debug (use for debug meltdowns)
+#define KR_MDCODE_KERNEL_START_RETURNS                  (KR_CATEGORY_MDCODE_DEBUG  +    2) // KrKernelStart returned
+#define KR_MDCODE_DMAP_SETUP_DEVCHECK                   (KR_CATEGORY_MDCODE_DEBUG  +    3)
+#define KR_MDCODE_ISSUE_IPI_DEVCHECK                    (KR_CATEGORY_MDCODE_DEBUG  +    4)
 
 /** KR_CATEGORY_MDCODE_FIRMWARE */
 
-#define KR_MDCODE_CORRUPT_ACPI_RSDP            (KR_CATEGORY_MDCODE_FIRMWARE +    1)
-#define KR_MDCODE_ACPI_SDT_CHECKSUM_NV         (KR_CATEGORY_MDCODE_FIRMWARE +    2)
-#define KR_MDCODE_ACPI_TABLE_NOT_FOUND         (KR_CATEGORY_MDCODE_FIRMWARE +    3)
-#define KR_MDCODE_ACPI_TABLE_CORRUPT           (KR_CATEGORY_MDCODE_FIRMWARE +    4)
+#define KR_MDCODE_CORRUPT_ACPI_RSDP                     (KR_CATEGORY_MDCODE_FIRMWARE +    1)
+#define KR_MDCODE_ACPI_SDT_CHECKSUM_NV                  (KR_CATEGORY_MDCODE_FIRMWARE +    2)
+#define KR_MDCODE_ACPI_TABLE_NOT_FOUND                  (KR_CATEGORY_MDCODE_FIRMWARE +    3)
+#define KR_MDCODE_ACPI_TABLE_CORRUPT                    (KR_CATEGORY_MDCODE_FIRMWARE +    4)
 
 #endif // !YCH_KERNEL_CORE_PRIVATE_MELTDOWNCODES_H

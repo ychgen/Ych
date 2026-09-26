@@ -46,32 +46,31 @@ static VOID Stall(ULONG ClockCycles)
 VOID KrInitSMP(VOID)
 {
     // We as the BSP being the Dictator of the Platform currently are about to summon unemployed uncs to make the state great again.
-
     *(volatile BYTE*) KrPhysToVirt(0x7008) = 0;
 
     // Copy bootstrap AP trampoline code to low memory
     KrtlContiguousCopyBuffer((VOID*) KrPhysToVirt(KR_AP_START_ADDRESS), __KR_LINK_APBOOTSTRAP_START, __KR_LINK_APBOOTSTRAP_END - __KR_LINK_APBOOTSTRAP_START);
 
-    Krx2ApicIpiConfig IpiConfig = {0};
-    IpiConfig.eDeliveryMode = KRX2APIC_IPI_DELIVERY_INIT;
-    IpiConfig.eDestMode = KRX2APIC_IPI_DESTINATION_PHYSICAL;
-    IpiConfig.eLevel = KRX2APIC_IPI_LEVEL_ASSERT;
-    IpiConfig.eTrigMode = KRX2APIC_IPI_TRIGGER_EDGE;
-    IpiConfig.eDestShorthand = KRX2APIC_IPI_SHORTHAND_ALL_XSLF;
+    KrIpiConfig IpiConfig = {0};
+    IpiConfig.eDeliveryMode = IPI_DELIVERY_INIT;
+    IpiConfig.eDestMode = IPI_DESTINATION_PHYSICAL;
+    IpiConfig.eLevel = IPI_LEVEL_ASSERT;
+    IpiConfig.eTrigMode = IPI_TRIGGER_EDGE;
+    IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
     
-    Krx2ApicIssueIPI(&IpiConfig);
+    KrApicIssueIpi(&IpiConfig);
     Stall(50000000); // This guarantees a wait of around 10 ms for a 5 GHz processor.
 
     IpiConfig.IntVector = KR_AP_START_VECTOR;
-    IpiConfig.eDeliveryMode = KRX2APIC_IPI_DELIVERY_SIPI;
-    IpiConfig.eDestMode = KRX2APIC_IPI_DESTINATION_PHYSICAL;
-    IpiConfig.eLevel = KRX2APIC_IPI_LEVEL_ASSERT;
-    IpiConfig.eTrigMode = KRX2APIC_IPI_TRIGGER_EDGE;
-    IpiConfig.eDestShorthand = KRX2APIC_IPI_SHORTHAND_ALL_XSLF;
+    IpiConfig.eDeliveryMode = IPI_DELIVERY_SIPI;
+    IpiConfig.eDestMode = IPI_DESTINATION_PHYSICAL;
+    IpiConfig.eLevel = IPI_LEVEL_ASSERT;
+    IpiConfig.eTrigMode = IPI_TRIGGER_EDGE;
+    IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
 
-    Krx2ApicIssueIPI(&IpiConfig);
+    KrApicIssueIpi(&IpiConfig);
     Stall(1250000);
-    Krx2ApicIssueIPI(&IpiConfig);
+    KrApicIssueIpi(&IpiConfig);
     Stall(1250000);
 
     for (int i = 0; i < 8; i++)

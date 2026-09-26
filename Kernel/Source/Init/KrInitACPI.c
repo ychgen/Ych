@@ -3,6 +3,8 @@
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
+#include "CPU/PerCpu.h"
+#include "CPU/Halt.h"
 #include "CPU/MSR.h"
 
 #include "Memory/Virtmemmgmt.h"
@@ -77,9 +79,6 @@ VOID KrInitACPI(UINTPTR PhysAddrRSDP)
     {
         FailInit(KR_MDCODE_ACPI_TABLE_CORRUPT, "ACPI MADT table described 0 logical processors. Such occurrence is impossible as you are observing this error.");
     }
-
-    QWORD BspApicId = KrReadModelSpecificRegister(KR_MSR_IA32_X2APIC_APICID);
-    g_KernelState.SmpInfo.ProcInfo[(BYTE) BspApicId].BSP = 1;
 }
 
 static VOID ProcessMADT(KrAcpiMadtHeader* pMadt)
@@ -120,4 +119,8 @@ static VOID ProcessMADT(KrAcpiMadtHeader* pMadt)
         // We consumed two bytes originally with the pointer
         pRecordsCur += RecordSize - 2;
     }
+
+    g_KernelState.SmpInfo.ActiveProcessorCount = 1; // BSP is active
+    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].BSP = 1; // Mark BSP flag
+    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].RFD = 1; // Mark reported for duty because well it's running as of now
 }

@@ -34,8 +34,8 @@ VOID KrInitMem(VOID)
 
     // Test acquisition/relinquishment
     {
-        PAGEID TestPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-        if (TestPageID == KR_INVALID_PAGEID)
+        PAGEID TestPageID = KrAcquirePhysicalPage(PAGE_TYPE_GENERAL, IVLDPGID);
+        if (TestPageID == IVLDPGID)
         {
             MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
             CSTR pDesc = "Test page acquisition from Physmemmgmt failed!";

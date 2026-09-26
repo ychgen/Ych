@@ -38,70 +38,56 @@
 // Mask the entirety of any entry with this to get its physical address.
 #define KR_PTE_PHYSADDR_MASK 0x000FFFFFFFFFF000UL
 
-// Quick reminder for anyone reading: A Page Table Entry is 8 bytes. A paging structure contains 512 entries.
-// Childish to reiterate, but you'll like it after starting at paging code for hours.
 typedef QWORD PTE;
+typedef PTE* PAGESTRUCT;
+
+typedef enum
+{
+    VADDR_SMALL,
+    VADDR_LARGE,
+    VADDR_HUGE
+} KrVirtualAddressMode;
+
+typedef struct
+{
+    UINT PML4;
+    UINT PDPT;
+    UINT PD;
+    UINT PT;
+    UINT Offset;
+} KrVirtualAddress;
+
+UINTPTR KrMakeVirtual(KrVirtualAddressMode AddressMode, KrVirtualAddress Vidx);
+KrVirtualAddress KrUnmakeVirtual(KrVirtualAddressMode AddressMode, UINTPTR Address);
 
 typedef enum
 {
     PML4_ENTRY,
     PDPT_ENTRY,
-    PDPT1GB_ENTRY,
+    PDP1GB_ENTRY,
     PD_ENTRY,
     PD2MB_ENTRY,
     PT_ENTRY,
 
     INVALID_PTE_TYPE = 0xFFFFFFFF
 } KrTypePTE;
-CSTR KrpteTypeToString(KrTypePTE eType);
 
-/**
- * @brief Returns the previous paging structure hierarchy based on a given one.
- * 
- * This means (in `input -> output` format):
- * PML4_ENTRY -> INVALID_PTE_TYPE (we don't support 5-level paging so there is no upper hierarchy of PML4)
- * PDPT_ENTRY OR PDPT1GB_ENTRY -> PML4_ENTRY
- * PD_ENTRY OR PD2MB_ENTRY -> PDPT_ENTRY
- * PT_ENTRY -> PD_ENTRY
- * 
- * @param eType The paging hierarchy to take the one-step upper hierarchy of.
- * @return The one-step upper hierarchy.
- */
-KrTypePTE KrpteGetUpperType(KrTypePTE eType);
-
-/**
- * @brief Checks if a given KrTypePTE enum value is a `leaf` type.
- * Leaf means that the PTE entry directly maps to a physical frame, not to another table.
- * 
- * Leaf types are:
- *   -> PDPT1GB_ENTRY
- *   -> PD2MB_ENTRY
- *   -> PT_ENTRY
- * 
- * All other types are not leaf types and are table types.
- * 
- * @param eType The PTE type to check.
- * @return TRUE if leaf type, FALSE otherwise.
- */
-BOOL KrpteIsLeafType(KrTypePTE eType);
-
-/**
- * @brief Returns the alignment requirement for a PTE of given type.
- * 
- * @param eType The PTE type.
- * @return The alignment requirement, be it to a physical page or to another PTE. If you want to check for alignent on an address, do `-1` on this and mask the address against it.
- */
-QWORD KrpteGetTypeAlignment(KrTypePTE eType);
+CSTR KrPteTypeToString(KrTypePTE Type);
+KrTypePTE KrGetParentPteType(KrTypePTE Type);
+BOOL KrIsLeafPteType(KrTypePTE Type);
+QWORD KrGetPteTypeAlignment(KrTypePTE Type);
 
 /**
  * @brief Encodes a page table entry.
  * 
- * @param eType What sort of PTE you are encoding.
+ * @param Type What sort of PTE you are encoding.
  * @param PhysAddrBase The base physical address. It has to be aligned correctly otherwise the function will laugh at you (aka return KR_PTE2_ENCODE_FAILURE_DUE_TO_ALIGNMENT).
  * @param qwBaseFlags Flags QUADWORD. It will be passed through KrMakeFlagsForPTEv2 by this function for sanitization & verification.
  * @param PatSelect Will be passed through KrMakeFlagsForPTEv2 by this function.
  * @return Encoded PTE QUADWORD if successful, error value otherwise.
  */
-PTE KrpteEncodeEntry(KrTypePTE eType, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect);
+PTE KrEncodePTE(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect);
+
+PTE PteToRead();
 
 #endif // !YCH_KERNEL_MEMORY_PTEV2_H

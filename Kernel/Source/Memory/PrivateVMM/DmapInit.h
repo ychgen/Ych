@@ -4,7 +4,7 @@
 #define YCH_KERNEL_MEMORY_PRIVATE_VMM_DMAP_INIT_H
 
 #include "Core/Krnlmeltdown.h"
-#include "Memory/PTEV2.h" // PTEv2 API, officially succeeds the PTE API
+#include "Memory/PTE.h" // PTEv2 API, officially succeeds the PTE API
 
 // For debugging
 #define KR_VMM_DEBUG_FORCED_EVICTION       FALSE
@@ -55,7 +55,7 @@ static BOOL KrInitDirectMap(VOID)
     }
 
     KrDirectMappingContext DmapContext = {0};
-    DmapContext.LastAcqPageID = KR_INVALID_PAGEID;
+    DmapContext.LastAcqPageID = IVLDPGID;
 
     // Calculate how many paging structures can fit in the bootstrap arena.
     DmapContext.NumBarenaMaxStructs = KrBootstrapArenaGetSpaceLeft() / KR_PAGE_STRUCTURE_SIZE; // Floor divide
@@ -87,7 +87,7 @@ static BOOL KrInitDirectMap(VOID)
     PTE* PD   = NULLPTR;
     PTE* PT   = NULLPTR;
 
-    KrVirtualAddressMode ModeVA = KR_VAMODE_SMALL; // default value to shush the compiler... actual mode chosen in loop.
+    KrVirtualAddressMode ModeVA = VADDR_SMALL; // default value to shush the compiler... actual mode chosen in loop.
     KrVirtualAddress Vidx;
     const QWORD qwLeafFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX;
     const KrPatSelect pslDefault = KrSelectPat(KR_PAT_WRITE_BACK);
@@ -112,26 +112,26 @@ Loop:
             // Not so fast, processor must support huge pages (and our debug flag must be the correct value of course)
             if ((!(KR_VMM_DEBUG_NO_PDPE1GB) && g_StateVMM.bHugePageSupport) && !(PhysAddrRegion & (ONEGIB - 1)) && szRegionSize >= ONEGIB)
             {
-                ModeVA = KR_VAMODE_HUGE;
+                ModeVA = VADDR_HUGE;
             }
             // 2MiB aligned page and 2MiB span? LARGE.
             else if (!(PhysAddrRegion & (TWOMIB - 1)) && szRegionSize >= TWOMIB)
             {
-                ModeVA = KR_VAMODE_LARGE;
+                ModeVA = VADDR_LARGE;
             }
             // The dreaded 4KiB pages.
             else
             {
-                ModeVA = KR_VAMODE_SMALL;
+                ModeVA = VADDR_SMALL;
             }
-            Vidx = KrVirtBreakdown(g_StateVMM.DmapInfo.VirtAddrBase + PhysAddrRegion, ModeVA);
+            Vidx = KrUnmakeVirtual(ModeVA, g_StateVMM.DmapInfo.VirtAddrBase + PhysAddrRegion);
 
             switch (ModeVA)
             {
-            case KR_VAMODE_HUGE: // We need : PDPT(1GiB)
+            case VADDR_HUGE: // We need : PDPT(1GiB)
             {
-                PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDPT1GB_ENTRY, g_PML4, Vidx.PML4);
-                PDPT[Vidx.PDPT] = KrpteEncodeEntry(PDPT1GB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDP1GB_ENTRY, g_PML4, Vidx.PML4);
+                PDPT[Vidx.PDPT] = KrEncodePTE(PDP1GB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.HugePages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -141,11 +141,11 @@ Loop:
 
                 break;
             }
-            case KR_VAMODE_LARGE: // We need : PDPT, PD(2MiB)
+            case VADDR_LARGE: // We need : PDPT, PD(2MiB)
             {
                 PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDPT_ENTRY ,  g_PML4, Vidx.PML4);
                 PD   = KrdmiGetOrAcquirePageStruct(&DmapContext, PD2MB_ENTRY,  PDPT  , Vidx.PDPT);
-                PD[Vidx.PD] = KrpteEncodeEntry(PD2MB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PD[Vidx.PD] = KrEncodePTE(PD2MB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.LargePages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -155,12 +155,12 @@ Loop:
 
                 break;
             }
-            case KR_VAMODE_SMALL: // We need : PDPT, PD, PT
+            case VADDR_SMALL: // We need : PDPT, PD, PT
             {
                 PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDPT_ENTRY, g_PML4, Vidx.PML4);
                 PD   = KrdmiGetOrAcquirePageStruct(&DmapContext, PD_ENTRY  , PDPT  , Vidx.PDPT);
                 PT   = KrdmiGetOrAcquirePageStruct(&DmapContext, PT_ENTRY  , PD    , Vidx.PD);
-                PT[Vidx.PT] = KrpteEncodeEntry(PT_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PT[Vidx.PT] = KrEncodePTE(PT_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.SmallPages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -214,8 +214,8 @@ static PTE* KrdmiGetOrAcquirePageStruct(KrDirectMappingContext* pDmapContext, Kr
         Krnlmeltdownimm(mdCode, pMdDesc);
     }
     
-    KrTypePTE eTypeOfMaster = KrpteGetUpperType(eAcquireTypePTE);
-    pMaster[Index] = KrpteEncodeEntry(eTypeOfMaster, KrdmiGetPhysicalOfLastPageStruct(pDmapContext), KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX, KrSelectPat(KR_PAT_WRITE_BACK));
+    KrTypePTE eTypeOfMaster = KrGetParentPteType(eAcquireTypePTE);
+    pMaster[Index] = KrEncodePTE(eTypeOfMaster, KrdmiGetPhysicalOfLastPageStruct(pDmapContext), KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX, KrSelectPat(KR_PAT_WRITE_BACK));
     
     return pPTE;
 }
@@ -232,8 +232,8 @@ static PTE* KrdmiAcquirePageStruct(KrDirectMappingContext* pDmapContext)
     // So for each new paging structure to acquire... we just return a new page.
     else
     {
-        pDmapContext->LastAcqPageID = KrAcquirePhysicalPage(KR_INVALID_PAGEID);
-        if (pDmapContext->LastAcqPageID == KR_INVALID_PAGEID)
+        pDmapContext->LastAcqPageID = KrAcquirePhysicalPage(PAGE_TYPE_PAGE_STRUCT, IVLDPGID);
+        if (pDmapContext->LastAcqPageID == IVLDPGID)
         {
             return NULLPTR;
         }

@@ -11,6 +11,7 @@
 #include "Core/KernelState.h"
 
 #include "CPU/Identify.h"
+#include "CPU/PerCpu.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
 #include "CPU/MSR.h"
@@ -48,10 +49,6 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
     g_KernelState.SmpInfo.ActiveProcessorCount = 1; // The Bootstrap Processor
-    
-    // Count-in the current processor running this code, the bootstrap processor (BSP)
-    // g_KernelState.SmpInfo.IdealProcessorCount = 1;
-    // g_KernelState.SmpInfo.ActiveProcessorCount = 1;
 
     // Copy pSystemInfoPack so we don't lose it when we unmap the ID-mapped lower 2MiB.
     KrSystemInfoPack SysInfoPack;
@@ -64,8 +61,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Initialize Bootstrap Arena
     KrInitBootstrapArena((VOID*) SysInfoPack.KernelBootstrapArenaBase, SysInfoPack.KernelBootstrapArenaSize);
-
-    // Does sum crazy shit
+    // Initializes the canonical memory map.
     KrInitMemmap(&SysInfoPack.MemoryMapInfo);
 
     // Init FrameBufferInfo & DisplaywideTextProtocol
@@ -115,7 +111,10 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Initialize flat Global Descriptor Table.
     KrInitGDT();
     KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    
+
+    // Per CPU for the bootstrap processor. Must be done AFTER init GDT, because `lgdt` invalidates GS base.
+    KrGrabThisCpuStruct();
+
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     // Bye bye Triple Fault!
     KrInitInt();
@@ -146,17 +145,17 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         );
     }
 
-    // Initialize x2APIC only AFTER initializing the interrupt subsystem via KrInitInt().
-    if (!Krx2Enable())
+    // Init Physmemmgmt & Virtmemmgmt. Must be done before APIC init as it needs MMIO which needs the VMM being alive.
+    KrInitMem();
+
+    // Initialize APIC only AFTER initializing the interrupt subsystem via KrInitInt().
+    if (!KrApicInit())
     {
-        MDCODE mdCode = KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE;
-        CSTR szMdDesc = "Your processor is incapable of x2APIC. Please run this OS on a processor from the 2008~2009~2011 era.";
+        MDCODE mdCode = KR_MDCODE_LOCAL_APIC_INIT_FAILURE;
+        CSTR szMdDesc = "Local APIC initialization failure.";
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
-    KrdwtpOutColoredText("Initialized the local x2APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND); 
-
-    // Init Physmemmgmt & Virtmemmgmt.
-    KrInitMem();
+    KrdwtpOutColoredText("Initialized the local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND); 
 
     // Init ACPI
     KrInitACPI(SysInfoPack.PhysAddrRSDP);
@@ -178,6 +177,21 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Init SMP
     KrInitSMP();
+
+    // Testing
+    KrAcquireVMR(KrGetKernelAddressSpace(), 0, 2048, 0);
+    KrAcquireVMR(KrGetKernelAddressSpace(), 2048, 4096, 0);
+
+    KrdwtpOutColoredText("Kernel Address Space:\n", KRDWTP_COLOR_CYAN, KRDWTP_BACKGROUND);
+    KrVirtualMemoryRegion* pNode = KrGetVirtmemmgmtState()->KernelAddressSpace.pRootVMR;
+
+    while (pNode)
+    {
+        KrdwtpOutFormatText(" -> Start = %p, End = %p, Flags = %x\n", pNode->VaddrStart, pNode->VaddrEnd, pNode->Flags);
+        pNode = pNode->pNext;
+    }
+
+    KrdwtpOutFormatText("Root VaddrStart = %p, Tail VaddrStart = %p\n", KrGetKernelAddressSpace()->pRootVMR->VaddrStart, KrGetKernelAddressSpace()->pTailVMR->VaddrStart);
 
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //

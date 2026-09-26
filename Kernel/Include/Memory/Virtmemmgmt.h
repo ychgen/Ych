@@ -12,140 +12,70 @@
 
 #include "Krnlych.h"
 
-#define KR_DIRECT_MAP_PML4_INDEX          256 // Direct mapping starts at this PML4 index.
-#define KR_RECURSIVE_PML4_INDEX           510 // PML4[KR_RECURSIVE_PML4_INDEX] = PHYSICAL_OF(PML4)
-#define KR_KERNEL_RESERVED_PML4_INDEX     511
+#include "Memory/Vmmdef/MakeVirt.h"
+#include "Memory/Vmmdef/Indices.h"
 
-#define KR_KERNEL_PDPT_KERNEL_INDEX       510
-#define KR_KERNEL_PDPT_FRAME_BUFFER_INDEX 511
+#define VMR_FLAG_CACHING_PROTOCOL ((1 << 1) | (1 << 0))
+#define VMR_FLAG_PAGE_SIZE        (1 << 2)
+#define VMR_FLAG_ALLOW_CODE_EXEC  (1 << 3)
+#define VMR_FLAG_READABLE         (1 << 4)
+#define VMR_FLAG_WRITABLE         (1 << 5)
+#define VMR_FLAG_GUARD            (1 << 6)
+#define VMR_FLAG_STATIC           (1 << 7)
 
-// PROCID
-#define KR_VMM_PROCID_INVALID ((UINT) 0)
-#define KR_VMM_PROCID_KERNEL  ((UINT) 1)
+#define VMR_CACHE_PROTOCOL_WRITE_BACK    0b00 // WB
+#define VMR_CACHE_PROTOCOL_UNCACHEABLE   0b01 // UC
+#define VMR_CACHE_PROTOCOL_WRITE_COMBINE 0b10 // WC
 
-/**
- * @brief Constructs a virtual address from PML4, PDPT, PD and PT indices and an offset (up to 4KiB, 2MiB or 1GiB depending on the page).
- * If you are referring to a Huge Page (1GiB), leave IndexPD and IndexPT as 0 and your Offset can be larger (up to 1GiB).
- * If you are referring to a Large Page (2MiB), leave IndexPT as 0 and your Offset can be larger (up to 2MiB).
- * If you provide garbage parameters, it's completely your fault, do not blame me.
- * If you provide an Offset larger than the sort of page you want can address, it will bleed into indices and fuck everything up.
- * These are my kindest warnings to you, if you need validation, do checks and stuff before using this macro. I suffered enough writing it.
- */
-#define KR_MAKE_VIRTUAL(IndexPML4, IndexPDPT, IndexPD, IndexPT, Offset) \
-    ( ( UINTPTR ) ( ((QWORD)((-((QWORD)((IndexPML4) >> 8) & ((QWORD)(1))) & ((QWORD)(0xFFFF000000000000))))) | \
-    ( ( ( QWORD ) ( IndexPML4 ) ) & 0x1FF ) << 39 ) | ( ( ( ( QWORD ) ( IndexPDPT ) ) & 0x1FF ) << 30 ) | \
-    ( ( ( ( QWORD ) ( IndexPD ) ) & 0x1FF ) << 21 ) | ( ( ( ( QWORD ) ( IndexPT ) ) & 0x1FF ) << 12 ) | \
-    ( ( ( ( QWORD ) ( Offset ) ) ) ) )
+// Keep this struct less than or equal to 64 bytes (Region Node Allocator mandates this due to its design)
+typedef struct KrVirtualMemoryRegion
+{
+    struct KrAddressSpace*        pAddressSpace; // Owning address space.
+    struct KrVirtualMemoryRegion* pPrev; // Pointer to Previous Node
+    struct KrVirtualMemoryRegion* pNext; // Pointer to Next Node
 
-/** ===================================== */
-/** Acquisition types */
-/** ===================================== */
+    UINTPTR VaddrStart; // Inclusive start
+    UINTPTR VaddrEnd;   // Exclusive end
 
-/*
- * @brief Will reserve the pages, but they won't be committed until accessed, the first access to each individual page will commit that specific one.
- * This is just purely address space reservation.
- */
-#define KR_ACQUIRE_RESERVE 1
-// Will make sure there is actual physical backing to the pages.
-#define KR_ACQUIRE_COMMIT  2
-// Mapped and committed (to the given fixed physical addr) immediately, immutable. Persisent during system uptime, effective until total system reset.
-#define KR_ACQUIRE_STATIC  4
+    // But   7  : VMR Mapping is Static (cannot grow, modify or commit post acquisition of the region)
+    // Bit   6  : Pages are Guard Pages
+    // Bit   5  : Pages Can be Written to
+    // Bit   4  : Pages Can be Read from
+    // Bit   3  : Allow Code Execution
+    // Bit   2  : Pages Page Size (clear = 4 KiB, set = 2 MiB)
+    // Bits 1-0 : Caching policy
+    BYTE    Flags;
+} KrVirtualMemoryRegion;
 
-/** ===================================== */
-/** Various flags for page allocation.    */
-/** NOTE: READ flag ineffective. If a page exists, it is readable, period. */
-/** Do NOT rely on this and always make your intent explicit either way. */
-/** ===================================== */
-
-// Pages are readable from.
-#define KR_PAGE_FLAG_READ           (1 << 0)
-// Pages are writable to.
-#define KR_PAGE_FLAG_WRITE          (1 << 1)
-// Pages can be executed as if containing code. NOTE: If NX bit is unsupported, ineffective. Check GetVirtmemmgmtState()->bNoExecuteSupport (after init).
-#define KR_PAGE_FLAG_EXECUTE        (1 << 2)
-// All accesses to the pages are uncacheable and write combining is allowed enabling burst writes. Mutually exclusive with KR_PAGE_FLAG_UNCACHEABLE.
-#define KR_PAGE_FLAG_WRITE_COMBINE  (1 << 3)
-// Specifies the allocation of large pages of 2MiB.
-#define KR_PAGE_FLAG_LARGE          (1 << 4)
-// Can only be used with AcquisitionType=RESERVE, it means any access to this page is considered a fatal oopsy daisy (Kernel Meltdown or Process Termination).
-#define KR_PAGE_FLAG_GUARD          (1 << 5)
-// The processor cannot cache the pages. All read and write operations occur normally with no cache involvement. Mutually exclusive with KR_PAGE_FLAG_WRITE_COMBINE.
-#define KR_PAGE_FLAG_UNCACHEABLE    (1 << 6)
-
-/** ===================================== */
-/** Relinquishment types */
-/** ===================================== */
-
-// Decommits the committed physical pages, but keeping the virtual address space reserved.
-#define KR_PAGE_DECOMMIT   1
-// Completely relinquishes the virtual address space and any committed physical pages associated.
-#define KR_PAGE_RELINQUISH 2
-
-/** ===================================== */
-/** Return types */
-/** ===================================== */
-
-typedef        DWORD                      KrMapResult;
-#define KR_MAP_RESULT_SUCCESS           ((KrMapResult)  0)
-#define KR_MAP_RESULT_CONTRADICTION     ((KrMapResult)  1)
-#define KR_MAP_RESULT_SPACE_OCCUPIED    ((KrMapResult)  2)
-#define KR_MAP_RESULT_UNALIGNED         ((KrMapResult)  3)
-#define KR_MAP_RESULT_UNIMPLEMENTED     ((KrMapResult)  4)
-#define KR_MAP_RESULT_UNPAGED           ((KrMapResult)  5)
-
-typedef        DWORD                      KrCommitResult;
-#define KR_COMMIT_RESULT_SUCCESS        ((KrCommitResult) 0)
-#define KR_COMMIT_RESULT_OUT_OF_MEMORY  ((KrCommitResult) 1)
-#define KR_COMMIT_RESULT_ILLEGAL        ((KrCommitResult) 2)
-#define KR_COMMIT_RESULT_INVALID_REGION ((KrCommitResult) 2)
-
-/** ===================================== */
+typedef struct KrAddressSpace
+{
+    UINTPTR PaddrRoot; // Root-level paging structure physical address (CR3 value for this address space)
+    // VMR linked list is always sorted. Goes from smallest to largest, always.
+    struct KrVirtualMemoryRegion* pRootVMR;
+    struct KrVirtualMemoryRegion* pTailVMR;
+    UINT NrVMRs;
+} KrAddressSpace;
 
 typedef struct
 {
-    BOOL bInitialized : 1;
-    
-    /** If TRUE, the processor is capable of 1GiB huge pages. */
-    BOOL  bHugePageSupport  : 1;
-    /** If TRUE, the processor is capable of pages being NX. */
-    BOOL  bNoExecuteSupport : 1;
+    BOOL  bInitialized : 1;
 
-    /* Direct Map Related */
-    struct {
-        // Total Paging Structures allocated for direct-mapping.
-        ULONG TotalPageStructs;
+    BOOL  bHugePageSupport  : 1; // Processor's 1 GiB page capability
+    BOOL  bNoExecuteSupport : 1; // Processor's PTE NX bit capability
+
+    struct { /* Direct-Map Related */
+        ULONG TotalPageStructs; // Total Paging Structures allocated for direct-mapping.
 
         ULONG HugePages;  // Number of huge  (1GiB) pages.
         ULONG LargePages; // Number of large (2MiB) pages.
         ULONG SmallPages; // Number of small (4KiB) pages.
         ULONG TotalPages; // Number of total pages, i.e. Huges + Larges + Smalls.
 
-        /** @brief Base virtual address of where direct mapping of system memory starts. */
-        UINTPTR VirtAddrBase;
+        UINTPTR VirtAddrBase; // Base virtual address of where direct mapping of system memory starts.
     } DmapInfo;
 
-    /** @brief This one is like a cheat code to edit PTEs directly. Use KrGetAddrOfPTE(). */
-    UINTPTR VirtAddrRecursiveBase;
-
-    // Virtual address of the kernel itself.
-    UINTPTR VirtAddrKernel;
-
-    // Total number of currently mapped VMR (Virtual Memory Region)s.
-    UINT NumVMRs;
+    KrAddressSpace KernelAddressSpace;
 } KrVirtmemmgmtState;
-
-// Keep this struct less than or equal to 128 bytes otherwise you will taste a static assertion.
-typedef struct KrVirtualMemoryRegion
-{
-    UINTPTR VirtAddrBase; // Base address of the region, i.e. the starting point
-    SIZE    szPageCount;  // Number of pages (size depends on wFlags)
-    WORD    wAcquisitionType; // Acquisition manner, RESERVE/COMMIT/STATIC
-    WORD    wFlags; // Various flags for the allocated (or to be allocated) pages.
-    UINT    uProcID; // 0 = Invalid, 1 = Kernel, anything else = actual Process ID.
-
-    struct KrVirtualMemoryRegion* pPrev; // Pointer to Previous Node
-    struct KrVirtualMemoryRegion* pNext; // Pointer to Next Node
-} KrVirtualMemoryRegion;
 
 /**
  * @brief Initializes the Virtual Memory Management (VMM) subsystem.
@@ -154,20 +84,12 @@ typedef struct KrVirtualMemoryRegion
  */
 BOOL KrInitVirtmemmgmt(VOID);
 
-/**
- * @brief Creates a new virtual address space mapping if possible.
- * 
- * @param uProcID Process ID of the process that this virtual mapping belongs to.
- * @param pAddrVirt The base virtual address to map at. Must be 4 KiB aligned, otherwise will be rejected.
- * @param pAddrPhys The base physical address to map. Must be 4 KiB aligned, otherwise will be rejected.
- * @param szRegionSize The size of the region to map. It is rounded up to the nearest page boundary.
- * @param wAcquisitionType Nerdy stuff to be honest.
- * @param wFlags Some more nerdy stuff.
- * @return Status/result value telling you if it was successful or if not, what went wrong.
- */
-KrMapResult KrMapVirt(UINT uProcID, UINTPTR pAddrVirt, UINTPTR pAddrPhys, SIZE szRegionSize, WORD wAcquisitionType, WORD wFlags);
+KrVirtualMemoryRegion* KrLocateVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr);
+BOOL KrVrangeOverlapsVMR(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd);
+BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd);
+BOOL KrFindInsertPointVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter);
 
-KrCommitResult KrCommitVirt(UINTPTR VirtAddr);
+KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags);
 
 /**
  * @brief Converts a physical conventional memory address to a virtual one the kernel
@@ -189,8 +111,8 @@ UINTPTR KrPhysToVirt(UINTPTR AddrPhys);
  */
 UINTPTR KrVirtToPhys(UINTPTR AddrVirt);
 
-BOOL KrIsVirtmemmgmtInitialized(VOID);
 const KrVirtmemmgmtState* KrGetVirtmemmgmtState(VOID);
-const KrVirtualMemoryRegion* KrGetRootVMR(VOID);
+BOOL KrIsVirtmemmgmtInitialized(VOID);
+KrAddressSpace* KrGetKernelAddressSpace(VOID);
 
 #endif // !YCH_KERNEL_MEMORY_VIRTMEMMGMT_H

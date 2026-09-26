@@ -13,6 +13,7 @@ VOID  KrWriteModelSpecificRegister(DWORD RegisterID, QWORD qwData);
 #define KR_MSR_IA32_APIC_BASE_BSP  (1 <<  8)
 #define KR_MSR_IA32_APIC_BASE_EXTD (1 << 10)
 #define KR_MSR_IA32_APIC_BASE_EN   (1 << 11)
+#define KR_MSR_IA32_APIC_BASE_ADDR_MASK 0x0000FFFFFFFFF000ULL
 
 /** IA32_X2APIC_APICID */
 #define KR_MSR_IA32_X2APIC_APICID  0x802
@@ -32,5 +33,8 @@ VOID  KrWriteModelSpecificRegister(DWORD RegisterID, QWORD qwData);
 #define KR_MSR_IA32_EFER_LME       (1 <<  8) // IA-32e Mode Enable
 #define KR_MSR_IA32_EFER_LMA       (1 << 10) // IA-32e Mode Active
 #define KR_MSR_IA32_EFER_NXE       (1 << 11) // Execute Disable Bit Enable
+
+#define IA32_GS_BASE        0xC0000101 // Holds active GS base
+#define IA32_KERNEL_GS_BASE 0xC0000102 // Holds inactive GS base
 
 #endif // !YCH_KERNEL_CPU_MSR_H

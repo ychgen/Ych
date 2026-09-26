@@ -58,7 +58,7 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
     {
         // Send EOI signal to APIC, if we don't, it will go radio silent.
-        Krx2SignalEndOfInterrupt();
+        KrApicIssueEndOfInt();
     }
 }
 

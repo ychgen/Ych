@@ -7,7 +7,7 @@ CSTR Krnlmddesc(MDCODE mdCode)
     #define mkcase(x) case x: return #x
         /** PROCESSOR */
         mkcase(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION);
-        mkcase(KR_MDCODE_PROCESSOR_X2APIC_INCAPABLE);
+        mkcase(KR_MDCODE_LOCAL_APIC_INIT_FAILURE);
         /** MEMORY */
         mkcase(KR_MDCODE_PHYSMEMMGMT_INIT_FAILURE);
         mkcase(KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE);
@@ -15,6 +15,10 @@ CSTR Krnlmddesc(MDCODE mdCode)
         mkcase(KR_MDCODE_LOCAL_APIC_MAP_FAILURE);
         mkcase(KR_MDCODE_PAGE_FAULT);
         mkcase(KR_MDCODE_DMAP_SETUP_OOM);
+        mkcase(KR_MDCODE_PMM_META_OOM);
+        mkcase(KR_MDCODE_PINNED_PAGE_RELINQUISHED);
+        mkcase(KR_MDCODE_RNA_INIT_FAILURE);
+        mkcase(KR_MDCODE_KERNEL_ADDRESS_SPACE_CREATION_FAILURE);
         /** DEBUG */
         mkcase(KR_MDCODE_GENERAL_DEBUG);
         mkcase(KR_MDCODE_KERNEL_START_RETURNS);
