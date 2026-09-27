@@ -17,7 +17,7 @@ typedef struct
     BYTE PAT : 1;
 } KrPatSelect;
 
-extern KrPatSelect g_pslDefault;
+extern KrPatSelect g_pslDefault; // Write Back
 
 VOID        KrLoadPatMsr(QWORD qwPatMsr);
 KrPatSelect KrSelectPat(BYTE MemType);

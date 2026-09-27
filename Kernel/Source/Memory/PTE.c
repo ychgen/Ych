@@ -1,17 +1,18 @@
 #include "Memory/PTE.h"
 
 #include "Core/KernelState.h"
+#include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
 
-#define KR_PTE_PWT        (1UL <<  3)
-#define KR_PTE_PCD        (1UL <<  4)
-#define KR_PTE_NONPT_PS   (1UL <<  7) // For PDPTEs and PDEs, bit 7 is always the PS bit.
-#define KR_PTE_PT_PAT     (1UL <<  7) // For PTEs, the last level of paging. Bit 7 is always the PAT bit. 
-#define KR_PTE_NONPT_PAT  (1UL << 12) // For PDPTEs and PDEs with PS=1. Bit 7 is always the PS bit so bit 12 is the PAT bit.
+#define PTE_PWT        (1UL <<  3)
+#define PTE_PCD        (1UL <<  4)
+#define PTE_NONPT_PS   (1UL <<  7) // For PDPTEs and PDEs, bit 7 is always the PS bit.
+#define PTE_PT_PAT     (1UL <<  7) // For PTEs, the last level of paging. Bit 7 is always the PAT bit. 
+#define PTE_NONPT_PAT  (1UL << 12) // For PDPTEs and PDEs with PS=1. Bit 7 is always the PS bit so bit 12 is the PAT bit.
 
 static QWORD KrMakeFlagsForPTEv2(KrTypePTE eType, QWORD qwBaseFlags, KrPatSelect PatSelect);
 
-PTE KrEncodePTE(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect)
+PTE PteEncodeEntry(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect)
 {
     const QWORD AlignmentRequirement = KrGetPteTypeAlignment(Type);
 
@@ -27,11 +28,43 @@ PTE KrEncodePTE(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSe
         const KrVirtmemmgmtState* pStateVMM = KrGetVirtmemmgmtState();
         if (!pStateVMM->bNoExecuteSupport)
         {
-            qwBaseFlags &= ~(KR_PTE_NX);
+            qwBaseFlags &= ~(PTE_NX);
         }
     }
 
     return KrMakeFlagsForPTEv2(Type, qwBaseFlags, PatSelect) | PhysAddrBase;
+}
+
+PAGESTRUCT PteGetPageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, USHORT Index)
+{
+    if (pContainer[Index] & PTE_PRESENT)
+    {
+        return (PAGESTRUCT) KrPhysToVirt(pContainer[Index] & PTE_PHYSADDR_MASK);
+    }
+    return NULLPTR;
+}
+
+PAGESTRUCT PteGetOrAcquirePageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, USHORT Index, QWORD qwAcqFlags, KrPatSelect pslAcq)
+{
+    if (pContainer[Index] & PTE_PRESENT)
+    {
+        return (PAGESTRUCT) KrPhysToVirt(pContainer[Index] & PTE_PHYSADDR_MASK);
+    }
+
+    PAGEID ID = PmAcquirePage(PAGE_TYPE_PAGE_STRUCT, IVLDPGID);
+    if (ID == IVLDPGID)
+    {
+        return NULLPTR;
+    }
+
+    UINTPTR PaddrPs = KrGetPhysicalPageAddress(ID);
+    pContainer[Index] = PteEncodeEntry(ReadType, PaddrPs, qwAcqFlags, pslAcq);
+    if (pContainer[Index] == KR_PTE2_ENCODE_FAILURE_DUE_TO_ALIGNMENT)
+    {
+        PmRelinquishPage(ID);
+        return NULLPTR;
+    }
+    return (PAGESTRUCT) KrPhysToVirt(PaddrPs);
 }
 
 UINTPTR KrMakeVirtual(KrVirtualAddressMode AddressMode, KrVirtualAddress Vidx)
@@ -182,20 +215,20 @@ QWORD KrGetPteTypeAlignment(KrTypePTE Type)
 static QWORD KrMakeFlagsForPTEv2(KrTypePTE eType, QWORD qwBaseFlags, KrPatSelect PatSelect)
 {
     // The problematic ones (7 and 12), we also reset PWT and PCD because they are handled with PatSelect.
-    qwBaseFlags &= ~(KR_PTE_PWT | KR_PTE_PCD | (1 << 7) | (1 << 12));
+    qwBaseFlags &= ~(PTE_PWT | PTE_PCD | (1 << 7) | (1 << 12));
 
     if (eType == PDP1GB_ENTRY || eType == PD2MB_ENTRY)
     {
-        qwBaseFlags |= KR_PTE_NONPT_PS; // Page Size Bit
+        qwBaseFlags |= PTE_NONPT_PS; // Page Size Bit
     }
 
     if (PatSelect.PWT)
     {
-        qwBaseFlags |= KR_PTE_PWT;
+        qwBaseFlags |= PTE_PWT;
     }
     if (PatSelect.PCD)
     {
-        qwBaseFlags |= KR_PTE_PCD;
+        qwBaseFlags |= PTE_PCD;
     }
     if (PatSelect.PAT)
     {
@@ -204,12 +237,12 @@ static QWORD KrMakeFlagsForPTEv2(KrTypePTE eType, QWORD qwBaseFlags, KrPatSelect
         case PDP1GB_ENTRY:
         case PD2MB_ENTRY:
         {
-            qwBaseFlags |= KR_PTE_NONPT_PAT;
+            qwBaseFlags |= PTE_NONPT_PAT;
             break;
         }
         case PT_ENTRY:
         {
-            qwBaseFlags |= KR_PTE_PT_PAT;
+            qwBaseFlags |= PTE_PT_PAT;
             break;
         }
         default:

@@ -21,8 +21,8 @@ VOID KrGrabThisCpuStruct(VOID)
     pPerCpu->pSelf = pPerCpu;
     pPerCpu->ID = ApicID;
 
-    KrWriteModelSpecificRegister(IA32_GS_BASE, (UINTPTR) pPerCpu); // write active base
-    KrWriteModelSpecificRegister(IA32_KERNEL_GS_BASE, (UINTPTR) pPerCpu); // write inactive base
+    KrWriteMSR(IA32_GS_BASE, (UINTPTR) pPerCpu); // write active base
+    KrWriteMSR(IA32_KERNEL_GS_BASE, (UINTPTR) pPerCpu); // write inactive base
 }
 
 KrPerCpu* KrThisCpu(VOID)

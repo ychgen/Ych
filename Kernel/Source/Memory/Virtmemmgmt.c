@@ -31,6 +31,8 @@ KR_STATIC_ASSERT(sizeof(KrVirtualMemoryRegion) <= RNA_SLOT_SIZE, "VMR node struc
 static VOID KrVmmInitCpu(VOID);
 static BOOL KrInitKrnlAddrSpace(VOID);
 
+static UINT RegionPageSize(WORD Flags) { return Flags & VMR_FLAG_PAGE_SIZE ? 0x200000 : 0x1000; }
+
 BOOL KrInitVirtmemmgmt(VOID)
 {
     // See if we are already initialized or sumn
@@ -90,7 +92,7 @@ BOOL KrInitVirtmemmgmt(VOID)
     return TRUE;
 }
 
-KrVirtualMemoryRegion* KrLocateVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr)
+KrVirtualMemoryRegion* VmLocateRegion(KrAddressSpace* pAddressSpace, UINTPTR Vaddr)
 {
     if (!pAddressSpace)
     {
@@ -111,7 +113,7 @@ KrVirtualMemoryRegion* KrLocateVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr)
     return pNode;
 }
 
-BOOL KrVrangeOverlapsVMR(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd)
+BOOL VmVrangeOverlapsRegion(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd)
 {
     if (!pNode)
     {
@@ -128,7 +130,7 @@ BOOL KrVrangeOverlapsVMR(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTP
     return FALSE;
 }
 
-BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd)
+BOOL VmVrangeOverlapsAnyRegions(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd)
 {
     if (!pAddressSpace)
     {
@@ -146,7 +148,7 @@ BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, 
         {
             return FALSE; // does not overlap since range end is before the region even starts
         }
-        if (KrVrangeOverlapsVMR(pNode, VaddrStart, VaddrEnd))
+        if (VmVrangeOverlapsRegion(pNode, VaddrStart, VaddrEnd))
         {
             return TRUE;
         }
@@ -156,7 +158,7 @@ BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, 
     return FALSE;
 }
 
-BOOL KrFindInsertPointVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter)
+BOOL VmFindInsertPoint(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter)
 {
     if (!pAddressSpace)
     {
@@ -202,15 +204,66 @@ BOOL KrFindInsertPointVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UIN
     return FALSE;
 }
 
-KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags)
+PTE VmEncodeEntryFor(const KrVirtualMemoryRegion* pNode, KrTypePTE Type, UINTPTR PaddrBase)
+{
+    KrPatSelect pslLeaf;
+    switch (pNode->Flags & VMR_FLAG_CACHING_PROTOCOL)
+    {
+    case VMR_CACHE_PROTOCOL_WRITE_BACK:    pslLeaf = KrSelectPat(KR_PAT_WRITE_BACK);      break;
+    case VMR_CACHE_PROTOCOL_UNCACHEABLE:   pslLeaf = KrSelectPat(KR_PAT_UNCACHEABLE);     break;
+    case VMR_CACHE_PROTOCOL_WRITE_COMBINE: pslLeaf = KrSelectPat(KR_PAT_WRITE_COMBINING); break;
+    case 0b11: return KR_PTE2_ENCODE_FAILURE_DUE_TO_ALIGNMENT; // invalid value, only these are valid: 00, 01, 10, as handled above
+    }
+
+    QWORD qwLeafFlags = PTE_PRESENT;
+    if (pNode->Flags & VMR_FLAG_WRITABLE)
+    {
+        qwLeafFlags |= PTE_WRITABLE;
+    }
+    if (!(pNode->Flags & VMR_FLAG_ALLOW_CODE_EXEC))
+    {
+        qwLeafFlags |= PTE_NX;
+    }
+
+    if (pNode->pAddressSpace->PaddrRoot != g_StateVMM.KernelAddressSpace.PaddrRoot)
+    {
+        qwLeafFlags |= PTE_USER;
+    }
+
+    return PteEncodeEntry(Type, PaddrBase, qwLeafFlags, pslLeaf);
+}
+
+KrVirtualMemoryRegion* VmAcquireRegion(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags)
 {
     if (!pAddressSpace)
     {
         return NULLPTR;
     }
+    if (VaddrStart >= VaddrEnd || VaddrStart == VaddrEnd)
+    {
+        return NULLPTR;
+    }
+
+    if (pAddressSpace->PaddrRoot == g_StateVMM.KernelAddressSpace.PaddrRoot)
+    {
+        if (VaddrStart < KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
+        {
+            return NULLPTR;
+        }
+    }
+    else if (VaddrStart >= KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
+    {
+        return NULLPTR;
+    }
+
+    const UINT PageSize = RegionPageSize(Flags);
+    if (!(KrtlIsPowerOfTwoAligned(VaddrStart, PageSize) && KrtlIsPowerOfTwoAligned(VaddrEnd, PageSize)))
+    {
+        return NULLPTR;
+    }
 
     KrVirtualMemoryRegion* pInsertBefore = NULLPTR, *pInsertAfter = NULLPTR;
-    if (!KrFindInsertPointVMR(pAddressSpace, VaddrStart, VaddrEnd, &pInsertBefore, &pInsertAfter))
+    if (!VmFindInsertPoint(pAddressSpace, VaddrStart, VaddrEnd, &pInsertBefore, &pInsertAfter))
     {
         return NULLPTR;
     }
@@ -220,8 +273,6 @@ KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr
     {
         return NULLPTR;
     }
-
-    KrdwtpOutFormatText("IB %p, IA = %p\n", pInsertBefore, pInsertAfter);
 
     pNode->pAddressSpace = pAddressSpace;
     pNode->VaddrStart = VaddrStart;
@@ -250,6 +301,70 @@ KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr
 
     pAddressSpace->NrVMRs++;
     return pNode;
+}
+
+BOOL VmRelinquishRegion(KrVirtualMemoryRegion* pNode)
+{
+    // TODO: Implement
+    return FALSE;
+}
+
+BOOL VmMapStatic(KrVirtualMemoryRegion* pNode, UINTPTR PaddrStart)
+{
+    if (!(pNode && pNode->pAddressSpace && KrtlIsPowerOfTwoAligned(PaddrStart, RegionPageSize(pNode->Flags))))
+    {
+        return FALSE;
+    }
+    if (!(pNode->Flags & VMR_FLAG_STATIC))
+    {
+        return FALSE;
+    }
+
+    const SIZE MappingSize = (SIZE)(pNode->VaddrEnd - pNode->VaddrStart);
+    const UINTPTR PaddrEnd = PaddrStart + (pNode->VaddrEnd - pNode->VaddrStart);
+
+    KrVirtualAddressMode VaddrMode = VADDR_SMALL;
+    if (pNode->Flags & KR_PAGE_SIZE)
+    {
+        VaddrMode = VADDR_LARGE;
+    }
+    
+    KrVirtualAddress Vidx = {0};
+    PAGESTRUCT PML4 = (PAGESTRUCT) KrPhysToVirt(pNode->pAddressSpace->PaddrRoot), PDPT = NULLPTR, PD = NULLPTR, PT = NULLPTR;
+    
+    for (UINTPTR MappingOffset = 0; MappingOffset < MappingSize; MappingOffset += RegionPageSize(pNode->Flags))
+    {
+        // TODO: Handle partial failures
+        Vidx = KrUnmakeVirtual(VaddrMode, pNode->VaddrStart + MappingOffset);
+
+        PDPT = PteGetOrAcquirePageStruct(PML4, PML4_ENTRY, Vidx.PML4, PTE_PRESENT | PTE_WRITABLE, g_pslDefault);
+        if (!PDPT)
+        {
+            return FALSE;
+        }
+
+        PD = PteGetOrAcquirePageStruct(PDPT, PDPT_ENTRY, Vidx.PDPT, PTE_PRESENT | PTE_WRITABLE, g_pslDefault);
+        if (!PD)
+        {
+            return FALSE;
+        }
+
+        if (VaddrMode == VADDR_LARGE)
+        {
+            PD[Vidx.PD] = VmEncodeEntryFor(pNode, PD2MB_ENTRY, PaddrStart + MappingOffset);
+            continue;
+        }
+
+        PT = PteGetOrAcquirePageStruct(PD, PD_ENTRY, Vidx.PD, PTE_PRESENT | PTE_WRITABLE, g_pslDefault);
+        if (!PT)
+        {
+            return FALSE;
+        }
+
+        PT[Vidx.PT] = VmEncodeEntryFor(pNode, PT_ENTRY, PaddrStart + MappingOffset);
+    }
+
+    return TRUE;
 }
 
 UINTPTR KrPhysToVirt(UINTPTR AddrPhys)
@@ -291,9 +406,9 @@ static VOID KrVmmInitCpu(VOID)
 
         if (EDX & KR_CPUID_FEAT_EDX_NX_BIT)
         {
-            QWORD msrEFER = KrReadModelSpecificRegister(KR_MSR_IA32_EFER);
+            QWORD msrEFER = KrReadMSR(KR_MSR_IA32_EFER);
             msrEFER |= KR_MSR_IA32_EFER_NXE;
-            KrWriteModelSpecificRegister(KR_MSR_IA32_EFER, msrEFER);
+            KrWriteMSR(KR_MSR_IA32_EFER, msrEFER);
             // Used by encode PTE functions
             g_StateVMM.bNoExecuteSupport = TRUE;
         }

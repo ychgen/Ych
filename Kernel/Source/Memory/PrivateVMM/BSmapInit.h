@@ -36,12 +36,12 @@ static VOID KrVmmInitKernelStaticPages(VOID)
     
     // Set up static mapping (beware, we dont id-map lower-2MiB like Boot Elevate. So this is the moment we abandon idmapping of lower memory.)
     {
-        QWORD qwFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE;
+        QWORD qwFlags = PTE_PRESENT | PTE_WRITABLE;
 
-        g_PML4[KRNL_PML4_IDX] = KrEncodePTE(PML4_ENTRY, KrReservedVirtToPhys(g_KernelPDPT), qwFlags, g_pslDefault);
+        g_PML4[KRNL_PML4_IDX] = PteEncodeEntry(PML4_ENTRY, KrReservedVirtToPhys(g_KernelPDPT), qwFlags, g_pslDefault);
 
-        g_KernelPDPT[KRNL_BINARY_PDPT_IDX] = KrEncodePTE(PDPT_ENTRY, KrReservedVirtToPhys(g_KernelPD),      qwFlags, g_pslDefault);
-        g_KernelPDPT[KRNL_VIDEO_FBUF_IDX]  = KrEncodePTE(PDPT_ENTRY, KrReservedVirtToPhys(g_FrameBufferPD), qwFlags, g_pslDefault);
+        g_KernelPDPT[KRNL_BINARY_PDPT_IDX] = PteEncodeEntry(PDPT_ENTRY, KrReservedVirtToPhys(g_KernelPD),      qwFlags, g_pslDefault);
+        g_KernelPDPT[KRNL_VIDEO_FBUF_IDX]  = PteEncodeEntry(PDPT_ENTRY, KrReservedVirtToPhys(g_FrameBufferPD), qwFlags, g_pslDefault);
     }
     
     // We map the kernel using Large Pages
@@ -49,10 +49,10 @@ static VOID KrVmmInitKernelStaticPages(VOID)
         // Ceil divide
         UINT szKernelPageCount = KR_CEILDIV(g_KernelState.LoadInfo.ReserveSize, TWOMIB);
 
-        QWORD qwFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE;
+        QWORD qwFlags = PTE_PRESENT | PTE_WRITABLE;
         for (UINT i = 0; i < szKernelPageCount; i++)
         {
-            g_KernelPD[i] = KrEncodePTE(PD2MB_ENTRY, g_KernelState.LoadInfo.AddrPhysicalBase + (i * TWOMIB), qwFlags, g_pslDefault);
+            g_KernelPD[i] = PteEncodeEntry(PD2MB_ENTRY, g_KernelState.LoadInfo.AddrPhysicalBase + (i * TWOMIB), qwFlags, g_pslDefault);
         }
     }
     // We map frame buffer using Large Pages as well
@@ -64,11 +64,11 @@ static VOID KrVmmInitKernelStaticPages(VOID)
             szFrameBufferPageCount++; // at least one 2MiB page.
         }
         
-        QWORD qwFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX;
+        QWORD qwFlags = PTE_PRESENT | PTE_WRITABLE | PTE_NX;
         KrPatSelect pslWC = KrSelectPat(KR_PAT_WRITE_COMBINING);
         for (UINT i = 0; i < szFrameBufferPageCount; i++)
         {
-            g_FrameBufferPD[i] = KrEncodePTE(PD2MB_ENTRY, g_KernelState.FrameBufferInfo.PhysicalAddress + (i * TWOMIB), qwFlags, pslWC);
+            g_FrameBufferPD[i] = PteEncodeEntry(PD2MB_ENTRY, g_KernelState.FrameBufferInfo.PhysicalAddress + (i * TWOMIB), qwFlags, pslWC);
         }
     }
 }

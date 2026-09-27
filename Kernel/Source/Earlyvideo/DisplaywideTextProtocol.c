@@ -3,10 +3,18 @@
 // BIG HACK. REMOVE LATER..
 #include "Core/KernelState.h"
 
+#include "Memory/BootstrapArena.h"
+
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
 KrDisplaywideTextProtocolState g_ProtocolState;
+
+VOID DwtpReplicateRamFrbufToVram(VOID)
+{
+    KrtlContiguousCopyBuffer((VOID*) g_ProtocolState.AddrFrameBuffer, (VOID*) g_ProtocolState.AddrRamFrameBuffer, g_ProtocolState.FrameBufferSize);
+    __asm__ __volatile__ ("sfence\n\t" ::: "memory");
+}
 
 KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFont* pFont, BYTE ScaleFactor)
 {
@@ -24,9 +32,12 @@ VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffe
     g_ProtocolState.CursorX           = 0;
     g_ProtocolState.CursorY           = 0;
     g_ProtocolState.AddrFrameBuffer   = AddrFrameBuffer;
+    g_ProtocolState.AddrRamFrameBuffer = (UINTPTR) KrBootstrapArenaAcquire(g_ProtocolState.FrameBufferSize * 2);
     g_ProtocolState.BytesPerPixel     = 4; // We have 4 fields per pixel: red green blue reserved
     g_ProtocolState.Font              = Font;
     g_ProtocolState.bUppercaseMode    = FALSE;
+
+    KrtlContiguousZeroBuffer((VOID*) g_ProtocolState.AddrRamFrameBuffer, g_ProtocolState.FrameBufferSize * 2);
 }
 
 VOID KrdwtpReloadFrameBuffer(UINTPTR AddrFrameBuffer)
@@ -43,6 +54,7 @@ VOID KrdwtpResetState(DWORD ClearColor)
     {
         for (DWORD x = 0; x < g_ProtocolState.FrameBufferWidth; x++)
         {
+            ((DWORD*) g_ProtocolState.AddrRamFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = ClearColor;
             ((DWORD*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = ClearColor;
         }
     }
@@ -66,18 +78,18 @@ VOID KrdwtpScroll(VOID)
     KrtlContiguousMoveBuffer
     (
         // 0th row
-        (VOID*) g_ProtocolState.AddrFrameBuffer,
+        (VOID*) g_ProtocolState.AddrRamFrameBuffer,
         // 1st row
-        (VOID*)(g_ProtocolState.AddrFrameBuffer + dwLogicalStride),
+        (VOID*)(g_ProtocolState.AddrRamFrameBuffer + dwLogicalStride),
         // no. rows
         (g_ProtocolState.CursorY) * dwLogicalStride
     );
-    KrtlContiguousZeroBuffer((VOID*) g_ProtocolState.AddrFrameBuffer + ((g_ProtocolState.CursorY) * dwLogicalStride), dwLogicalStride);
+    KrtlContiguousZeroBuffer((VOID*) g_ProtocolState.AddrRamFrameBuffer + ((g_ProtocolState.CursorY) * dwLogicalStride), dwLogicalStride);
+
+    DwtpReplicateRamFrbufToVram();
 
     g_ProtocolState.CursorY--;
     g_ProtocolState.CursorX = 0;
-
-    __asm__ __volatile__ ("sfence\n\t");
 }
 
 VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
@@ -128,6 +140,8 @@ VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD Backgroun
                     UINT FramebufferOffsetY = dwStartY + Row * pFont->ScaleFactor + ScalarY;
                     UINT FramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + ScalarX;
                     ((DWORD*) g_ProtocolState.AddrFrameBuffer)[FramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
+                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
+                    ((DWORD*) g_ProtocolState.AddrRamFrameBuffer)[FramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
                         = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
                 }
             }
@@ -199,6 +213,12 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             int ch = va_arg(args, int);
             KrdwtpOutCharacter((char) ch);
             nwritten++;
+            break;
+        }
+        case 'b':
+        {
+            int val = va_arg(args, int);
+            nwritten += KrdwtpOutText(val ? "true" : "false");
             break;
         }
         case 's':

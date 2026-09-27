@@ -84,9 +84,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     }
 
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION pBestModeCache = {0};
-    UINT32 iBestVideoModeCandidate = 0;
+    UINT32 iBestVideoModeCandidate = -1;
 
-    BOOLEAN bIsOVMF = IsOVMF();
+    BOOLEAN bIsOVMF = hypervisor_present();
     for (UINT32 i = 0; i < pGOP->Mode->MaxMode; i++)
     {
         EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* pModeInfo;
@@ -118,7 +118,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         }
     }
 
-    if (iBestVideoModeCandidate && pBestModeCache.VerticalResolution && pBestModeCache.HorizontalResolution)
+    if (iBestVideoModeCandidate != -1 && pBestModeCache.VerticalResolution && pBestModeCache.HorizontalResolution)
     {
         status = uefi_call_wrapper(pGOP->SetMode, 2, pGOP, iBestVideoModeCandidate);
         if (EFI_ERROR(status))

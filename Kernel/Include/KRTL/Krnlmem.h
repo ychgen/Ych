@@ -17,4 +17,8 @@ VOID* KrtlContiguousMoveBuffer(VOID*          pDest, const VOID*          pSrc, 
 
 BOOL  KrtlBufferEqual(const VOID* pLHS, const VOID* pRHS, SIZE N);
 
+//
+
+BOOL KrtlIsPowerOfTwoAligned(UINTPTR Address, UINT PowerOfTwoAlignment);
+
 #endif // !YCH_KERNEL_KRTL_KRNLMEMORY_H

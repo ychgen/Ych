@@ -10,8 +10,8 @@
 typedef enum
 {
     KR_VIDEO_OUTPUT_PROTOCOL_NULL,
-    KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT,
-    KR_VIDEO_OUTPUT_PROTOCOL_VDDI,
+    KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT, // Displaywide Text Protocol
+    KR_VIDEO_OUTPUT_PROTOCOL_VDDI,             // Video Device Driver Interface
     KR_VIDEO_OUTPUT_PROTOCOL_TEXT_STREAM
 } KrVideoOutputProtocol;
 
@@ -107,6 +107,9 @@ typedef struct
 
     /** ACPI stuff */
     KrAcpiInfo AcpiInfo;
+
+    /** Processor Local APIC Base Address in Virtual Memory as MMIO */
+    UINTPTR VaddrApicBase;
 
     /** Symmetric Multi-Processing */
     KrSmpInfo SmpInfo;

@@ -89,7 +89,7 @@ static BOOL KrInitDirectMap(VOID)
 
     KrVirtualAddressMode ModeVA = VADDR_SMALL; // default value to shush the compiler... actual mode chosen in loop.
     KrVirtualAddress Vidx;
-    const QWORD qwLeafFlags = KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX;
+    const QWORD qwLeafFlags = PTE_PRESENT | PTE_WRITABLE | PTE_NX;
     const KrPatSelect pslDefault = KrSelectPat(KR_PAT_WRITE_BACK);
     
     UINT i = 0;
@@ -131,7 +131,7 @@ Loop:
             case VADDR_HUGE: // We need : PDPT(1GiB)
             {
                 PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDP1GB_ENTRY, g_PML4, Vidx.PML4);
-                PDPT[Vidx.PDPT] = KrEncodePTE(PDP1GB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PDPT[Vidx.PDPT] = PteEncodeEntry(PDP1GB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.HugePages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -145,7 +145,7 @@ Loop:
             {
                 PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDPT_ENTRY ,  g_PML4, Vidx.PML4);
                 PD   = KrdmiGetOrAcquirePageStruct(&DmapContext, PD2MB_ENTRY,  PDPT  , Vidx.PDPT);
-                PD[Vidx.PD] = KrEncodePTE(PD2MB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PD[Vidx.PD] = PteEncodeEntry(PD2MB_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.LargePages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -160,7 +160,7 @@ Loop:
                 PDPT = KrdmiGetOrAcquirePageStruct(&DmapContext, PDPT_ENTRY, g_PML4, Vidx.PML4);
                 PD   = KrdmiGetOrAcquirePageStruct(&DmapContext, PD_ENTRY  , PDPT  , Vidx.PDPT);
                 PT   = KrdmiGetOrAcquirePageStruct(&DmapContext, PT_ENTRY  , PD    , Vidx.PD);
-                PT[Vidx.PT] = KrEncodePTE(PT_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
+                PT[Vidx.PT] = PteEncodeEntry(PT_ENTRY, PhysAddrRegion, qwLeafFlags, pslDefault);
 
                 g_StateVMM.DmapInfo.SmallPages++;
                 g_StateVMM.DmapInfo.TotalPages++;
@@ -201,9 +201,9 @@ static PTE* KrdmiGetOrAcquirePageStruct(KrDirectMappingContext* pDmapContext, Kr
     }
 
     // If present, return it! This function is called GetOrAcquire for a reason.
-    if (pMaster[Index] & KR_PTE_PRESENT)
+    if (pMaster[Index] & PTE_PRESENT)
     {
-        return (PTE*) KrdmiGetVirtualOfPTE(pMaster[Index] & KR_PTE_PHYSADDR_MASK);
+        return (PTE*) KrdmiGetVirtualOfPTE(pMaster[Index] & PTE_PHYSADDR_MASK);
     }
 
     PTE* pPTE = KrdmiAcquirePageStruct(pDmapContext);    
@@ -215,7 +215,7 @@ static PTE* KrdmiGetOrAcquirePageStruct(KrDirectMappingContext* pDmapContext, Kr
     }
     
     KrTypePTE eTypeOfMaster = KrGetParentPteType(eAcquireTypePTE);
-    pMaster[Index] = KrEncodePTE(eTypeOfMaster, KrdmiGetPhysicalOfLastPageStruct(pDmapContext), KR_PTE_PRESENT | KR_PTE_WRITABLE | KR_PTE_NX, KrSelectPat(KR_PAT_WRITE_BACK));
+    pMaster[Index] = PteEncodeEntry(eTypeOfMaster, KrdmiGetPhysicalOfLastPageStruct(pDmapContext), PTE_PRESENT | PTE_WRITABLE | PTE_NX, KrSelectPat(KR_PAT_WRITE_BACK));
     
     return pPTE;
 }
@@ -232,7 +232,7 @@ static PTE* KrdmiAcquirePageStruct(KrDirectMappingContext* pDmapContext)
     // So for each new paging structure to acquire... we just return a new page.
     else
     {
-        pDmapContext->LastAcqPageID = KrAcquirePhysicalPage(PAGE_TYPE_PAGE_STRUCT, IVLDPGID);
+        pDmapContext->LastAcqPageID = PmAcquirePage(PAGE_TYPE_PAGE_STRUCT, IVLDPGID);
         if (pDmapContext->LastAcqPageID == IVLDPGID)
         {
             return NULLPTR;

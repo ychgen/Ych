@@ -7,6 +7,7 @@ typedef struct KrPerCpu
 {
     struct KrPerCpu* pSelf; // Pointer to self structure
     DWORD ID; // Processor Local APIC ID
+    BOOL bInPageFault;
 } KrPerCpu;
 
 VOID KrGrabThisCpuStruct(VOID);

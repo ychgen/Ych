@@ -32,7 +32,7 @@ static BOOL RnaInit(VOID)
         return FALSE;
     }
 
-    g_RnaRootPageID = KrAcquirePhysicalPage(PAGE_TYPE_RNA, IVLDPGID);
+    g_RnaRootPageID = PmAcquirePage(PAGE_TYPE_RNA, IVLDPGID);
     if (g_RnaRootPageID == IVLDPGID)
     {
         return FALSE;
@@ -66,7 +66,7 @@ static KrVirtualMemoryRegion* RnaAcquireNode(VOID)
             continue;
         }
 
-        PAGEID ID = KrAcquirePhysicalPage(PAGE_TYPE_RNA, IVLDPGID);
+        PAGEID ID = PmAcquirePage(PAGE_TYPE_RNA, IVLDPGID);
         if (ID == IVLDPGID)
         {
             return (KrVirtualMemoryRegion*) NULLPTR;
@@ -132,7 +132,7 @@ static BOOL RnaRelinquishNode(KrVirtualMemoryRegion* pNode)
             RnaGetMetaSlotVptr(pMeta->Next)->Prev = pMeta->Prev;
         }
     }
-    KrRelinquishPhysicalPage(pMeta->This);
+    PmRelinquishPage(pMeta->This);
 
     return TRUE;
 }

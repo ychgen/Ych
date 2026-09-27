@@ -45,7 +45,7 @@ typedef struct
     UINT    PixelsPerScanLine;
     UINT    CursorX;
     UINT    CursorY;
-    UINTPTR AddrFrameBuffer;
+    UINTPTR AddrFrameBuffer, AddrRamFrameBuffer;
     UINT    BytesPerPixel;
     
     KrDisplaywideTextProtocolFont Font;

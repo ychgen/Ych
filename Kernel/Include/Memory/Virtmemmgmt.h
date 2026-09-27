@@ -10,7 +10,7 @@
 #ifndef YCH_KERNEL_MEMORY_VIRTMEMMGMT_H
 #define YCH_KERNEL_MEMORY_VIRTMEMMGMT_H
 
-#include "Krnlych.h"
+#include "Memory/PTE.h"
 
 #include "Memory/Vmmdef/MakeVirt.h"
 #include "Memory/Vmmdef/Indices.h"
@@ -44,7 +44,7 @@ typedef struct KrVirtualMemoryRegion
     // Bit   3  : Allow Code Execution
     // Bit   2  : Pages Page Size (clear = 4 KiB, set = 2 MiB)
     // Bits 1-0 : Caching policy
-    BYTE    Flags;
+    WORD    Flags;
 } KrVirtualMemoryRegion;
 
 typedef struct KrAddressSpace
@@ -84,12 +84,16 @@ typedef struct
  */
 BOOL KrInitVirtmemmgmt(VOID);
 
-KrVirtualMemoryRegion* KrLocateVMR(KrAddressSpace* pAddressSpace, UINTPTR Vaddr);
-BOOL KrVrangeOverlapsVMR(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd);
-BOOL KrVrangeOverlapsAnyVMRs(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd);
-BOOL KrFindInsertPointVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter);
+KrVirtualMemoryRegion* VmLocateRegion(KrAddressSpace* pAddressSpace, UINTPTR Vaddr);
+BOOL VmVrangeOverlapsRegion(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd);
+BOOL VmVrangeOverlapsAnyRegions(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd);
+BOOL VmFindInsertPoint(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter);
 
-KrVirtualMemoryRegion* KrAcquireVMR(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags);
+PTE VmEncodeEntryFor(const KrVirtualMemoryRegion* pNode, KrTypePTE Type, UINTPTR PaddrBase);
+
+KrVirtualMemoryRegion* VmAcquireRegion(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, WORD Flags);
+BOOL VmRelinquishRegion(KrVirtualMemoryRegion* pNode);
+BOOL VmMapStatic(KrVirtualMemoryRegion* pNode, UINTPTR PaddrStart);
 
 /**
  * @brief Converts a physical conventional memory address to a virtual one the kernel

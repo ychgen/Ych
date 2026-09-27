@@ -78,3 +78,18 @@ uintptr_t YchLocateRSDP(EFI_SYSTEM_TABLE* pSystemTable)
     }
     return 0;
 }
+
+static inline int hypervisor_present(void)
+{
+    unsigned int ecx;
+
+    __asm__ volatile (
+        "cpuid"
+        : "=c"(ecx)
+        : "a"(1)
+        : "ebx", "edx"
+    );
+
+    return (ecx & (1u << 31)) != 0;
+}
+

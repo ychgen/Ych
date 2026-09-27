@@ -34,7 +34,7 @@ VOID KrInitMem(VOID)
 
     // Test acquisition/relinquishment
     {
-        PAGEID TestPageID = KrAcquirePhysicalPage(PAGE_TYPE_GENERAL, IVLDPGID);
+        PAGEID TestPageID = PmAcquirePage(PAGE_TYPE_GENERAL, IVLDPGID);
         if (TestPageID == IVLDPGID)
         {
             MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
@@ -42,7 +42,7 @@ VOID KrInitMem(VOID)
             Krnlmeltdownimm(code, pDesc);
         }
         KrdwtpOutFormatText("Acquired test page from Physmemmgmt: ID = %Ru, Address = %p\n", TestPageID, KrGetPhysicalPageAddress(TestPageID));
-        if (!KrRelinquishPhysicalPage(TestPageID))
+        if (!PmRelinquishPage(TestPageID))
         {
             MDCODE code = KR_MDCODE_PHYSMEMMGMT_TEST_FAILURE;
             CSTR pDesc = "Test page relinquishment to Physmemmgmt failed!";

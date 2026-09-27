@@ -116,7 +116,7 @@ BOOL KrInitPhysMetaArray(VOID)
     const UINT NeededPageCountForArray = KR_CEILDIV(g_StatePMM.TotalPages, MetasPerPhysicalPage);
 
     PAGEID BasePage;
-    DWORD dwNumAcqPages = KrAcquirePhysicalPages(
+    DWORD dwNumAcqPages = PmAcquirePages(
         &BasePage,
         NeededPageCountForArray,
         PAGE_TYPE_BOOKKEEPING,
@@ -128,7 +128,7 @@ BOOL KrInitPhysMetaArray(VOID)
     {
         for (PAGEID ID = BasePage; ID < BasePage + dwNumAcqPages; ID++)
         {
-            KrRelinquishPhysicalPage(ID);
+            PmRelinquishPage(ID);
         }
         return FALSE;
     }
@@ -160,7 +160,7 @@ BOOL KrInitPhysMetaArray(VOID)
     return TRUE;
 }
 
-DWORD KrAcquirePhysicalPages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAcquisitionMethod, PAGEID HintID)
+DWORD PmAcquirePages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAcquisitionMethod, PAGEID HintID)
 {
     if (!uToAcquire)
     {
@@ -286,14 +286,14 @@ Hunt:
     return uNoAcquired;
 }
 
-PAGEID KrAcquirePhysicalPage(BYTE PageType, PAGEID HintID)
+PAGEID PmAcquirePage(BYTE PageType, PAGEID HintID)
 {
     PAGEID PageID = IVLDPGID;
-    DWORD  dwAcquired = KrAcquirePhysicalPages(&PageID, 1, PageType, PAGE_ACQ_SPARSE, HintID);
+    DWORD  dwAcquired = PmAcquirePages(&PageID, 1, PageType, PAGE_ACQ_SPARSE, HintID);
     return dwAcquired ? PageID : IVLDPGID;
 }
 
-BOOL KrRelinquishPhysicalPage(PAGEID PageID)
+BOOL PmRelinquishPage(PAGEID PageID)
 {
     // Cannot relinquish pages reserved during Physmemmgmt initialization or explicitly marked as reserved afterward.
     if (KrIsPhysicalPageReserved(PageID))

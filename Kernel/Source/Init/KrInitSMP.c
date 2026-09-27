@@ -58,7 +58,7 @@ VOID KrInitSMP(VOID)
     IpiConfig.eTrigMode = IPI_TRIGGER_EDGE;
     IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
     
-    KrApicIssueIpi(&IpiConfig);
+    ApicIssueIpi(&IpiConfig);
     Stall(50000000); // This guarantees a wait of around 10 ms for a 5 GHz processor.
 
     IpiConfig.IntVector = KR_AP_START_VECTOR;
@@ -68,9 +68,9 @@ VOID KrInitSMP(VOID)
     IpiConfig.eTrigMode = IPI_TRIGGER_EDGE;
     IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
 
-    KrApicIssueIpi(&IpiConfig);
+    ApicIssueIpi(&IpiConfig);
     Stall(1250000);
-    KrApicIssueIpi(&IpiConfig);
+    ApicIssueIpi(&IpiConfig);
     Stall(1250000);
 
     for (int i = 0; i < 8; i++)

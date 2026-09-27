@@ -4,16 +4,16 @@
 #include "Krnlych.h"
 
 // `RDMSR` but nicer.
-QWORD KrReadModelSpecificRegister(DWORD RegisterID);
+QWORD KrReadMSR(DWORD RegisterID);
 // `WRMSR` but nicer.
-VOID  KrWriteModelSpecificRegister(DWORD RegisterID, QWORD qwData);
+VOID  KrWriteMSR(DWORD RegisterID, QWORD qwData);
 
 /** IA32_APIC_BASE */
-#define KR_MSR_IA32_APIC_BASE      0x1B
-#define KR_MSR_IA32_APIC_BASE_BSP  (1 <<  8)
-#define KR_MSR_IA32_APIC_BASE_EXTD (1 << 10)
-#define KR_MSR_IA32_APIC_BASE_EN   (1 << 11)
-#define KR_MSR_IA32_APIC_BASE_ADDR_MASK 0x0000FFFFFFFFF000ULL
+#define IA32_APIC_BASE      0x1B
+#define IA32_APIC_BASE_BSP  (1 <<  8)
+#define IA32_APIC_BASE_EXTD (1 << 10)
+#define IA32_APIC_BASE_EN   (1 << 11)
+#define IA32_APIC_BASE_ADDR_MASK 0x0000FFFFFFFFF000ULL
 
 /** IA32_X2APIC_APICID */
 #define KR_MSR_IA32_X2APIC_APICID  0x802

@@ -21,22 +21,22 @@
 #define KR_PAGE_STRUCTURE_ENTRY_SIZE    8
 #define KR_PAGE_STRUCTURE_SIZE       ( KR_PAGE_STRUCTURE_ENTRY_COUNT * KR_PAGE_STRUCTURE_ENTRY_SIZE ) // 512 * 8 = 4 KiB per structure like PML4, PDPT, PD and PT.
 
-#define KR_PTE_PRESENT  (1UL <<  0)
-#define KR_PTE_WRITABLE (1UL <<  1)
-#define KR_PTE_USER     (1UL <<  2)
-#define KR_PTE_ACCESSED (1UL <<  5)
-#define KR_PTE_DIRTY    (1UL <<  6)
-#define KR_PTE_GLOBAL   (1UL <<  8)
+#define PTE_PRESENT  (1UL <<  0)
+#define PTE_WRITABLE (1UL <<  1)
+#define PTE_USER     (1UL <<  2)
+#define PTE_ACCESSED (1UL <<  5)
+#define PTE_DIRTY    (1UL <<  6)
+#define PTE_GLOBAL   (1UL <<  8)
 
 /** Repurpose for kernel usage later! We are free to use these ourselves for things like CoW or guard page bit for example. */
-#define KR_PTE_AVL_0    (1UL <<  9)
-#define KR_PTE_AVL_1    (1UL << 10)
-#define KR_PTE_AVL_2    (1UL << 11)
+#define PTE_AVL_0    (1UL <<  9)
+#define PTE_AVL_1    (1UL << 10)
+#define PTE_AVL_2    (1UL << 11)
 
-#define KR_PTE_NX       (1UL << 63)
+#define PTE_NX       (1UL << 63)
 
 // Mask the entirety of any entry with this to get its physical address.
-#define KR_PTE_PHYSADDR_MASK 0x000FFFFFFFFFF000UL
+#define PTE_PHYSADDR_MASK 0x000FFFFFFFFFF000UL
 
 typedef QWORD PTE;
 typedef PTE* PAGESTRUCT;
@@ -86,8 +86,12 @@ QWORD KrGetPteTypeAlignment(KrTypePTE Type);
  * @param PatSelect Will be passed through KrMakeFlagsForPTEv2 by this function.
  * @return Encoded PTE QUADWORD if successful, error value otherwise.
  */
-PTE KrEncodePTE(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect);
+PTE PteEncodeEntry(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPatSelect PatSelect);
 
-PTE PteToRead();
+// Gets page struct by reading PTE entry of type ReadType at Index in pContainer and if present converts the physical address to virtual and returns, return NULLPTR if not present.
+PAGESTRUCT PteGetPageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, USHORT Index);
+
+// Same idea as PteGetPageStruct() but if nonpresent, allocates a new physical page to be used as a pagestruct. qwAcqFlags and pslAcq are used if acquisition is made, irrelevant if read.
+PAGESTRUCT PteGetOrAcquirePageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, USHORT Index, QWORD qwAcqFlags, KrPatSelect pslAcq);
 
 #endif // !YCH_KERNEL_MEMORY_PTEV2_H

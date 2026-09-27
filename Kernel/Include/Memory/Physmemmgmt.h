@@ -105,17 +105,17 @@ BOOL KrInitPhysMetaArray(VOID);
  * @param HintID Hint for the search algorithm. Will try to find pages near this one.
  * @return The amount of pages actually acquired. The result might be partial. Caller is responsible for handling that.
  */
-DWORD KrAcquirePhysicalPages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAcquisitionMethod, PAGEID HintID);
+DWORD PmAcquirePages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAcquisitionMethod, PAGEID HintID);
 
 /**
  * @brief Acquires a singular physical page. Useful when you genuinely need only one singular physical case.
- * In any case where you need more than one, consider using KrAcquirePhysicalPages(). You can configure it way more in-depth as well.
+ * In any case where you need more than one, consider using PmAcquirePages(). You can configure it way more in-depth as well.
  * This function internally uses it anyway, asks for 1 page.
  * 
  * @param HintID Hint for the search algorithm. Will try to find a page near this one.
  * @return ID to the acquired page if the acquisition was successful, IVLDPGID otherwise.
  */
-PAGEID KrAcquirePhysicalPage(BYTE PageType, PAGEID HintID);
+PAGEID PmAcquirePage(BYTE PageType, PAGEID HintID);
 
 /**
  * @brief Relinquishes a physical page back to the PMM.
@@ -123,7 +123,7 @@ PAGEID KrAcquirePhysicalPage(BYTE PageType, PAGEID HintID);
  * @param PageID ID of the page to relinquish.
  * @return TRUE if the page was relinquished, FALSE if it wasn't (for example trying to relinquish a reserved page).
  */
-BOOL KrRelinquishPhysicalPage(PAGEID PageID);
+BOOL PmRelinquishPage(PAGEID PageID);
 
 /**
  * @brief Marks an existing and acquired page as reserved, preventing it from being relinquished.
@@ -140,7 +140,7 @@ BOOL  KrSetPhysicalPageAcquisitionHint(PAGEID PageID);
 /**
  * @brief Checks if a physical page was initialized as reserved during
  * Physmemmgmt initialization or later explicitly via `KrReservePhysicalPage()`.
- * Reserved pages can never be relinquished, `KrRelinquishPhysicalPage()` will reject and return FALSE.
+ * Reserved pages can never be relinquished, `PmRelinquishPage()` will reject and return FALSE.
  * 
  * @param PageID ID of the page to check.
  * @return TRUE if the page is reserved, false otherwise.

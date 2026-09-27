@@ -5,6 +5,8 @@
 #define KRNL_PML4_IDX        511 // This index (along with the PDPT one) was chosen to give the kernel binary the top 2 GiB of the address space for -mcmodel=kernel.
 
 /* Entries for KRNL_PML4_IDX */
+#define KRNL_HEAP_PDPT_IDX   000
+#define KRNL_MMIO_PDPT_IDX   256
 #define KRNL_BINARY_PDPT_IDX 510
 #define KRNL_VIDEO_FBUF_IDX  511
 

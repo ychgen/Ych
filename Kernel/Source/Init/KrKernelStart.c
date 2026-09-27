@@ -48,7 +48,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
-    g_KernelState.SmpInfo.ActiveProcessorCount = 1; // The Bootstrap Processor
+    g_KernelState.SmpInfo.ActiveProcessorCount = 1; // The Bootstrap Processor is currently active
 
     // Copy pSystemInfoPack so we don't lose it when we unmap the ID-mapped lower 2MiB.
     KrSystemInfoPack SysInfoPack;
@@ -59,9 +59,8 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     g_KernelState.LoadInfo.AddrPhysicalBase = SysInfoPack.KernelPhysicalBase;
     g_KernelState.LoadInfo.AddrVirtualBase  = SysInfoPack.KernelVirtualBase;
 
-    // Initialize Bootstrap Arena
+    // Initialize Bootstrap Arena Allocator & the Canonical Memory Map (which depends on the Barena, so init after that)
     KrInitBootstrapArena((VOID*) SysInfoPack.KernelBootstrapArenaBase, SysInfoPack.KernelBootstrapArenaSize);
-    // Initializes the canonical memory map.
     KrInitMemmap(&SysInfoPack.MemoryMapInfo);
 
     // Init FrameBufferInfo & DisplaywideTextProtocol
@@ -76,7 +75,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         KrdwtpInitializeDefaultFonts();
         if (pGraphicsInfo->FramebufferWidth >= 2560 && pGraphicsInfo->FramebufferHeight >= 1440)
         {
-            // 4K... But why would you, anyway...
+            // 4K (who the fuck is running this OS on a 4K monitor bro)
             if (pGraphicsInfo->FramebufferWidth >= 3840 && pGraphicsInfo->FramebufferHeight >= 2160)
             {
                 g_KrdwtpDefaultFont_8x16.ScaleFactor = 4;
@@ -87,7 +86,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
             }
         }
 
-        KrdwtpInitialize(g_KrdwtpDefaultFont_8x16, FRAMEBUFFER_VIRTUAL_ADDR, pGraphicsInfo->FramebufferSize, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
+        KrdwtpInitialize(g_KrdwtpDefaultFont_8x16, g_KernelState.FrameBufferInfo.VirtualAddress, pGraphicsInfo->FramebufferSize, pGraphicsInfo->FramebufferWidth, pGraphicsInfo->FramebufferHeight, pGraphicsInfo->PixelsPerScanLine);
         g_KernelState.VideoOutputProtocol = KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT;
         g_KernelState.VideoOutputContext  = KrdwtpGetProtocolState();
 
@@ -175,24 +174,9 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         ); 
     }
 
-    // Init SMP
+    // Initialize & bring-up the Application Processors.
     KrInitSMP();
-
-    // Testing
-    KrAcquireVMR(KrGetKernelAddressSpace(), 0, 2048, 0);
-    KrAcquireVMR(KrGetKernelAddressSpace(), 2048, 4096, 0);
-
-    KrdwtpOutColoredText("Kernel Address Space:\n", KRDWTP_COLOR_CYAN, KRDWTP_BACKGROUND);
-    KrVirtualMemoryRegion* pNode = KrGetVirtmemmgmtState()->KernelAddressSpace.pRootVMR;
-
-    while (pNode)
-    {
-        KrdwtpOutFormatText(" -> Start = %p, End = %p, Flags = %x\n", pNode->VaddrStart, pNode->VaddrEnd, pNode->Flags);
-        pNode = pNode->pNext;
-    }
-
-    KrdwtpOutFormatText("Root VaddrStart = %p, Tail VaddrStart = %p\n", KrGetKernelAddressSpace()->pRootVMR->VaddrStart, KrGetKernelAddressSpace()->pTailVMR->VaddrStart);
-
+    
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //
     KrProcessorHalt();

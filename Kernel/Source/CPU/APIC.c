@@ -5,9 +5,12 @@
 
 #include "CPU/PortIO.h"
 #include "CPU/CPUID.h"
+#include "CPU/Halt.h"
 #include "CPU/MSR.h"
 
-VOID KrMufflePIC(VOID);
+#include "Memory/MMIO.h"
+
+static VOID KrMufflePIC(VOID);
 
 KrIpiConfigStructValidationResult KrValidateIpiConfigStruct(const KrIpiConfig* pConfig)
 {
@@ -55,16 +58,18 @@ KrIpiConfigStructValidationResult KrValidateIpiConfigStruct(const KrIpiConfig* p
 
 UINTPTR KrApicGetPhysicalBase(VOID)
 {
-    QWORD msrApicBase = KrReadModelSpecificRegister(KR_MSR_IA32_APIC_BASE);
-    return msrApicBase & KR_MSR_IA32_APIC_BASE_ADDR_MASK;
+    QWORD ApicBase = KrReadMSR(IA32_APIC_BASE);
+    return ApicBase & IA32_APIC_BASE_ADDR_MASK;
 }
 
 VOID KrApicSetPhysicalBase(UINTPTR PhysAddr)
 {
-    QWORD msrApicBase = KrReadModelSpecificRegister(KR_MSR_IA32_APIC_BASE);
-    PhysAddr &= 0x0000FFFFFFFFFFFFUL; // Kepp 48-bits only
-    msrApicBase = PhysAddr << 12;
-    KrWriteModelSpecificRegister(KR_MSR_IA32_APIC_BASE, msrApicBase);
+    QWORD ApicBase = KrReadMSR(IA32_APIC_BASE);
+
+    PhysAddr &= 0x0000FFFFFFFFFFFFUL; // Keep 48-bits only
+    ApicBase |= PhysAddr << 12;
+    
+    KrWriteMSR(IA32_APIC_BASE, ApicBase);
 }
 
 BOOL KrApicCheckSupport(VOID)
@@ -83,19 +88,39 @@ BOOL KrApicInit(VOID)
     KrMufflePIC(); // Kill that boy chop his balls off
 
     DWORD EAX, EBX, ECX, EDX;
-    QWORD msrApicBase = KrReadModelSpecificRegister(KR_MSR_IA32_APIC_BASE);
-    msrApicBase |= KR_MSR_IA32_APIC_BASE_EN;
-    KrWriteModelSpecificRegister(KR_MSR_IA32_APIC_BASE, msrApicBase);
+    QWORD msrApicBase = KrReadMSR(IA32_APIC_BASE);
+    msrApicBase |= IA32_APIC_BASE_EN;
+    KrWriteMSR(IA32_APIC_BASE, msrApicBase);
 
+    //KrApicSetPhysicalBase(LOCAL_APIC_BASE_ADDRESS); // we like this address
+    if (KrApicGetPhysicalBase() != LOCAL_APIC_BASE_ADDRESS)
+    {
+        return FALSE;
+    }
+    // Map Local APIC into virtual address space, 1 page is enough to cover all registers
+    g_KernelState.VaddrApicBase = MmioMapDevice(LOCAL_APIC_BASE_ADDRESS, 4096, 0);
+    if (!g_KernelState.VaddrApicBase)
+    {
+        return FALSE;
+    }
+    
     return TRUE;
 }
 
-VOID KrApicIssueEndOfInt(VOID)
+VOID ApicIssueEndOfInt(VOID)
 {
-    
+    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_EOI) = 0;
 }
 
-VOID KrApicIssueIpi(const KrIpiConfig* pConfig)
+VOID ApicWaitForIcrIdle(VOID)
+{
+    while ( (*(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_LO)) & APIC_ICR_DELIVERY_STATUS )
+    {
+        KrProcessorPause();
+    }
+}
+
+VOID ApicIssueIpi(const KrIpiConfig* pConfig)
 {
 #ifndef YCH_DIST_BUILD
     if (KrValidateIpiConfigStruct(pConfig) != IPI_CONFIG_STRUCT_VALIDATION_RESULT_SUCCESS)
@@ -106,10 +131,24 @@ VOID KrApicIssueIpi(const KrIpiConfig* pConfig)
     }
 #endif
 
+    ApicWaitForIcrIdle();
+
+    DWORD dwLoword;
+    dwLoword |= pConfig->IntVector;
+    dwLoword |= (((DWORD) pConfig->eDeliveryMode) << 8);
+    dwLoword |= (((DWORD) pConfig->eDestMode) << 11);
+    dwLoword |= (((DWORD) pConfig->eLevel) << 14);
+    dwLoword |= (((DWORD) pConfig->eTrigMode) << 15);
+    dwLoword |= (((DWORD) pConfig->eDestShorthand) << 18);
+
+    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_HI) = (pConfig->dwDestApic << 24);
+    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_LO) = dwLoword;
+
+    ApicWaitForIcrIdle();
 }
 
 // This basically makes the old PIC suffer in agony as it deserves to do so
-VOID KrMufflePIC(VOID)
+static VOID KrMufflePIC(VOID)
 {
     KrOutByteToPort(0x21, 0xFF); // Master PIC Data Port = 0x21, 0xFF to mask it off
     KrOutByteToPort(0xA1, 0xFF); // Slave  PIC Data Port = 0xA1, 0xFF to mask it off
