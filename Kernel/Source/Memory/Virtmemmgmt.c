@@ -225,7 +225,11 @@ PTE VmEncodeEntryFor(const KrVirtualMemoryRegion* pNode, KrTypePTE Type, UINTPTR
         qwLeafFlags |= PTE_NX;
     }
 
-    if (pNode->pAddressSpace->PaddrRoot != g_StateVMM.KernelAddressSpace.PaddrRoot)
+    if (pNode->pAddressSpace->PaddrRoot == g_StateVMM.KernelAddressSpace.PaddrRoot)
+    {
+        qwLeafFlags |= PTE_GLOBAL;
+    }
+    else
     {
         qwLeafFlags |= PTE_USER;
     }
@@ -306,6 +310,7 @@ KrVirtualMemoryRegion* VmAcquireRegion(KrAddressSpace* pAddressSpace, UINTPTR Va
 BOOL VmRelinquishRegion(KrVirtualMemoryRegion* pNode)
 {
     // TODO: Implement
+    KR_UNUSED(pNode);
     return FALSE;
 }
 
@@ -321,7 +326,6 @@ BOOL VmMapStatic(KrVirtualMemoryRegion* pNode, UINTPTR PaddrStart)
     }
 
     const SIZE MappingSize = (SIZE)(pNode->VaddrEnd - pNode->VaddrStart);
-    const UINTPTR PaddrEnd = PaddrStart + (pNode->VaddrEnd - pNode->VaddrStart);
 
     KrVirtualAddressMode VaddrMode = VADDR_SMALL;
     if (pNode->Flags & KR_PAGE_SIZE)

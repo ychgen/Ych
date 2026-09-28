@@ -107,4 +107,7 @@ typedef          long  PTRDIFF; // The result of subtracting two pointers, i.e. 
 #define DWORD_MAX (~(DWORD_MIN))
 #define QWORD_MAX (~(QWORD_MIN))
 
+#define ARITH_MIN 0x8000000000000000
+#define ARITH_MAX 0x7FFFFFFFFFFFFFFF
+
 #endif // !YCH_KERNEL_KRNLYCH_H

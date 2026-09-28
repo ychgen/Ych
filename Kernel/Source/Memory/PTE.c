@@ -37,6 +37,7 @@ PTE PteEncodeEntry(KrTypePTE Type, UINTPTR PhysAddrBase, QWORD qwBaseFlags, KrPa
 
 PAGESTRUCT PteGetPageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, USHORT Index)
 {
+    KR_UNUSED(ReadType);
     if (pContainer[Index] & PTE_PRESENT)
     {
         return (PAGESTRUCT) KrPhysToVirt(pContainer[Index] & PTE_PHYSADDR_MASK);

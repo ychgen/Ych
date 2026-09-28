@@ -45,9 +45,6 @@ static VOID Stall(ULONG ClockCycles)
 
 VOID KrInitSMP(VOID)
 {
-    // We as the BSP being the Dictator of the Platform currently are about to summon unemployed uncs to make the state great again.
-    *(volatile BYTE*) KrPhysToVirt(0x7008) = 0;
-
     // Copy bootstrap AP trampoline code to low memory
     KrtlContiguousCopyBuffer((VOID*) KrPhysToVirt(KR_AP_START_ADDRESS), __KR_LINK_APBOOTSTRAP_START, __KR_LINK_APBOOTSTRAP_END - __KR_LINK_APBOOTSTRAP_START);
 
@@ -72,12 +69,4 @@ VOID KrInitSMP(VOID)
     Stall(1250000);
     ApicIssueIpi(&IpiConfig);
     Stall(1250000);
-
-    for (int i = 0; i < 8; i++)
-    {
-        KrdwtpOutCharacter(*((CHAR*) KrPhysToVirt(0x7000 + i)));
-    }
-    KrdwtpOutCharacter('\n');
-    KrdwtpOutColoredText("Value at memory address value change detected!\n", KRDWTP_COLOR_ORANGE, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText("Address 0x7008 was atomically incremented %u times by parties that are not friendly.\n", *(volatile BYTE*) KrPhysToVirt(0x7008));
 }

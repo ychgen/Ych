@@ -5,6 +5,7 @@
 
 #include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
+#include "Memory/Krnlheap.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
@@ -75,5 +76,12 @@ VOID KrInitMem(VOID)
             pStateVMM->DmapInfo.HugePages, pStateVMM->DmapInfo.LargePages, pStateVMM->DmapInfo.SmallPages, pStateVMM->DmapInfo.TotalPages,
             pStateVMM->DmapInfo.TotalPageStructs
         );
+    }
+
+    if (!HeapInit())
+    {
+        MDCODE MdCode = KR_MDCODE_KERNEL_HEAP_INITIALIZATION_FAILURE;
+        CSTR pDesc = "HeapInit(VOID) returned FALSE.";
+        Krnlmeltdownimm(MdCode, pDesc);
     }
 }

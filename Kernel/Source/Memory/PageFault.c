@@ -1,6 +1,7 @@
 #include "Memory/PageFault.h"
 
 #include "Core/Krnlmeltdown.h"
+#include "Core/KernelState.h"
 
 #include "CPU/PerCpu.h"
 #include "CPU/CR.h"
@@ -61,13 +62,14 @@ VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
             goto AbortMission; // Demand paging 2 MiB pages is forbidden
             VaddrMode = VADDR_LARGE;
         }
-        KrVirtualAddress Vidx = KrUnmakeVirtual(VaddrMode, VaddrFault);
+        const KrVirtualAddress Vidx = KrUnmakeVirtual(VaddrMode, VaddrFault);
 
-        PAGEID PhysPageID = PmAcquirePage(PAGE_TYPE_GENERAL, IVLDPGID);
+        const PAGEID PhysPageID = PmAcquirePage(PAGE_TYPE_GENERAL, IVLDPGID);
         if (PhysPageID == IVLDPGID)
         {
             goto AbortMission;
         }
+        const UINTPTR PaddrPage = KrGetPhysicalPageAddress(PhysPageID);
 
         PAGESTRUCT PML4 = (PAGESTRUCT) KrPhysToVirt(KrGetKernelAddressSpace()->PaddrRoot);
         PAGESTRUCT PDPT = PteGetOrAcquirePageStruct(PML4, PML4_ENTRY, Vidx.PML4, PTE_PRESENT | PTE_WRITABLE, g_pslDefault);
@@ -92,12 +94,14 @@ VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
             goto AbortMission;
         }
 
-        PT[Vidx.PT] = VmEncodeEntryFor(pRegion, PT_ENTRY, KrGetPhysicalPageAddress(PhysPageID));
+        PT[Vidx.PT] = VmEncodeEntryFor(pRegion, PT_ENTRY, PaddrPage);
         if (PT[Vidx.PT] == KR_PTE2_ENCODE_FAILURE_DUE_TO_ALIGNMENT)
         {
             PmRelinquishPage(PhysPageID);
             goto AbortMission;
         }
+        // Make sure to zero out the allocated page immediately!
+        KrtlContiguousZeroBuffer((VOID*) KrPhysToVirt(PaddrPage), KR_PAGE_SIZE);
 
         bFaultHandled = TRUE;
     }
@@ -110,10 +114,10 @@ AbortMission:
     }
 
     const CHAR strErrorPrefix[] = "VaddrFault in CR2. #PF Error Code: ";
-    CHAR ErrorMessage[64];
+    CHAR ErrorMessage[128];
 
     KrtlContiguousCopyBuffer(ErrorMessage, strErrorPrefix, sizeof(strErrorPrefix));
-    KrtlUnsignedToString(ErrorMessage + sizeof(strErrorPrefix) - 1, pInterruptFrame->ErrorCode, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
-    
+    KrtlUnsignedToString(ErrorMessage + sizeof(strErrorPrefix) - 1, g_KernelState.DevCheckStats.NumIvldEncodeOfPTEs, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
+
     GiveUp(ErrorMessage, pInterruptFrame);
 }

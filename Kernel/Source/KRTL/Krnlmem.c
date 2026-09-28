@@ -28,3 +28,8 @@ BOOL KrtlIsPowerOfTwoAligned(UINTPTR Address, UINT PowerOfTwoAlignment)
 {
     return !(Address & (PowerOfTwoAlignment - 1));
 }
+
+UINTPTR KrtlAlignUpToPowerOfTwo(UINTPTR Address, UINT PowerOfTwoAlignment)
+{
+    return (Address + (PowerOfTwoAlignment - 1)) & ~(((UINTPTR) PowerOfTwoAlignment) - 1);
+}

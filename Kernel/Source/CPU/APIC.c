@@ -87,7 +87,6 @@ BOOL KrApicInit(VOID)
     }
     KrMufflePIC(); // Kill that boy chop his balls off
 
-    DWORD EAX, EBX, ECX, EDX;
     QWORD msrApicBase = KrReadMSR(IA32_APIC_BASE);
     msrApicBase |= IA32_APIC_BASE_EN;
     KrWriteMSR(IA32_APIC_BASE, msrApicBase);
@@ -133,7 +132,7 @@ VOID ApicIssueIpi(const KrIpiConfig* pConfig)
 
     ApicWaitForIcrIdle();
 
-    DWORD dwLoword;
+    DWORD dwLoword = 0;
     dwLoword |= pConfig->IntVector;
     dwLoword |= (((DWORD) pConfig->eDeliveryMode) << 8);
     dwLoword |= (((DWORD) pConfig->eDestMode) << 11);
