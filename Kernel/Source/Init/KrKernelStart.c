@@ -1,5 +1,6 @@
 #include "Init/KrKernelStart.h"
 
+#include "Init/KrInitDrivers.h"
 #include "Init/KrInitMemmap.h"
 #include "Init/KrInitACPI.h"
 #include "Init/KrInitGDT.h"
@@ -14,7 +15,10 @@
 #include "CPU/PerCpu.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
-#include "CPU/MSR.h"
+
+#include "Devdriv/Device.h"
+#include "Devdriv/Driver.h"
+#include "Devdriv/Pair.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "Earlyvideo/Dwtpfonts.h"
@@ -92,7 +96,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         g_KernelState.VideoOutputContext  = KrdwtpGetProtocolState();
 
         KrdwtpResetState(KRDWTP_COLOR_BLACK);
-        KrdwtpOutColoredText("Initialized Displaywide Text Protocol\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+        KrdwtpOutColoredText("Initialized `Displaywide Text Protocol`\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     }
 
     // Print some useful information
@@ -155,7 +159,11 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         CSTR szMdDesc = "Local APIC initialization failure.";
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
-    KrdwtpOutColoredText("Initialized the local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND); 
+    KrdwtpOutColoredText("Initialized the local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+
+    // Bring-up builtin drivers
+    InitBuiltinDrivers();
+    KrdwtpOutColoredText("Registered the built-in drivers.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 
     // Init ACPI
     KrInitACPI(SysInfoPack.PhysAddrRSDP);
@@ -172,7 +180,27 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
             g_KernelState.SmpInfo.ProcInfo[i].LocalApicID,
             g_KernelState.SmpInfo.ProcInfo[i].AcpiID,
             g_KernelState.SmpInfo.ProcInfo[i].BSP ? "BSP" : "AP"
-        ); 
+        );
+    }
+
+    // PCI & dev tree init
+    InitDeviceTree();
+
+    KrdwtpOutColoredText("Devices discovered on the PCIe bus:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND);
+    DeviceNode* pDevice = GetSystemRootDevice()->p1stKid->p1stKid; // Root -> PCIe Root -> 1st PCIe Device
+    while (pDevice)
+    {
+        if (pDevice->OnBus == BUS_PCI)
+        {
+            KrdwtpOutFormatText(" -> PCI Device `%s` (%X:%X.%X); Vendor: 0x%X, Device: 0x%X\n", pDevice->Name, pDevice->Pci.Bus, pDevice->Pci.Device, pDevice->Pci.Function, pDevice->Pci.VendorID, pDevice->Pci.DeviceID);
+        }
+        pDevice = pDevice->pNxtSib;
+    }
+
+    // Pair all devices with drivers if possible
+    {
+        UINT NrPaired = GlobalDevdrivPairAttempt();
+        KrdwtpOutFormatText("GlobalDevdrivPairAttempt: Paired `%u` device(s) with a driver.\n", NrPaired);
     }
 
     // Initialize & bring-up the Application Processors.

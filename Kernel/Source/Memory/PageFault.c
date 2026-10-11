@@ -117,7 +117,7 @@ AbortMission:
     CHAR ErrorMessage[128];
 
     KrtlContiguousCopyBuffer(ErrorMessage, strErrorPrefix, sizeof(strErrorPrefix));
-    KrtlUnsignedToString(ErrorMessage + sizeof(strErrorPrefix) - 1, g_KernelState.DevCheckStats.NumIvldEncodeOfPTEs, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
+    KrtlUnsignedToString(ErrorMessage + sizeof(strErrorPrefix) - 1, pInterruptFrame->ErrorCode, KRTL_RADIX_HEXADECIMAL, KRTL_HEX_UPPERCASE);
 
     GiveUp(ErrorMessage, pInterruptFrame);
 }

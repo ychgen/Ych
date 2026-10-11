@@ -88,7 +88,10 @@ static KrVirtualMemoryRegion* RnaAcquireNode(VOID)
     pChosen->Bitmap |= (1 << FreeSlot);
     pChosen->NrSlots++;
 
-    return (KrVirtualMemoryRegion*) RnaGetSlotVptr(pChosen->This, FreeSlot);
+    KrVirtualMemoryRegion* pNode = (KrVirtualMemoryRegion*) RnaGetSlotVptr(pChosen->This, FreeSlot);
+    KrtlContiguousZeroBuffer(pNode, sizeof(KrVirtualMemoryRegion));
+
+    return pNode;
 }
 
 static BOOL RnaRelinquishNode(KrVirtualMemoryRegion* pNode)

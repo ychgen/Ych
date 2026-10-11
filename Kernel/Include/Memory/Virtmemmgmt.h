@@ -34,6 +34,8 @@ typedef struct KrVirtualMemoryRegion
     struct KrVirtualMemoryRegion* pPrev; // Pointer to Previous Node
     struct KrVirtualMemoryRegion* pNext; // Pointer to Next Node
 
+    CSTR Tag;
+
     UINTPTR VaddrStart; // Inclusive start
     UINTPTR VaddrEnd;   // Exclusive end
 
@@ -88,6 +90,7 @@ KrVirtualMemoryRegion* VmLocateRegion(KrAddressSpace* pAddressSpace, UINTPTR Vad
 BOOL VmVrangeOverlapsRegion(KrVirtualMemoryRegion* pNode, UINTPTR VaddrStart, UINTPTR VaddrEnd);
 BOOL VmVrangeOverlapsAnyRegions(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd);
 BOOL VmFindInsertPoint(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPTR VaddrEnd, KrVirtualMemoryRegion** pBefore, KrVirtualMemoryRegion** pAfter);
+VOID VmTagRegion(KrVirtualMemoryRegion* pRegion, CSTR Tag);
 
 PTE VmEncodeEntryFor(const KrVirtualMemoryRegion* pNode, KrTypePTE Type, UINTPTR PaddrBase);
 

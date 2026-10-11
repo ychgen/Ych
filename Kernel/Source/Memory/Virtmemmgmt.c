@@ -188,7 +188,8 @@ BOOL VmFindInsertPoint(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPT
             {
                 if (VaddrEnd >= pNode->pNext->VaddrStart)
                 {
-                    return FALSE; // Ahead of pNode, but overlaps pNext
+                    pNode = pNode->pNext;
+                    continue;
                 }
             }
             
@@ -202,6 +203,14 @@ BOOL VmFindInsertPoint(KrAddressSpace* pAddressSpace, UINTPTR VaddrStart, UINTPT
     }
 
     return FALSE;
+}
+
+VOID VmTagRegion(KrVirtualMemoryRegion* pRegion, CSTR Tag)
+{
+    if (pRegion && pRegion->pAddressSpace && pRegion->VaddrStart && pRegion->VaddrEnd)
+    {
+        pRegion->Tag = Tag;
+    }
 }
 
 PTE VmEncodeEntryFor(const KrVirtualMemoryRegion* pNode, KrTypePTE Type, UINTPTR PaddrBase)
@@ -487,6 +496,9 @@ static BOOL KrInitKrnlAddrSpace(VOID)
 
     g_StateVMM.KernelAddressSpace.pRootVMR->pNext = g_StateVMM.KernelAddressSpace.pTailVMR;
     g_StateVMM.KernelAddressSpace.pTailVMR->pPrev = g_StateVMM.KernelAddressSpace.pRootVMR;
+
+    pBinaryNode->Tag = "Kernel Binary Reserved Area";
+    pFrameBufferNode->Tag = "Video Frame Buffer";
 
     g_StateVMM.KernelAddressSpace.NrVMRs = 2;
     return TRUE;

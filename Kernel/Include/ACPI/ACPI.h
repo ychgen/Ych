@@ -12,6 +12,7 @@
 
 #define KR_ACPI_XSDT_SIGNATURE       "XSDT" // eXtended System Description Table
 #define KR_ACPI_MADT_SIGNATURE       "APIC" // Multiple APIC Description Table
+#define KR_ACPI_MCFG_SIGNATURE       "MCFG" // Enhanced Configuration Mechanism
 
 #define KR_ACPI_MADT_RECORD_TYPE_PROCESSOR_LOCAL_APIC   0 // Processor Local APIC
 #define KR_ACPI_MADT_RECORD_TYPE_IO_APIC                1 // I/O APIC
@@ -54,6 +55,22 @@ typedef struct KR_PACKED
     DWORD dwCreatorID;
     DWORD dwCreatorRevision;
 } KrAcpiSdtHeader;
+
+typedef struct KR_PACKED
+{
+    KrAcpiSdtHeader AcpiHeader;
+    UCHAR Reserved[8];
+    // followed by AcpiMcfgEntry[]
+} AcpiMcfgHeader;
+
+typedef struct KR_PACKED
+{
+    QWORD PaddrBase;
+     WORD PciSegmentGroupNumber;
+     BYTE StartBusNo;
+     BYTE EndBusNo;
+    UCHAR Reserved[4];
+} AcpiMcfgEntry;
 
 typedef struct KR_PACKED
 {

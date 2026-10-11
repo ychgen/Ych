@@ -8,15 +8,16 @@
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
+static UINTPTR g_VaddrMmioHead = KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_MMIO_PDPT_IDX, 0, 0, 0);
+
 UINTPTR MmioAllocateRange(UINT Alignment, SIZE Size)
 {
-    static UINTPTR g_VaddrMmioHead = KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_MMIO_PDPT_IDX, 0, 0, 0);
     UINTPTR VaddrBase = (g_VaddrMmioHead + (Alignment - 1)) & (~((UINTPTR) Alignment - 1));
     g_VaddrMmioHead = VaddrBase + Size;
     return VaddrBase;
 }
 
-UINTPTR MmioMapDevice(UINTPTR PaddrDeviceBase, SIZE DeviceAddressSize, BYTE Flags)
+UINTPTR MmioMapDevice(CSTR DeviceTag, UINTPTR PaddrDeviceBase, SIZE DeviceAddressSize, BYTE Flags)
 {
     // todo: handle unaligned dev base properly, for now we just error out
     
@@ -37,9 +38,11 @@ UINTPTR MmioMapDevice(UINTPTR PaddrDeviceBase, SIZE DeviceAddressSize, BYTE Flag
     KrVirtualMemoryRegion* pNode = VmAcquireRegion(KrGetKernelAddressSpace(), VaddrDeviceBase, VaddrDeviceBase + DeviceAddressSize, RegionFlags);
     if (!pNode)
     {
+        KrdwtpOutFormatText("%p %p\n", VaddrDeviceBase, VaddrDeviceBase + DeviceAddressSize);
         return 0;
     }
-
+    VmTagRegion(pNode, DeviceTag);
+    
     if (!VmMapStatic(pNode, PaddrDeviceBase))
     {
         VmRelinquishRegion(pNode);

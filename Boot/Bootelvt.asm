@@ -20,18 +20,18 @@ PAT_WB      equ 6 ; Write-Back
 PAT_UCMINUS equ 7 ; Uncacheable-
 
 ; Bootloader ensures that:
-;   RCX = Size of the KrSystemInfoPack structure.
+;   ECX = Size of the KrSystemInfoPack structure.
 ;   RSI = Pointer to the KrSystemInfoPack structure.
 Bootelvt: ; `Boot Elevate` entry point
     CLI ; Being pedantic about interrupts does not hurt anyone.
     CLD ; Again, just in case. I'm not taking any chances.
 
-    CMP RCX, BOOT_INFO_MAX_SIZE
-    JG ProcessorHalt
+    CMP ECX, BOOT_INFO_MAX_SIZE
+    JA ProcessorHalt
 
     ; Keep a copy of the KrSystemInfoPack, will be lost when we change to paging
-    MOV [abs BOOT_INFO_PACK_SIZE], RCX
-    MOV RDI, BOOT_INFO
+    MOV [abs BOOT_INFO_PACK_SIZE], ECX
+    MOV EDI, BOOT_INFO
     REP MOVSB
 
     MOV EAX, [BOOT_INFO + BOOT_INFO_MAGIC_OFFSET]
@@ -82,7 +82,7 @@ Bootelvt: ; `Boot Elevate` entry point
         ADD RBX, 0x200000 ; Next 2MiB of kernel.
         LOOP .PopulateKernelPages
     
-    XOR RDX, RDX
+    XOR EDX, EDX
     MOV RAX, [BOOT_INFO + BOOT_INFO_FBUFSZ_OFFSET] ; Frame Buffer Size
     MOV RBX,  0x200000
     DIV RBX ; FBSIZE / 2MiB in RAX after thus
@@ -116,7 +116,7 @@ Bootelvt: ; `Boot Elevate` entry point
 
     ; Identity map lower 2MiB of memory since we are at there for now (keeps RIP as Register Instrucion Pointer and not Rest in Peace)
     MOV RDX, IDPAGE_PT
-    XOR RBX, RBX
+    XOR EBX, EBX
     MOV RCX, 0x200000 / 0x1000 ; 2MiB/4KiB=512
     .PopulateIDMapPages:
         MOV  RAX, RBX
@@ -127,7 +127,7 @@ Bootelvt: ; `Boot Elevate` entry point
         LOOP .PopulateIDMapPages
 
     MOV RAX, CR4
-    OR  RAX, (1 << 4) | (1 << 5) ; Page Size Extension + Physical Address Extension
+    OR  RAX, (1 << 4) | (1 << 5) | (1 << 9) | (1 << 18) ; PSE + PAE + OSFXSR + OSXSAVE
     MOV CR4, RAX
 
     MOV RAX, PML4
@@ -139,7 +139,7 @@ Bootelvt: ; `Boot Elevate` entry point
                                                         ; The reserved stack space is always 2MiB at the very end no matter exact location.
                                                         ; In accordance to this, we put it quite near the top. 
     MOV  RAX, KERNEL_VIRTUAL_ADDRESS
-    MOV  RDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
+    MOV  EDI, BOOT_INFO ; KrKernelStart(const KrSystemInfoPack*)'s Parameter.
     CALL RAX ; KrKernelStart (Important: use `CALL`, if you use `JMP`, your stack is fucked.)
 
     ; Kernel returned? Somebody is drunk.

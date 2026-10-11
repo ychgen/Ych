@@ -1,0 +1,8 @@
+#ifndef YCH_KERNEL_INIT_KR_INIT_DRIVERS_H
+#define YCH_KERNEL_INIT_KR_INIT_DRIVERS_H
+
+#include "Krnlych.h"
+
+VOID InitBuiltinDrivers(VOID);
+
+#endif // !YCH_KERNEL_INIT_KR_INIT_DRIVERS_H

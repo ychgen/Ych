@@ -50,6 +50,7 @@ BOOL HeapInit(VOID)
     {
         return FALSE;
     }
+    VmTagRegion(sg_HeapVMR, "Kernel Heap");
     
     sg_RootHeader = (HeapHeader*) sg_VaddrHeapSt;
     sg_RootHeader->pPrev = sg_RootHeader->pNext = NULLPTR;
@@ -58,6 +59,11 @@ BOOL HeapInit(VOID)
     
     s_HeapInitialized = TRUE;
     return TRUE;
+}
+
+VOID* HeapAlignedReAcquire(VOID* Ptr, SIZE N, UINT Alignment)
+{
+    return NULLPTR; // TODO
 }
 
 VOID* HeapAlignedAcquire(SIZE N, UINT Alignment)
@@ -92,6 +98,11 @@ VOID* HeapAlignedAcquire(SIZE N, UINT Alignment)
     
     pHeader->bFree = FALSE;
     return (VOID*) AddrAlignedPayload;
+}
+
+VOID* HeapReAcquire(VOID* Ptr, SIZE N)
+{
+    return HeapAlignedReAcquire(Ptr, N, HEAP_DEFAULT_ALIGNMENT);
 }
 
 VOID* HeapAcquire(SIZE N)

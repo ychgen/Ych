@@ -97,8 +97,8 @@ BOOL KrApicInit(VOID)
         return FALSE;
     }
     // Map Local APIC into virtual address space, 1 page is enough to cover all registers
-    g_KernelState.VaddrApicBase = MmioMapDevice(LOCAL_APIC_BASE_ADDRESS, 4096, 0);
-    if (!g_KernelState.VaddrApicBase)
+    g_KernelState.MmioInfo.VaddrApicBase = MmioMapDevice("Processor Local APIC", LOCAL_APIC_BASE_ADDRESS, 4096, MMIO_NF);
+    if (!g_KernelState.MmioInfo.VaddrApicBase)
     {
         return FALSE;
     }
@@ -108,12 +108,12 @@ BOOL KrApicInit(VOID)
 
 VOID ApicIssueEndOfInt(VOID)
 {
-    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_EOI) = 0;
+    *(volatile DWORD*)(g_KernelState.MmioInfo.VaddrApicBase + APIC_REG_EOI) = 0;
 }
 
 VOID ApicWaitForIcrIdle(VOID)
 {
-    while ( (*(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_LO)) & APIC_ICR_DELIVERY_STATUS )
+    while ( (*(volatile DWORD*)(g_KernelState.MmioInfo.VaddrApicBase + APIC_REG_ICR_LO)) & APIC_ICR_DELIVERY_STATUS )
     {
         KrProcessorPause();
     }
@@ -140,8 +140,8 @@ VOID ApicIssueIpi(const KrIpiConfig* pConfig)
     dwLoword |= (((DWORD) pConfig->eTrigMode) << 15);
     dwLoword |= (((DWORD) pConfig->eDestShorthand) << 18);
 
-    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_HI) = (pConfig->dwDestApic << 24);
-    *(volatile DWORD*)(g_KernelState.VaddrApicBase + APIC_REG_ICR_LO) = dwLoword;
+    *(volatile DWORD*)(g_KernelState.MmioInfo.VaddrApicBase + APIC_REG_ICR_HI) = (pConfig->dwDestApic << 24);
+    *(volatile DWORD*)(g_KernelState.MmioInfo.VaddrApicBase + APIC_REG_ICR_LO) = dwLoword;
 
     ApicWaitForIcrIdle();
 }

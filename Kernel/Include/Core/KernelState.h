@@ -7,6 +7,9 @@
 
 #define MAX_SMP_PROCESSORS 256
 
+struct DeviceNode;
+struct Driver;
+
 typedef enum
 {
     KR_VIDEO_OUTPUT_PROTOCOL_NULL,
@@ -75,6 +78,12 @@ typedef struct
     UINT NumIvldEncodeOfPTEs; // Number of times KrpteEncodeEntry failed.
 } KrDevCheckStats;
 
+typedef struct
+{
+    UINTPTR VaddrApicBase;
+    UINTPTR VaddrPciEcamBase;
+} KrMmioInfo;
+
 /**
  * @brief Global kernel state that applies everywhere
  */
@@ -109,7 +118,7 @@ typedef struct
     KrAcpiInfo AcpiInfo;
 
     /** Processor Local APIC Base Address in Virtual Memory as MMIO */
-    UINTPTR VaddrApicBase;
+    KrMmioInfo MmioInfo;
 
     /** Symmetric Multi-Processing */
     KrSmpInfo SmpInfo;
@@ -120,6 +129,12 @@ typedef struct
     /** Video Output Information */
     KrVideoOutputProtocol VideoOutputProtocol;
     const VOID* VideoOutputContext; // Pointer to relevant video information data. Content depends on KrKernelState.VideoOutputProtocol.
+
+    /** Drivers */
+    struct {
+        UINT NrLoaded, __NrCap;
+        struct Driver** pTable;
+    } DriverInfo;
 } KrKernelState;
 
 extern KrKernelState g_KernelState;
