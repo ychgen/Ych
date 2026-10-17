@@ -10,10 +10,11 @@
 
 #include "ACPI/PCIe.h"
 
-const CHAR c_RootDeviceName[] = "System Host";
-const CHAR c_PcieDeviceName[] = "ACPI PCIe Root 0";
+static const CHAR c_RootDeviceName[] = "System Host";
+static const CHAR c_PcieDeviceName[] = "ACPI PCIe Root 0";
 static DeviceNode g_RootDevice = {0};
 static DeviceNode g_PcieRoot = {0};
+static UINT g_DeviceCount = 0;
 
 static VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild);
 static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF);
@@ -32,6 +33,7 @@ VOID InitDeviceTree(VOID)
     g_PcieRoot.Pci.VaddrCfgSpace = PcieGetVoffset(0, 0, 0, 0);
 
     AddChildDevice(&g_RootDevice, &g_PcieRoot);
+    g_DeviceCount++;
 
     PcieEnumerate(DevTreeInitPCIeDeviceFound);
 }
@@ -47,12 +49,18 @@ BOOL InitDeviceTreeRoot(VOID)
     KrtlContiguousCopyBuffer(g_RootDevice.Name, c_RootDeviceName, sizeof(c_RootDeviceName));
     g_RootDevice.OnBus = BUS_ROOT;
 
+    g_DeviceCount = 1;
     return TRUE;
 }
 
 DeviceNode* GetSystemRootDevice(VOID)
 {
     return &g_RootDevice;
+}
+
+UINT GetSystemDeviceCount(VOID)
+{
+    return g_DeviceCount;
 }
 
 static VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild)
@@ -104,4 +112,5 @@ static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WOR
     KrtlContiguousCopyBuffer(pDevice->Name, StrDefaultName, KrtlStringSize(StrDefaultName));
 
     AddChildDevice(&g_PcieRoot, pDevice);
+    g_DeviceCount++;
 }

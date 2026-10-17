@@ -183,24 +183,14 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         );
     }
 
-    // PCI & dev tree init
-    InitDeviceTree();
-
-    KrdwtpOutColoredText("Devices discovered on the PCIe bus:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND);
-    DeviceNode* pDevice = GetSystemRootDevice()->p1stKid->p1stKid; // Root -> PCIe Root -> 1st PCIe Device
-    while (pDevice)
+    // Devdriv Stuff
     {
-        if (pDevice->OnBus == BUS_PCI)
-        {
-            KrdwtpOutFormatText(" -> PCI Device `%s` (%X:%X.%X); Vendor: 0x%X, Device: 0x%X\n", pDevice->Name, pDevice->Pci.Bus, pDevice->Pci.Device, pDevice->Pci.Function, pDevice->Pci.VendorID, pDevice->Pci.DeviceID);
-        }
-        pDevice = pDevice->pNxtSib;
-    }
+        // PCI & dev tree init
+        InitDeviceTree();
 
-    // Pair all devices with drivers if possible
-    {
+        // Try pairing all discovered devices with a driver, and then report to end user
         UINT NrPaired = GlobalDevdrivPairAttempt();
-        KrdwtpOutFormatText("GlobalDevdrivPairAttempt: Paired `%u` device(s) with a driver.\n", NrPaired);
+        KrdwtpOutFormatText("Devdriv: Discovered `%u` devices, paired `%u` with a driver.\n", GetSystemDeviceCount(), NrPaired);
     }
 
     // Initialize & bring-up the Application Processors.

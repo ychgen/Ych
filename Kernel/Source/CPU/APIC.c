@@ -1,5 +1,7 @@
 #include "CPU/APIC.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
@@ -98,6 +100,7 @@ BOOL KrApicInit(VOID)
     }
     // Map Local APIC into virtual address space, 1 page is enough to cover all registers
     g_KernelState.MmioInfo.VaddrApicBase = MmioMapDevice("Processor Local APIC", LOCAL_APIC_BASE_ADDRESS, 4096, MMIO_NF);
+
     if (!g_KernelState.MmioInfo.VaddrApicBase)
     {
         return FALSE;

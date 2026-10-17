@@ -60,7 +60,7 @@ typedef struct
 
 typedef struct
 {
-    UINT IdealProcessorCount;  // Ideal amount of processor that should be active after AP bringup.
+    UINT IdealProcessorCount;  // Ideal amount of processors that should be active after AP bringup.
     UINT ActiveProcessorCount; // How many logical processors currently active.
 
     struct

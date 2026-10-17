@@ -3,6 +3,8 @@
 
 #include "Krnlych.h"
 
+#include <stdarg.h>
+
 #define KRTL_RADIX_OCTAL        8
 #define KRTL_RADIX_DECIMAL     10
 #define KRTL_RADIX_HEXADECIMAL 16
@@ -22,5 +24,8 @@ VOID  KrtlSignedToString  (CHAR* pDest, INTMAX  Value, INT Radix, INT HexCasePre
 VOID  KrtlUnsignedToString(CHAR* pDest, UINTMAX Value, INT Radix, INT HexCasePreference);
 
 SIZE  KrtlStringSize(CSTR pString);
+
+INT   KrtlFormatStringVariadic(INT Limit, VOID* DstBuffer, CSTR Format, va_list Arguments);
+INT   KrtlFormatString(INT Limit, VOID* DstBuffer, CSTR Format, ...);
 
 #endif // !YCH_KERNEL_KRTL_KRNLSTRING_H

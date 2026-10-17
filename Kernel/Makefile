@@ -11,9 +11,9 @@ APBOOTSTRAP_SRC ?= $(SOURCE_PATH)/Init/BootstrapAP.s
 APBOOTSTRAP_TARGET ?= $(BUILD_PATH)/Int/BootstrapAP.bin
 
 GUEST_CFLAGS ?=
-CFLAGS ?= -O2 -I$(INCLUDE_PATH) -m64 -mcmodel=kernel -ffreestanding -mno-red-zone \
+CFLAGS ?= -O2 -I$(INCLUDE_PATH) -g -m64 -mcmodel=kernel -ffreestanding -mno-red-zone \
 		  -fno-pie -fno-pic -fno-stack-protector -Wall -Wextra -MMD -MP $(GUEST_CFLAGS)
-LDFLAGS ?= -nostdlib -no-pie
+LDFLAGS ?= -nostdlib -g -no-pie
 ASMFLAGS ?= -f elf64
 
 RM    ?= rm
@@ -25,7 +25,7 @@ MKDIR ?= mkdir
 $(TARGET): $(APBOOTSTRAP_TARGET) $(OBJECTS)
 	@$(MKDIR) -p $(dir $@)
 	@$(ECHO) Linking final binary \"$@\"...
-	@$(CC) $(LDFLAGS) -T Kernel.ld -o $@ $(OBJECTS)
+	@$(CC) $(LDFLAGS) -T Kernel.ld -Wl,-Map=$(BUILD_PATH)/Kernelych.map -o $@ $(OBJECTS)
 
 $(APBOOTSTRAP_TARGET): $(APBOOTSTRAP_SRC) 
 	@$(MKDIR) -p $(dir $@)

@@ -257,16 +257,19 @@ KrVirtualMemoryRegion* VmAcquireRegion(KrAddressSpace* pAddressSpace, UINTPTR Va
         return NULLPTR;
     }
 
-    if (pAddressSpace->PaddrRoot == g_StateVMM.KernelAddressSpace.PaddrRoot)
+    if (!(Flags & VMR_FLAG_NO_DIVISION_CHECK))
     {
-        if (VaddrStart < KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
+        if (pAddressSpace->PaddrRoot == g_StateVMM.KernelAddressSpace.PaddrRoot)
+        {
+            if (VaddrStart < KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
+            {
+                return NULLPTR;
+            }
+        }
+        else if (VaddrStart >= KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
         {
             return NULLPTR;
         }
-    }
-    else if (VaddrStart >= KR_MAKE_VIRTUAL(KRNL_PML4_IDX, 0, 0, 0, 0))
-    {
-        return NULLPTR;
     }
 
     const UINT PageSize = RegionPageSize(Flags);

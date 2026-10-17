@@ -16,7 +16,9 @@
 
 // If you are having #PF during early boot (before VMM can reassign #PF handler), set this to TRUE so you can see the error code.
 // Otherwise, keep as FALSE. Especially for shipping/distribution compilations!
-#define KR_INITINT_USE_DEBUG_PAGE_FAULT TRUE
+#define KR_INITINT_USE_DEBUG_PAGE_FAULT FALSE
+// Same story but for #GP
+#define KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT FALSE
 
 KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
@@ -50,6 +52,7 @@ static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_C
 
 VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
 VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame);
+VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame);
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
 
 VOID KrInitInt(VOID)
@@ -71,8 +74,11 @@ VOID KrInitInt(VOID)
 
     KrInitializeInterruptSystem();
 #if KR_INITINT_USE_DEBUG_PAGE_FAULT
-    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrPageFaultInterrupt,  FALSE);
+    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrPageFaultInterrupt, FALSE);
 #endif // KR_INITINT_USE_DEBUG_PAGE_FAULT
+#if KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
+    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt, FALSE);
+#endif // KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_BREAKPOINT, KrBreakpointInterrupt, FALSE);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
@@ -106,6 +112,14 @@ VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
     QWORD CR2; KrReadCR2(CR2);
     KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText(" -> Faulting Virtual Address: 0x%RX\n -> Processor Error Code: 0x%RX\n", CR2, pInterruptFrame->ErrorCode);
+    KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
+    KrProcessorHalt();
+}
+
+VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
+{
+    KrdwtpOutColoredText("!!!GENERAL PROTECTION FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
+    KrdwtpOutFormatText(" -> Processor-Pushed Error Code: 0x%RX\n", pInterruptFrame->ErrorCode);
     KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     KrProcessorHalt();
 }

@@ -1,12 +1,12 @@
 #include "Memory/MMIO.h"
 
+#include "Core/KernelState.h"
+
 #include "Memory/Vmmdef/MakeVirt.h"
 #include "Memory/Vmmdef/Indices.h"
 #include "Memory/Virtmemmgmt.h"
 
 #include "KRTL/Krnlmem.h"
-
-#include "Earlyvideo/DisplaywideTextProtocol.h"
 
 static UINTPTR g_VaddrMmioHead = KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_MMIO_PDPT_IDX, 0, 0, 0);
 
@@ -38,7 +38,6 @@ UINTPTR MmioMapDevice(CSTR DeviceTag, UINTPTR PaddrDeviceBase, SIZE DeviceAddres
     KrVirtualMemoryRegion* pNode = VmAcquireRegion(KrGetKernelAddressSpace(), VaddrDeviceBase, VaddrDeviceBase + DeviceAddressSize, RegionFlags);
     if (!pNode)
     {
-        KrdwtpOutFormatText("%p %p\n", VaddrDeviceBase, VaddrDeviceBase + DeviceAddressSize);
         return 0;
     }
     VmTagRegion(pNode, DeviceTag);

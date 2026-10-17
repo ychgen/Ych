@@ -26,6 +26,8 @@ CSTR Krnlmddesc(MDCODE mdCode)
         mkcase(KR_MDCODE_KERNEL_START_RETURNS);
         mkcase(KR_MDCODE_DMAP_SETUP_DEVCHECK);
         mkcase(KR_MDCODE_ISSUE_IPI_DEVCHECK);
+        mkcase(KR_MDCODE_HIGH_CR3_RESIDENT_DEVCHECK);
+        mkcase(KR_MDCODE_AP_BOOTSTRAP_LOW_ID_MAP_FAIL);
         /** FIRMWARE */
         mkcase(KR_MDCODE_CORRUPT_ACPI_RSDP);
         mkcase(KR_MDCODE_ACPI_SDT_CHECKSUM_NV);

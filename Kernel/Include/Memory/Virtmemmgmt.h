@@ -15,13 +15,14 @@
 #include "Memory/Vmmdef/MakeVirt.h"
 #include "Memory/Vmmdef/Indices.h"
 
-#define VMR_FLAG_CACHING_PROTOCOL ((1 << 1) | (1 << 0))
-#define VMR_FLAG_PAGE_SIZE        (1 << 2)
-#define VMR_FLAG_ALLOW_CODE_EXEC  (1 << 3)
-#define VMR_FLAG_READABLE         (1 << 4)
-#define VMR_FLAG_WRITABLE         (1 << 5)
-#define VMR_FLAG_GUARD            (1 << 6)
-#define VMR_FLAG_STATIC           (1 << 7)
+#define VMR_FLAG_CACHING_PROTOCOL  ((1 << 1) | (1 << 0))
+#define VMR_FLAG_PAGE_SIZE         (1 << 2)
+#define VMR_FLAG_ALLOW_CODE_EXEC   (1 << 3)
+#define VMR_FLAG_READABLE          (1 << 4)
+#define VMR_FLAG_WRITABLE          (1 << 5)
+#define VMR_FLAG_GUARD             (1 << 6)
+#define VMR_FLAG_STATIC            (1 << 7)
+#define VMR_FLAG_NO_DIVISION_CHECK (1 << 8)
 
 #define VMR_CACHE_PROTOCOL_WRITE_BACK    0b00 // WB
 #define VMR_CACHE_PROTOCOL_UNCACHEABLE   0b01 // UC

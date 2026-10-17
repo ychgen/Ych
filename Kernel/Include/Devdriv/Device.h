@@ -28,5 +28,6 @@ typedef struct DeviceNode
 VOID InitDeviceTree(VOID);
 BOOL InitDeviceTreeRoot(VOID);
 DeviceNode* GetSystemRootDevice(VOID);
+UINT GetSystemDeviceCount(VOID);
 
 #endif // !YCH_KERNEL_DEVDRIV_DEVICE_H

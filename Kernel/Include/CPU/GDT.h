@@ -6,6 +6,8 @@
 #define GDT_ACCESS_DPL_HIGHEST_PRIVILEGE  0x0 // Ring 0
 #define GDT_ACCESS_DPL_LOWEST_PRIVILEGE   0x3 // Ring 3
 #define GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE 8
+#define GDTR_SIZE_LEGACY                  6  // IA-16 and IA-32
+#define GDTR_SIZE_NATIVE                  10 // 64-bit Mode
 
 // Pseudo struct representing a GDT segment descriptor. Do not write directly! Use `KrEncodeSegmentDescriptor`
 typedef struct

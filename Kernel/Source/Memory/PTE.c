@@ -4,6 +4,8 @@
 #include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
 
+#include "KRTL/Krnlmem.h"
+
 #define PTE_PWT        (1UL <<  3)
 #define PTE_PCD        (1UL <<  4)
 #define PTE_NONPT_PS   (1UL <<  7) // For PDPTEs and PDEs, bit 7 is always the PS bit.
@@ -57,15 +59,17 @@ PAGESTRUCT PteGetOrAcquirePageStruct(PAGESTRUCT pContainer, KrTypePTE ReadType, 
     {
         return NULLPTR;
     }
-
     UINTPTR PaddrPs = KrGetPhysicalPageAddress(ID);
+    UINTPTR VaddrPs = KrPhysToVirt(PaddrPs);
+
     pContainer[Index] = PteEncodeEntry(ReadType, PaddrPs, qwAcqFlags, pslAcq);
     if (pContainer[Index] == KR_PTE2_ENCODE_FAILURE_DUE_TO_ALIGNMENT)
     {
         PmRelinquishPage(ID);
         return NULLPTR;
     }
-    return (PAGESTRUCT) KrPhysToVirt(PaddrPs);
+    KrtlContiguousZeroBuffer((VOID*) VaddrPs, KR_PAGE_SIZE);
+    return (PAGESTRUCT) VaddrPs;
 }
 
 UINTPTR KrMakeVirtual(KrVirtualAddressMode AddressMode, KrVirtualAddress Vidx)

@@ -245,7 +245,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
         {
             unsigned int val = va_arg(args, unsigned int);
             char buf[128];
-            KrtlSignedToString(buf, val, KRTL_RADIX_DECIMAL, HexCasePreference);
+            KrtlUnsignedToString(buf, val, KRTL_RADIX_DECIMAL, HexCasePreference);
             nwritten += KrdwtpOutText(buf);
             break;
         }
@@ -262,7 +262,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
         {
             unsigned int val = va_arg(args, unsigned int);
             char buf[128];
-            KrtlSignedToString(buf, val, KRTL_RADIX_HEXADECIMAL, HexCasePreference);
+            KrtlUnsignedToString(buf, val, KRTL_RADIX_HEXADECIMAL, HexCasePreference);
             nwritten += KrdwtpOutText(buf);
             break;
         }
