@@ -3,16 +3,19 @@
 // BIG HACK. REMOVE LATER..
 #include "Core/KernelState.h"
 
+#include "CPU/Spinlock.h"
+
 #include "Memory/BootstrapArena.h"
 
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
-KrDisplaywideTextProtocolState g_ProtocolState;
+static KrDisplaywideTextProtocolState sg_ProtocolState;
+static Spinlock sg_DwtpSpinlock = {0};
 
 VOID DwtpReplicateRamFrbufToVram(VOID)
 {
-    KrtlContiguousCopyBuffer((VOID*) g_ProtocolState.AddrFrameBuffer, (VOID*) g_ProtocolState.AddrRamFrameBuffer, g_ProtocolState.FrameBufferSize);
+    KrtlContiguousCopyBuffer((VOID*) sg_ProtocolState.AddrFrameBuffer, (VOID*) sg_ProtocolState.AddrRamFrameBuffer, sg_ProtocolState.FrameBufferSize);
     __asm__ __volatile__ ("sfence\n\t" ::: "memory");
 }
 
@@ -25,90 +28,104 @@ KrDisplaywideTextProtocolFont KrdwtpScaleFont(const KrDisplaywideTextProtocolFon
 
 VOID KrdwtpInitialize(KrDisplaywideTextProtocolFont Font, UINTPTR AddrFrameBuffer, UINT FrameBufferSize, UINT FramebufferWidth, UINT FramebufferHeight, UINT PixelsPerScanLine)
 {
-    g_ProtocolState.FrameBufferSize   = FrameBufferSize;
-    g_ProtocolState.FrameBufferWidth  = FramebufferWidth;
-    g_ProtocolState.FrameBufferHeight = FramebufferHeight;
-    g_ProtocolState.PixelsPerScanLine = PixelsPerScanLine;
-    g_ProtocolState.CursorX           = 0;
-    g_ProtocolState.CursorY           = 0;
-    g_ProtocolState.AddrFrameBuffer   = AddrFrameBuffer;
-    g_ProtocolState.AddrRamFrameBuffer = (UINTPTR) KrBootstrapArenaAcquire(g_ProtocolState.FrameBufferSize * 2);
-    g_ProtocolState.BytesPerPixel     = 4; // We have 4 fields per pixel: red green blue reserved
-    g_ProtocolState.Font              = Font;
-    g_ProtocolState.bUppercaseMode    = FALSE;
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
 
-    KrtlContiguousZeroBuffer((VOID*) g_ProtocolState.AddrRamFrameBuffer, g_ProtocolState.FrameBufferSize * 2);
+    sg_ProtocolState.FrameBufferSize   = FrameBufferSize;
+    sg_ProtocolState.FrameBufferWidth  = FramebufferWidth;
+    sg_ProtocolState.FrameBufferHeight = FramebufferHeight;
+    sg_ProtocolState.PixelsPerScanLine = PixelsPerScanLine;
+    sg_ProtocolState.CursorX           = 0;
+    sg_ProtocolState.CursorY           = 0;
+    sg_ProtocolState.AddrFrameBuffer   = AddrFrameBuffer;
+    sg_ProtocolState.AddrRamFrameBuffer = (UINTPTR) KrBootstrapArenaAcquire(sg_ProtocolState.FrameBufferSize * 2); // FIXME: Shady!
+    sg_ProtocolState.BytesPerPixel     = 4; // We have 4 fields per pixel: red green blue reserved
+    sg_ProtocolState.Font              = Font;
+    sg_ProtocolState.bUppercaseMode    = FALSE;
+
+    KrtlContiguousZeroBuffer((VOID*) sg_ProtocolState.AddrRamFrameBuffer, sg_ProtocolState.FrameBufferSize * 2);
+    RelinquishSpinlock(&sg_DwtpSpinlock);
 }
 
 VOID KrdwtpReloadFrameBuffer(UINTPTR AddrFrameBuffer)
 {
-    g_ProtocolState.AddrFrameBuffer = AddrFrameBuffer;
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    sg_ProtocolState.AddrFrameBuffer = AddrFrameBuffer;
+    RelinquishSpinlock(&sg_DwtpSpinlock);
 }
 
 VOID KrdwtpResetState(DWORD ClearColor)
 {
-    g_ProtocolState.CursorX = 0;
-    g_ProtocolState.CursorY = 0;
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    sg_ProtocolState.CursorX = 0;
+    sg_ProtocolState.CursorY = 0;
 
-    for (DWORD y = 0; y < g_ProtocolState.FrameBufferHeight; y++)
+    for (DWORD y = 0; y < sg_ProtocolState.FrameBufferHeight; y++)
     {
-        for (DWORD x = 0; x < g_ProtocolState.FrameBufferWidth; x++)
+        for (DWORD x = 0; x < sg_ProtocolState.FrameBufferWidth; x++)
         {
-            ((DWORD*) g_ProtocolState.AddrRamFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = ClearColor;
-            ((DWORD*) g_ProtocolState.AddrFrameBuffer)[y * g_ProtocolState.PixelsPerScanLine + x] = ClearColor;
+            ((DWORD*) sg_ProtocolState.AddrRamFrameBuffer)[y * sg_ProtocolState.PixelsPerScanLine + x] = ClearColor;
+            ((DWORD*) sg_ProtocolState.AddrFrameBuffer)[y * sg_ProtocolState.PixelsPerScanLine + x] = ClearColor;
         }
     }
+    RelinquishSpinlock(&sg_DwtpSpinlock);
 }
 
-VOID KrdwtpScroll(VOID)
+VOID KrdwtpScroll_NoSpin(VOID)
 {
     // Cannot scroll while CursorY=0 i.e. still on 0th row.
-    if (!g_ProtocolState.CursorY)
+    if (!sg_ProtocolState.CursorY)
     {
         return;
     }
 
     // No bytes skip to get to the next physical row (1px down)
-    UINT dwPhysStride = g_ProtocolState.PixelsPerScanLine * g_ProtocolState.BytesPerPixel;
+    UINT dwPhysStride = sg_ProtocolState.PixelsPerScanLine * sg_ProtocolState.BytesPerPixel;
     // Size that each entry occupies
-    UINT dwEntrySize     = g_ProtocolState.Font.RowsPerEntry * g_ProtocolState.Font.ScaleFactor;
+    UINT dwEntrySize     = sg_ProtocolState.Font.RowsPerEntry * sg_ProtocolState.Font.ScaleFactor;
     // Logical row stride
     UINT dwLogicalStride = dwEntrySize * dwPhysStride;
 
     KrtlContiguousMoveBuffer
     (
         // 0th row
-        (VOID*) g_ProtocolState.AddrRamFrameBuffer,
+        (VOID*) sg_ProtocolState.AddrRamFrameBuffer,
         // 1st row
-        (VOID*)(g_ProtocolState.AddrRamFrameBuffer + dwLogicalStride),
+        (VOID*)(sg_ProtocolState.AddrRamFrameBuffer + dwLogicalStride),
         // no. rows
-        (g_ProtocolState.CursorY) * dwLogicalStride
+        (sg_ProtocolState.CursorY) * dwLogicalStride
     );
-    KrtlContiguousZeroBuffer((VOID*) g_ProtocolState.AddrRamFrameBuffer + ((g_ProtocolState.CursorY) * dwLogicalStride), dwLogicalStride);
+    KrtlContiguousZeroBuffer((VOID*) sg_ProtocolState.AddrRamFrameBuffer + ((sg_ProtocolState.CursorY) * dwLogicalStride), dwLogicalStride);
 
     DwtpReplicateRamFrbufToVram();
 
-    g_ProtocolState.CursorY--;
-    g_ProtocolState.CursorX = 0;
+    sg_ProtocolState.CursorY--;
+    sg_ProtocolState.CursorX = 0;
 }
 
-VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
+VOID KrdwtpScroll(VOID)
 {
-    const KrDisplaywideTextProtocolFont* pFont = &g_ProtocolState.Font;
-    if (!g_ProtocolState.AddrFrameBuffer || !g_ProtocolState.Font.CharacterSet || pFont->NumberOfEntries >= (UINT) Char)
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    KrdwtpScroll_NoSpin();
+    RelinquishSpinlock(&sg_DwtpSpinlock);
+}
+
+VOID KrdwtpOutColoredCharacter_NoSpin(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
+{
+    const KrDisplaywideTextProtocolFont* pFont = &sg_ProtocolState.Font;
+    if (!sg_ProtocolState.AddrFrameBuffer || !sg_ProtocolState.Font.CharacterSet || pFont->NumberOfEntries >= (UINT) Char)
     {
         return;
     }
     if (Char == '\n')
     {
-        g_ProtocolState.CursorX = 0;
-        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
+        sg_ProtocolState.CursorX = 0;
+        if (++sg_ProtocolState.CursorY > sg_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
         {
-            KrdwtpScroll();
+            KrdwtpScroll_NoSpin();
         }
         return;
     }
-    if (g_ProtocolState.bUppercaseMode && (Char >= 'a' && Char <= 'z'))
+    if (sg_ProtocolState.bUppercaseMode && (Char >= 'a' && Char <= 'z'))
     {
         Char -= ('a' - 'A');
     }
@@ -117,8 +134,8 @@ VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD Backgroun
     UINT dwGlyphSize = pFont->RowsPerEntry * dwBytesPerGlyph;
     BYTE* pGlyph = &pFont->CharacterSet[Char * dwGlyphSize];
 
-    UINT dwStartX = g_ProtocolState.CursorX * pFont->ColumnsPerEntry * pFont->ScaleFactor;
-    UINT dwStartY = g_ProtocolState.CursorY * pFont->RowsPerEntry    * pFont->ScaleFactor;
+    UINT dwStartX = sg_ProtocolState.CursorX * pFont->ColumnsPerEntry * pFont->ScaleFactor;
+    UINT dwStartY = sg_ProtocolState.CursorY * pFont->RowsPerEntry    * pFont->ScaleFactor;
 
     for (DWORD Row = 0; Row < pFont->RowsPerEntry; Row++)
     {
@@ -139,24 +156,36 @@ VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD Backgroun
                 {
                     UINT FramebufferOffsetY = dwStartY + Row * pFont->ScaleFactor + ScalarY;
                     UINT FramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + ScalarX;
-                    ((DWORD*) g_ProtocolState.AddrFrameBuffer)[FramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
+                    ((DWORD*) sg_ProtocolState.AddrFrameBuffer)[FramebufferOffsetY * sg_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
                         = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
-                    ((DWORD*) g_ProtocolState.AddrRamFrameBuffer)[FramebufferOffsetY * g_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
+                    ((DWORD*) sg_ProtocolState.AddrRamFrameBuffer)[FramebufferOffsetY * sg_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
                         = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
                 }
             }
         }
     }
 
-    g_ProtocolState.CursorX++;
-    if (g_ProtocolState.CursorX >= g_ProtocolState.FrameBufferWidth / (pFont->ColumnsPerEntry * pFont->ScaleFactor))
+    sg_ProtocolState.CursorX++;
+    if (sg_ProtocolState.CursorX >= sg_ProtocolState.FrameBufferWidth / (pFont->ColumnsPerEntry * pFont->ScaleFactor))
     {
-        g_ProtocolState.CursorX = 0;
-        if (++g_ProtocolState.CursorY > g_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
+        sg_ProtocolState.CursorX = 0;
+        if (++sg_ProtocolState.CursorY > sg_ProtocolState.FrameBufferHeight / (pFont->RowsPerEntry * pFont->ScaleFactor))
         {
             KrdwtpScroll();
         }
     }
+}
+
+VOID KrdwtpOutColoredCharacter(CHAR Char, DWORD ForegroundColor, DWORD BackgroundColor)
+{
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    KrdwtpOutColoredCharacter_NoSpin(Char, ForegroundColor, BackgroundColor);
+    RelinquishSpinlock(&sg_DwtpSpinlock);
+}
+
+VOID KrdwtpOutCharacter_NoSpin(CHAR Char)
+{
+    KrdwtpOutColoredCharacter_NoSpin(Char, KRDWTP_COLOR_WHITE, KRDWTP_BACKGROUND);
 }
 
 VOID KrdwtpOutCharacter(CHAR Char)
@@ -164,16 +193,30 @@ VOID KrdwtpOutCharacter(CHAR Char)
     KrdwtpOutColoredCharacter(Char, KRDWTP_COLOR_WHITE, KRDWTP_BACKGROUND);
 }
 
-INT KrdwtpOutColoredText(CSTR pText, DWORD ForegroundColor, DWORD BackgroundColor)
+INT KrdwtpOutColoredText_NoSpin(CSTR pText, DWORD ForegroundColor, DWORD BackgroundColor)
 {
     INT nWritten = 0;
     while (*pText)
     {
-        KrdwtpOutColoredCharacter(*pText++, ForegroundColor, BackgroundColor);
+        KrdwtpOutColoredCharacter_NoSpin(*pText++, ForegroundColor, BackgroundColor);
         nWritten++;
     }
     __asm__ __volatile__ ("sfence\n\t");
     return nWritten;
+}
+
+INT KrdwtpOutColoredText(CSTR pText, DWORD ForegroundColor, DWORD BackgroundColor)
+{
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    INT Result = KrdwtpOutColoredText_NoSpin(pText, ForegroundColor, BackgroundColor);
+    RelinquishSpinlock(&sg_DwtpSpinlock);
+
+    return Result;
+}
+
+INT KrdwtpOutText_NoSpin(CSTR pText)
+{
+    return KrdwtpOutColoredText_NoSpin(pText, KRDWTP_COLOR_WHITE, KRDWTP_BACKGROUND);
 }
 
 INT KrdwtpOutText(CSTR pText)
@@ -183,6 +226,8 @@ INT KrdwtpOutText(CSTR pText)
 
 INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
 {
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    
     const INT HexCasePreference = KRTL_HEX_UPPERCASE; // No matter %x or %X, we will use uppercase.
     INT nwritten = 0;
 
@@ -190,35 +235,35 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
     {
         if (*pFmt != '%')
         {
-            KrdwtpOutCharacter(*pFmt++);
+            KrdwtpOutCharacter_NoSpin(*pFmt++);
             nwritten++;
             continue;
         }
         // specified `%` but string abruptly ended
         if (!*++pFmt)
         {
-            return -1;
+            goto ErrorOut;
         }
 
         switch (*pFmt++)
         {
         case '%': // %%, print format specifier
         {
-            KrdwtpOutCharacter('%');
+            KrdwtpOutCharacter_NoSpin('%');
             nwritten++;
             break;
         }
         case 'c':
         {
             int ch = va_arg(args, int);
-            KrdwtpOutCharacter((char) ch);
+            KrdwtpOutCharacter_NoSpin((char) ch);
             nwritten++;
             break;
         }
         case 'b':
         {
             int val = va_arg(args, int);
-            nwritten += KrdwtpOutText(val ? "true" : "false");
+            nwritten += KrdwtpOutText_NoSpin(val ? "true" : "false");
             break;
         }
         case 's':
@@ -228,7 +273,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             {
                 str = "(NULL)";
             }
-            nwritten += KrdwtpOutText(str);
+            nwritten += KrdwtpOutText_NoSpin(str);
             break;
         }
         case 'd':
@@ -238,7 +283,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             int val = va_arg(args, int);
             char buf[128];
             KrtlSignedToString(buf, val, KRTL_RADIX_DECIMAL, HexCasePreference);
-            nwritten += KrdwtpOutText(buf);
+            nwritten += KrdwtpOutText_NoSpin(buf);
             break;
         }
         case 'u':
@@ -246,7 +291,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             unsigned int val = va_arg(args, unsigned int);
             char buf[128];
             KrtlUnsignedToString(buf, val, KRTL_RADIX_DECIMAL, HexCasePreference);
-            nwritten += KrdwtpOutText(buf);
+            nwritten += KrdwtpOutText_NoSpin(buf);
             break;
         }
         case 'o':
@@ -254,7 +299,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             unsigned int val = va_arg(args, unsigned int);
             char buf[128];
             KrtlSignedToString(buf, val, KRTL_RADIX_OCTAL, HexCasePreference);
-            nwritten += KrdwtpOutText(buf);
+            nwritten += KrdwtpOutText_NoSpin(buf);
             break;
         }
         case 'X':
@@ -263,7 +308,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             unsigned int val = va_arg(args, unsigned int);
             char buf[128];
             KrtlUnsignedToString(buf, val, KRTL_RADIX_HEXADECIMAL, HexCasePreference);
-            nwritten += KrdwtpOutText(buf);
+            nwritten += KrdwtpOutText_NoSpin(buf);
             break;
         }
         case 'p':
@@ -271,15 +316,15 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
             VOID* val = va_arg(args, VOID*);
             char buf[128];
             KrtlUnsignedToString(buf, (QWORD) val, KRTL_RADIX_HEXADECIMAL, HexCasePreference);
-            nwritten += KrdwtpOutText("0x");
-            nwritten += KrdwtpOutText(buf);
+            nwritten += KrdwtpOutText_NoSpin("0x");
+            nwritten += KrdwtpOutText_NoSpin(buf);
             break;
         }
         case 'R': // Extended (64-bit)
         {
             if (!*pFmt)
             {
-                return -1;
+                goto ErrorOut;
             }
 
             switch (*pFmt++)
@@ -289,7 +334,7 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
                 QWORD val = va_arg(args, QWORD);
                 char buf[128];
                 KrtlUnsignedToString(buf, val, KRTL_RADIX_DECIMAL, HexCasePreference);
-                nwritten += KrdwtpOutText(buf);
+                nwritten += KrdwtpOutText_NoSpin(buf);
                 break;
             }
             case 'X':
@@ -298,24 +343,28 @@ INT KrdwtpOutFormatTextVariadic(CSTR pFmt, va_list args)
                 QWORD val = va_arg(args, QWORD);
                 char buf[128];
                 KrtlUnsignedToString(buf, val, KRTL_RADIX_HEXADECIMAL, HexCasePreference);
-                nwritten += KrdwtpOutText(buf);
+                nwritten += KrdwtpOutText_NoSpin(buf);
                 break;
             }
             default:
             {
-                return -1;
+                goto ErrorOut;
             }
             }
             break;
         }
         default:
         {
-            return -1;
+            goto ErrorOut;
         }
         }
     }
     __asm__ __volatile__ ("sfence\n\t");
+    RelinquishSpinlock(&sg_DwtpSpinlock);
     return nwritten;
+ErrorOut:
+    RelinquishSpinlock(&sg_DwtpSpinlock);
+    return -1;
 }
 
 INT KrdwtpOutFormatText(CSTR pFmt, ...)
@@ -330,10 +379,12 @@ INT KrdwtpOutFormatText(CSTR pFmt, ...)
 
 VOID KrdwtpSetUppercaseMode(BOOL bUppercaseModeEnabled)
 {
-    g_ProtocolState.bUppercaseMode = bUppercaseModeEnabled;
+    AcquireOrWaitSpinlock(&sg_DwtpSpinlock);
+    sg_ProtocolState.bUppercaseMode = bUppercaseModeEnabled;
+    RelinquishSpinlock(&sg_DwtpSpinlock);
 }
 
 const KrDisplaywideTextProtocolState* KrdwtpGetProtocolState(VOID)
 {
-    return &g_ProtocolState;
+    return &sg_ProtocolState;
 }

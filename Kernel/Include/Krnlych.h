@@ -26,6 +26,7 @@
 /** Defined as macros just in case in the future we change compilers, we are not *completely* GCC dependent. */
 
 #define KR_NORETURN                 __attribute__((noreturn))
+#define KR_NAKED                    __attribute__((naked))
 #define KR_PACKED                   __attribute__((packed))
 #define KR_ALIGNED(N)               __attribute__((aligned(N)))
 #define KR_SECTION(S)               __attribute__((section(S)))

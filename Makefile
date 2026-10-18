@@ -24,6 +24,7 @@ OS_IMAGE_SIZE      ?= 256 # MiB
 OS_IMAGE_BLKSZ     ?= 512 # bytes
 OS_IMAGE_TARGET    := $(BUILD_PATH)/$(OS_IMAGE_NAME)
 OS_EMULATION_RAM   ?= 512M
+OS_EMULATION_CORES ?= 8
 
 CONTRACT_NAME    ?= BootContract.json
 CONTRACT         := $(CONTRACT_PATH)/$(CONTRACT_NAME)
@@ -43,7 +44,7 @@ os-image: $(OS_IMAGE_TARGET)
 run: os-image
 	@$(RM) $(FIRMWARE)/OVMF_VARS.fd
 	@$(CP) $(FIRMWARE)/OVMF_VARS_OriginalCopy.fd $(FIRMWARE)/OVMF_VARS.fd
-	@$(QEMU) -machine q35 -monitor stdio -d int,cpu_reset,unimp -cpu max -m $(OS_EMULATION_RAM) -smp cpus=8,sockets=1,cores=8,threads=1 -no-reboot -no-shutdown -d int  \
+	@$(QEMU) -machine q35 -monitor stdio -d int,cpu_reset,unimp -cpu max -m $(OS_EMULATION_RAM) -smp cpus=$(OS_EMULATION_CORES),sockets=1,cores=$(OS_EMULATION_CORES),threads=1 -no-reboot -no-shutdown -d int  \
 			 -drive if=pflash,format=raw,unit=0,file=$(FIRMWARE)/OVMF_CODE.fd,readonly=on \
 			 -drive if=pflash,format=raw,unit=1,file=$(FIRMWARE)/OVMF_VARS.fd \
 			 -drive file=$(OS_IMAGE_TARGET),format=raw,if=none,id=nvme0 \

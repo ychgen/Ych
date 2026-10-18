@@ -65,12 +65,14 @@ typedef struct
 
     struct
     {
+        DWORD LocalApicID;
+        DWORD AcpiID;
         BOOL  E_V : 1; // Entry_Valid
         BOOL  BSP : 1; // 0 if AP, 1 if BSP
         BOOL  RFD : 1; // Reported for Duty (set once upon AP reaches common kernel entry point alongside his accomplices)
-        DWORD AcpiID;
-        DWORD LocalApicID;
     } ProcInfo[MAX_SMP_PROCESSORS];
+
+    BOOL bProcessorReinitDetected;
 } KrSmpInfo;
 
 typedef struct

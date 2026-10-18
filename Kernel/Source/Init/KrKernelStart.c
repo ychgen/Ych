@@ -53,7 +53,6 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Initialize g_KernelState
     KrtlContiguousZeroBuffer(&g_KernelState, sizeof(KrKernelState));
-    g_KernelState.SmpInfo.ActiveProcessorCount = 1; // The Bootstrap Processor is currently active
 
     // Copy pSystemInfoPack so we don't lose it when we unmap the ID-mapped lower 2MiB.
     KrSystemInfoPack SysInfoPack;

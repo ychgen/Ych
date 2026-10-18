@@ -9,6 +9,7 @@ PAT_UCMINUS equ 7 ; Uncacheable-
 
 struc ApBootInfo
     .CommonEntryPointAddress: resq 1
+    .InitialStacksAddress: resq 1
     .PaddrKernelCR3: resd 1
     .StackBase: resw 1
     .KernelCodeSegmentSelector: resw 1
@@ -26,8 +27,8 @@ BootInfoAddr equ 0x7000
 CLI
 CLD
 
-; Acquire 64-byte stack
-MOV AX, -64
+; Acquire 32-byte stack
+MOV AX, -32
 LOCK XADD WORD [BootInfoAddr + ApBootInfo.StackBase], AX
 MOV SP, AX
 
@@ -90,8 +91,27 @@ LmEntry:
     MOV GS, AX
     MOV SS, AX
 
-    MOVZX ESP, SP ; Ensure our 16 bit SP keeps it's glory (presumably something else should be assigned to this immediately within KrApplicationProcessorStart because you will run out immediately)
-    AND ESP, ~0x7 ; align to 8 byte boundary as expected by ABI (not 16 because 16 is expected at the moment of CALL which on entry makes it 8 aligned. Since we JMP we need 8 alignment)
+    MOV EAX, 0x80000001
+    CPUID
+
+    TEST EDX, (1 << 20)
+    JZ .SkipNX
+
+    MOV ECX, 0xC0000080 ; EFER
+    RDMSR
+    OR EAX, (1 << 11) ; XD-Enable
+    WRMSR
+
+.SkipNX:
+    MOV EAX, 1
+    CPUID
+    SHR EBX, 24 ; RBX = APIC ID
+
+    MOV RAX, [BootInfoAddr + ApBootInfo.InitialStacksAddress]
+    MOV RSP, [RAX + RBX * 8]
+    ; Stack should already be 8-aligned, but just in case
+    AND RSP, ~0x7
+
     JMP [BootInfoAddr + ApBootInfo.CommonEntryPointAddress] ; And there goes the AP into the C world, see you around in Kernel/Source/Init/KrApplicationProcessorStart.c
 
 ; in case of return (dont)

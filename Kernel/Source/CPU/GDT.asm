@@ -1,5 +1,6 @@
 [bits 64]
 
+extern IsAirGood
 global KrLoadGlobalDescriptorTable
 
 ; C function specification: void KrLoadGlobalDescriptorTable(const KrGlobalDescriptorTableRegister* rData, uint16_t sslCode, uint16_t sslData)
@@ -26,5 +27,4 @@ KrLoadGlobalDescriptorTable:
         MOV FS, AX
         MOV GS, AX
         MOV SS, AX
-
         RET
