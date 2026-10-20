@@ -10,6 +10,11 @@
 // Extended Feature Information / Extended Processor Info and Features
 #define KR_CPUID_LEAF_EXT_FEAT_INFO     0x80000001
 
+// Time Stamp Counter and Nominal Core Crystal Clock Information Leaf 
+#define CPUID_LEAF_TSC_NCC_CLK_INFO 0x15
+// Processor Frequency Information Leaf
+#define CPUID_LEAF_FREQUENCY_INFO   0x16
+
 // Brand String
 #define KR_CPUID_LEAF_BRAND_STR_1ST     0x80000002
 #define KR_CPUID_LEAF_BRAND_STR_2ND     0x80000003

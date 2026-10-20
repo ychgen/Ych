@@ -195,6 +195,8 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Initialize & bring-up the Application Processors.
     KrInitSMP();
 
+    KrdwtpOutFormatText("TSC Frequency = %u MHz\n", KrThisCpu()->FreqTSC);
+
     // ======= STOP HERE =========== //
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //

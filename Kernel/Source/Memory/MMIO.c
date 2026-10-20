@@ -50,3 +50,13 @@ UINTPTR MmioMapDevice(CSTR DeviceTag, UINTPTR PaddrDeviceBase, SIZE DeviceAddres
 
     return VaddrDeviceBase;
 }
+
+DWORD MmioRead32(UINTPTR VaddrDeviceBase, SIZE Offset)
+{
+    return *(volatile DWORD*)(VaddrDeviceBase + Offset);
+}
+
+DWORD MmioWrite32(UINTPTR VaddrDeviceBase, SIZE Offset, DWORD dwValue)
+{
+    return *(volatile DWORD*)(VaddrDeviceBase + Offset) = dwValue;
+}

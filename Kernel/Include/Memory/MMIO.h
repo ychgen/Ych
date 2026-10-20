@@ -10,4 +10,7 @@
 UINTPTR MmioAllocateRange(UINT Alignment, SIZE Size);
 UINTPTR MmioMapDevice(CSTR DeviceTag, UINTPTR PaddrDeviceBase, SIZE DeviceAddressSize, BYTE Flags);
 
+DWORD MmioRead32(UINTPTR VaddrDeviceBase, SIZE Offset);
+DWORD MmioWrite32(UINTPTR VaddrDeviceBase, SIZE Offset, DWORD dwValue);
+
 #endif // !YCH_KERNEL_MEMORY_MMIO_H

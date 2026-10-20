@@ -125,6 +125,7 @@ VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
     case NMI_REASON_MELTDOWN:
     {
         KrDisableInterrupts();
+        ApicSetTimerInterruptsEnabled(FALSE);
 
         // we have to ack here as we won't break out of the switch statement
         ThisCpuAcknowledgeNMI();

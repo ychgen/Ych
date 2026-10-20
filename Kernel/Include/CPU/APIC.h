@@ -37,7 +37,17 @@
 #define APIC_REG_SIV    0x0F0 // Spurious Interrupt Vector Register
 #define APIC_REG_ICR_LO 0x300 // Interrupt Command Register Lodword
 #define APIC_REG_ICR_HI 0x310 // Interrupt Command Register Hidword
+#define APIC_REG_LTR    0x320 // LVT Timer Register 
+#define APIC_REG_LTSR   0x330 // LVT Thermal Sensor Register 
+#define APIC_REG_LPMCR  0x340 // LVT Performance Monitoring Counters Register 
+#define APIC_REG_LINT0  0x350 // LVT LINT0 Register 
+#define APIC_REG_LINT1  0x360 // LVT LINT1 Register 
+#define APIC_REG_LER    0x370 // LVT Error Register 
+#define APIC_REG_INITCR 0x380 // Initial Count Register 
+#define APIC_REG_CURRCR 0x390 // Current Count Register 
+#define APIC_REG_DCR    0x3E0 // Divide Configuration Register 
 
+#define APIC_LTR_TIMER_INT_BLOCK (1 << 16)
 #define APIC_ICR_DELIVERY_STATUS (1 << 12)
 
 typedef struct
@@ -69,10 +79,13 @@ VOID KrApicSetPhysicalBase(UINTPTR PhysAddr);
 
 BOOL KrApicCheckSupport(VOID);
 BOOL KrApicInit(BOOL bIsCallerBSP);
+VOID ApicCalibrateTimer(VOID);
 
+VOID ApicSetTimerInterruptsEnabled(BOOL bEnabled);
 VOID ApicIssueEndOfInt(VOID);
 
 VOID ApicWaitForIcrIdle(VOID);
+VOID ApicSetTimer(SIZE NanoSeconds);
 VOID ApicIssueIpi(const KrIpiConfig* pConfig);
 
 #endif // !YCH_KERNEL_CPU_APIC_H

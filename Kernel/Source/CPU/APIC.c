@@ -6,9 +6,12 @@
 #include "Core/KernelState.h"
 
 #include "CPU/PortIO.h"
+#include "CPU/PerCpu.h"
 #include "CPU/CPUID.h"
 #include "CPU/Halt.h"
 #include "CPU/MSR.h"
+
+#include "Intmgmt/Timer.h"
 
 #include "Memory/MMIO.h"
 
@@ -87,19 +90,20 @@ BOOL KrApicInit(BOOL bIsCallerBSP)
     {
         return FALSE;
     }
-    KrMufflePIC(); // Kill that boy chop his balls off
 
     QWORD msrApicBase = KrReadMSR(IA32_APIC_BASE);
     msrApicBase |= IA32_APIC_BASE_EN;
     KrWriteMSR(IA32_APIC_BASE, msrApicBase);
 
+    //KrApicSetPhysicalBase(LOCAL_APIC_BASE_ADDRESS); // we like this address
+    if (KrApicGetPhysicalBase() != LOCAL_APIC_BASE_ADDRESS)
+    {
+        return FALSE;
+    }
     if (bIsCallerBSP)
     {
-        //KrApicSetPhysicalBase(LOCAL_APIC_BASE_ADDRESS); // we like this address
-        if (KrApicGetPhysicalBase() != LOCAL_APIC_BASE_ADDRESS)
-        {
-            return FALSE;
-        }
+        KrMufflePIC(); // Kill that boy chop his balls off
+
         // Map Local APIC into virtual address space, 1 page is enough to cover all registers
         g_KernelState.MmioInfo.VaddrApicBase = MmioMapDevice("Processor Local APIC", LOCAL_APIC_BASE_ADDRESS, 4096, MMIO_NF);
 
@@ -108,13 +112,52 @@ BOOL KrApicInit(BOOL bIsCallerBSP)
             return FALSE;
         }
     }
+    ApicCalibrateTimer();
+
+    DWORD dwLTR = MmioRead32(g_KernelState.MmioInfo.VaddrApicBase, APIC_REG_LTR);
+    dwLTR |= ((DWORD)KERNEL_TIMER_INTERRUPT_VECTOR) & 0xFF;
+    dwLTR &= ~APIC_LTR_TIMER_INT_BLOCK;
+
+    // Set Timer Mode to TSC-Deadline (18:17 = 10b)
+    dwLTR |=  (1 << 18);
+    dwLTR &= ~(1 << 17);
+    MmioWrite32(g_KernelState.MmioInfo.VaddrApicBase, APIC_REG_LTR, dwLTR);
     
     return TRUE;
 }
 
+VOID ApicCalibrateTimer(VOID)
+{
+    DWORD EAX, EBX, ECX, EDX;
+    KrCPUID(CPUID_LEAF_TSC_NCC_CLK_INFO, EAX, EBX, ECX, EDX);
+    KrdwtpOutFormatText("%p PERCPUADDR, %u %u %u\n", (UINTPTR) KrThisCpu(), ECX, EBX, EAX);
+
+    if (ECX == 0)
+    {
+        DWORD X0, X1, X2;
+        KrCPUID(CPUID_LEAF_FREQUENCY_INFO, ECX, X0, X1, X2);
+    }
+    
+    //KrThisCpu()->FreqTSC = ECX * (EBX / EAX);
+}
+
+VOID ApicSetTimerInterruptsEnabled(BOOL bEnabled)
+{
+    DWORD LTR = MmioRead32(g_KernelState.MmioInfo.VaddrApicBase, APIC_REG_LTR);
+    if (bEnabled)
+    {
+        LTR &= ~APIC_LTR_TIMER_INT_BLOCK;
+    }
+    else
+    {
+        LTR |= APIC_LTR_TIMER_INT_BLOCK;
+    }
+    MmioWrite32(g_KernelState.MmioInfo.VaddrApicBase, APIC_REG_LTR, LTR);
+}
+
 VOID ApicIssueEndOfInt(VOID)
 {
-    *(volatile DWORD*)(g_KernelState.MmioInfo.VaddrApicBase + APIC_REG_EOI) = 0;
+    MmioWrite32(g_KernelState.MmioInfo.VaddrApicBase, APIC_REG_EOI, 0);
 }
 
 VOID ApicWaitForIcrIdle(VOID)
@@ -123,6 +166,11 @@ VOID ApicWaitForIcrIdle(VOID)
     {
         KrProcessorPause();
     }
+}
+
+VOID ApicSetTimer(SIZE NanoSeconds)
+{
+    KrThisCpu()->FreqTSC;
 }
 
 VOID ApicIssueIpi(const KrIpiConfig* pConfig)
