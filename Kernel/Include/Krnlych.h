@@ -30,6 +30,7 @@
 #define KR_PACKED                   __attribute__((packed))
 #define KR_ALIGNED(N)               __attribute__((aligned(N)))
 #define KR_SECTION(S)               __attribute__((section(S)))
+#define KR_STATIC_UNREACHABLE()     __builtin_unreachable()
 #define KR_STATIC_ASSERT(Expr, Msg) _Static_assert((Expr), Msg) // Thank the C committee for this shitty naming convention that we need a macro to make it readable.
 
 #define VOID           void

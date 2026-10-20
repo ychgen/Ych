@@ -46,6 +46,9 @@ VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
     // This mandates the exception to be caused from nonpresent entry, occur in supervisor (aka not user) and to be data-related (aka not instr.)
     if (!(pInterruptFrame->ErrorCode & PFEC_PRESENT) && !(pInterruptFrame->ErrorCode & PFEC_USER) && !(pInterruptFrame->ErrorCode & PFEC_INSTRUCTION))
     {
+        // TODO: (Overall TODO)
+        // Currently VmMapStatic and this use distinct code blocks to do relatively the same thing. Unify that some time into a Page Walk system 
+
         KrVirtualMemoryRegion* pRegion = VmLocateRegion(KrGetKernelAddressSpace(), VaddrFault);
         if (!pRegion)
         {

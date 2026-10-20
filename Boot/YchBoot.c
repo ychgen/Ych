@@ -14,61 +14,59 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     Print(L"YchBoot loaded.\n");
 
     EFI_HANDLE* pSimpleFsHandles = NULL;
-    UINTN simpleFsHandleCount = 0;
-    EFI_STATUS status = uefi_call_wrapper(
+    UINTN SimpleFsHandleCount = 0;
+    EFI_STATUS Status = uefi_call_wrapper(
         gBS->LocateHandleBuffer,
         5,
         ByProtocol,
         &gEfiSimpleFileSystemProtocolGuid,
         NULL,
-        &simpleFsHandleCount,
+        &SimpleFsHandleCount,
         &pSimpleFsHandles
     );
 
-    if (EFI_ERROR(status))
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to locate FS handles: %r\n", status);
-        return status;
+        Print(L"Failed to locate FS handles: %r\n", Status);
+        return Status;
     }
 
     // For now assume 2nd FAT32 is OS partition, TODO: later change and check each.
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
-    status = uefi_call_wrapper(gBS->HandleProtocol, 3, pSimpleFsHandles[1], &gEfiSimpleFileSystemProtocolGuid, (void**) &fs);
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* pFileSystem;
+    Status = uefi_call_wrapper(gBS->HandleProtocol, 3, pSimpleFsHandles[1], &gEfiSimpleFileSystemProtocolGuid, (void**) &pFileSystem);
     
-    if (EFI_ERROR(status))
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to open OS FS handle: %r\n", status);
-        return status;
+        Print(L"Failed to open OS FS handle: %r\n", Status);
+        return Status;
     }
 
     // Open volume
-    EFI_FILE_PROTOCOL* root;
-    status = uefi_call_wrapper(fs->OpenVolume, 2, fs, &root); 
-    if (EFI_ERROR(status))
+    EFI_FILE_PROTOCOL* pOsFileSystem;
+    Status = uefi_call_wrapper(pFileSystem->OpenVolume, 2, pFileSystem, &pOsFileSystem); 
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to open OS volume: %r\n", status);
-        return status;
+        Print(L"Failed to open OS volume: %r\n", Status);
+        return Status;
     }
 
-    VOID* ldAddrBootelvt = (VOID*) BOOTELVT_LOAD_ADDRESS;
-    VOID* ldAddrKrnl     = (VOID*) KERNEL_LOAD_ADDRESS;
-    UINT64 szKrnl;
+    UINT64 KernelSize;
 
-    status = YchReadFile(root, BOOTELVT_FILE_NAME_ON_DISK_U16LE, ldAddrBootelvt, NULL);
-    if (EFI_ERROR(status))
+    Status = YchbootReadFile(pOsFileSystem, BOOTELVT_FILE_NAME_ON_DISK_U16LE, BOOTELVT_LOAD_ADDRESS, NULL);
+    if (EFI_ERROR(Status))
     {
         Print(L"CRITICAL BOOT CHAIN ERROR: BOOT ELEVATE (BOOTELVT.BIN) NOT FOUND!\n");
-        return status;
+        return Status;
     }
-    status = YchReadFile(root, KERNEL_FILE_NAME_ON_DISK_U16LE, ldAddrKrnl, &szKrnl);
-    if (EFI_ERROR(status))
+    Status = YchbootReadFile(pOsFileSystem, KERNEL_FILE_NAME_ON_DISK_U16LE, KERNEL_LOAD_ADDRESS, &KernelSize);
+    if (EFI_ERROR(Status))
     {
         Print(L"CRITICAL BOOT CHAIN ERROR: KERNEL (KRNLYCH.KR) NOT FOUND!\n");
-        return status;
+        return Status;
     }
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL* pGOP;
-    status = uefi_call_wrapper
+    Status = uefi_call_wrapper
     (
         gBS->LocateProtocol,
         3,
@@ -77,23 +75,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
         (void**) &pGOP
     );
 
-    if (EFI_ERROR(status))
+    if (EFI_ERROR(Status))
     {
-        Print(L"GOP (Graphics Output Protocol) not found: %r\n", status);
-        return status;
+        Print(L"GOP (Graphics Output Protocol) not found: %r\n", Status);
+        return Status;
     }
 
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION pBestModeCache = {0};
     UINT32 iBestVideoModeCandidate = -1;
 
-    BOOLEAN bIsOVMF = hypervisor_present();
+    BOOLEAN bIsHypervisor = YchbootIsHypervisorPresent();
     for (UINT32 i = 0; i < pGOP->Mode->MaxMode; i++)
     {
         EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* pModeInfo;
         UINTN sz;
 
-        status = uefi_call_wrapper(pGOP->QueryMode, 4, pGOP, i, &sz, &pModeInfo);
-        if (EFI_ERROR(status))
+        Status = uefi_call_wrapper(pGOP->QueryMode, 4, pGOP, i, &sz, &pModeInfo);
+        if (EFI_ERROR(Status))
         {
             continue;
         }
@@ -111,7 +109,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
                 pBestModeCache = *pModeInfo;
             }
             // On VM choose smaller resolution.
-            if (bIsOVMF && pModeInfo->HorizontalResolution == 1280 && pModeInfo->VerticalResolution == 720)
+            if (bIsHypervisor && pModeInfo->HorizontalResolution == 1280 && pModeInfo->VerticalResolution == 720)
             {
                 break;
             }
@@ -120,33 +118,33 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
 
     if (iBestVideoModeCandidate != -1 && pBestModeCache.VerticalResolution && pBestModeCache.HorizontalResolution)
     {
-        status = uefi_call_wrapper(pGOP->SetMode, 2, pGOP, iBestVideoModeCandidate);
-        if (EFI_ERROR(status))
+        Status = uefi_call_wrapper(pGOP->SetMode, 2, pGOP, iBestVideoModeCandidate);
+        if (EFI_ERROR(Status))
         {
-            Print(L"WARN: GOP SetVideoMode failed: %r. Boot-time default video mode will be used.\n", status);
+            Print(L"WARN: GOP SetVideoMode failed: %r. Boot-time default video mode will be used.\n", Status);
         }
     }
 
-    KrSystemInfoPack bootInfo = {0};
+    KrSystemInfoPack BootInfo = {0};
 
-    bootInfo.Magic                    = SYSTEM_INFO_PACK_MAGIC;
-    bootInfo.KernelReserveSize        = KERNEL_RESERVE_SIZE;
-    bootInfo.KernelBinarySize         = (uint64_t) szKrnl;
-    bootInfo.KernelPhysicalBase       = (uintptr_t) ldAddrKrnl;
-    bootInfo.KernelVirtualBase        = KERNEL_VIRTUAL_ADDRESS;
-    bootInfo.KernelStackPhysicalBase  = bootInfo.KernelPhysicalBase + bootInfo.KernelReserveSize;
-    bootInfo.KernelStackVirtualBase   = bootInfo.KernelVirtualBase + bootInfo.KernelReserveSize;
-    bootInfo.KernelBootstrapArenaBase = BOOTSTRAP_KERNEL_AREA_BEGIN;
-    bootInfo.KernelBootstrapArenaSize = BOOTSTRAP_KERNEL_AREA_SIZE;
+    BootInfo.Magic                    = SYSTEM_INFO_PACK_MAGIC;
+    BootInfo.KernelReserveSize        = KERNEL_RESERVE_SIZE;
+    BootInfo.KernelBinarySize         = (uint64_t) KernelSize;
+    BootInfo.KernelPhysicalBase       = KERNEL_LOAD_ADDRESS;
+    BootInfo.KernelVirtualBase        = KERNEL_VIRTUAL_ADDRESS;
+    BootInfo.KernelStackPhysicalBase  = BootInfo.KernelPhysicalBase + BootInfo.KernelReserveSize;
+    BootInfo.KernelStackVirtualBase   = BootInfo.KernelVirtualBase + BootInfo.KernelReserveSize;
+    BootInfo.KernelBootstrapArenaBase = BOOTSTRAP_KERNEL_AREA_BEGIN;
+    BootInfo.KernelBootstrapArenaSize = BOOTSTRAP_KERNEL_AREA_SIZE;
 
-    bootInfo.GraphicsInfo.PhysicalFramebufferAddress = pGOP->Mode->FrameBufferBase;
-    bootInfo.GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
-    bootInfo.GraphicsInfo.FramebufferWidth = pGOP->Mode->Info->HorizontalResolution;
-    bootInfo.GraphicsInfo.FramebufferHeight = pGOP->Mode->Info->VerticalResolution;
-    bootInfo.GraphicsInfo.PixelsPerScanLine = pGOP->Mode->Info->PixelsPerScanLine;
+    BootInfo.GraphicsInfo.PhysicalFramebufferAddress = pGOP->Mode->FrameBufferBase;
+    BootInfo.GraphicsInfo.FramebufferSize = pGOP->Mode->FrameBufferSize;
+    BootInfo.GraphicsInfo.FramebufferWidth = pGOP->Mode->Info->HorizontalResolution;
+    BootInfo.GraphicsInfo.FramebufferHeight = pGOP->Mode->Info->VerticalResolution;
+    BootInfo.GraphicsInfo.PixelsPerScanLine = pGOP->Mode->Info->PixelsPerScanLine;
 
     // RSDP
-    bootInfo.PhysAddrRSDP = YchLocateRSDP(pSystemTable);
+    BootInfo.PhysAddrRSDP = YchbootLocateRSDP(pSystemTable);
 
     UINTN szMemoryMap = 0;
     EFI_MEMORY_DESCRIPTOR* pMemoryMap = NULL;
@@ -154,33 +152,33 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     UINTN szDescriptor; // Descriptor size
     UINT32 vDescriptor; // Descriptor version
 
-    status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
-    if (status != EFI_BUFFER_TOO_SMALL) // status is expected to be EFI_BUFFER_TOO_SMALL.
+    Status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
+    if (Status != EFI_BUFFER_TOO_SMALL) // Status is expected to be EFI_BUFFER_TOO_SMALL.
     {
-        Print(L"Failed to acquire the memory map: %r\n", status);
-        return status;
+        Print(L"Failed to acquire the memory map: %r\n", Status);
+        return Status;
     }
 
     szMemoryMap += szDescriptor * 2;
     pMemoryMap   = AllocatePool(szMemoryMap);
 
-    status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
-    if (EFI_ERROR(status))
+    Status = uefi_call_wrapper(gBS->GetMemoryMap, 5, &szMemoryMap, pMemoryMap, &kMapKey, &szDescriptor, &vDescriptor);
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to acquire the memory map(2nd pass): %r\n", status);
-        return status;
+        Print(L"Failed to acquire the memory map(2nd pass): %r\n", Status);
+        return Status;
     }
     
     // Call ExitBootServices, exiting UEFI Firmware completely. OS now has full control over memory hereafter.
     uefi_call_wrapper(gBS->ExitBootServices, 2, ImageHandle, kMapKey);
 
-    bootInfo.MemoryMapInfo.PhysicalAddress = MEMORY_MAP_ADDRESS;
-    bootInfo.MemoryMapInfo.EntryCount = szMemoryMap / szDescriptor;
-    bootInfo.MemoryMapInfo.MemoryMapSize = bootInfo.MemoryMapInfo.EntryCount * sizeof(KrMemoryDescriptor);
-    bootInfo.MemoryMapInfo.PageSize = 4096; // per UEFI MEMORY_DESCRIPTOR standard
-    bootInfo.MemoryMapInfo.Pad = 0;
+    BootInfo.MemoryMapInfo.PhysicalAddress = MEMORY_MAP_ADDRESS;
+    BootInfo.MemoryMapInfo.EntryCount = szMemoryMap / szDescriptor;
+    BootInfo.MemoryMapInfo.MemoryMapSize = BootInfo.MemoryMapInfo.EntryCount * sizeof(KrMemoryDescriptor);
+    BootInfo.MemoryMapInfo.PageSize = 4096; // per UEFI MEMORY_DESCRIPTOR standard
+    BootInfo.MemoryMapInfo.Pad = 0;
 
-    KrMemoryDescriptor* pDescEntries = (KrMemoryDescriptor*) bootInfo.MemoryMapInfo.PhysicalAddress;
+    KrMemoryDescriptor* pDescEntries = (KrMemoryDescriptor*) BootInfo.MemoryMapInfo.PhysicalAddress;
     for (UINT64 i = 0; i < szMemoryMap / szDescriptor; i++)
     {
         EFI_MEMORY_DESCRIPTOR* pEfiDesc = (EFI_MEMORY_DESCRIPTOR*)(((UINT8*) pMemoryMap) + i * szDescriptor);
@@ -197,14 +195,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* pSystemTabl
     __asm__ __volatile__ (
         "cli\n\t"
         "mov %[stack], %%rsp\n\t"
-        "mov %[bootinfosize], %%rcx\n\t"
-        "mov %[bootinfo], %%rsi\n\t"
+        "mov %[BootInfosize], %%rcx\n\t"
+        "mov %[BootInfo], %%rsi\n\t"
         "jmp *%[bootelvt]\n\t"
          :
-         : [stack]    "r"(bootInfo.KernelStackPhysicalBase),
-           [bootinfosize] "r"(szstruct),
-           [bootinfo] "r"(&bootInfo),
-           [bootelvt]   "r"(ldAddrBootelvt)
+         : [stack]    "r"(BootInfo.KernelStackPhysicalBase),
+           [BootInfosize] "r"(szstruct),
+           [BootInfo] "r"(&BootInfo),
+           [bootelvt]   "r"((uintptr_t) BOOTELVT_LOAD_ADDRESS)
          : "rdi", "rcx"
     );
 

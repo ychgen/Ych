@@ -4,7 +4,7 @@
 #include "Krnlych.h"
 
 // spin loop optimization and such
-VOID KrProcessorPause(VOID); 
+#define KrProcessorPause() __asm__ __volatile__ ("pause\n\t")
 
 KR_NORETURN VOID KrProcessorHalt(VOID);
 

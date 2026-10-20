@@ -3,24 +3,44 @@
 #include "Core/KernelState.h"
 
 #include "CPU/Interrupt.h"
+#include "CPU/Spinlock.h"
 #include "CPU/Halt.h"
 #include "CPU/CR.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"\
+#include "Intmgmt/NMI.h"
 
-#define MDMSGPREFIX  "\n!!!KERNEL MELTDOWN!!!\nMDCODE=0x%RX(%s),MDDESC=`%s`\n"
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
+#define MDMSGWARNPREFIX "\n!!!KERNEL MELTDOWN!!!\n"
+#define MDMSGCATASTROPHICPREFIX "\n!!!CATASTRPHIC KERNEL MELTDOWN!!!\n"
+
+#define MDMSGPREFIX  "MDCODE=0x%RX(%s),MDDESC=`%s`\n"
 #define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, only God can resurrect the system as-is.\nHard reset your machine, the system is now halted.\n"
 
-KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnapshot* pSnapshot)
+static Spinlock sg_MeltdownSpinlock = {0};
+
+KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, const KrProcessorSnapshot* pSnapshot)
 {
+    AcquireOrWaitSpinlock(&sg_MeltdownSpinlock); // We won't let go of this
+
     KrDisableInterrupts();
     g_KernelState.bMeltdown = TRUE;
+
+    // Make sure all other CPUs stop
+    NmiMeltdownData NmiData = {
+        .MdCode = MdCode
+    };
+    UINT NrCpusComplied;
+    RaiseGlobalNonmaskableInterrupt(FALSE, NMI_REASON_MELTDOWN, &NmiData, &NrCpusComplied);
+
+    g_KernelState.bMeltdownCatastrophic = NrCpusComplied != g_KernelState.SmpInfo.ActiveProcessorCount;
 
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
         // Clear fbuf and move cursor to start.
-        KrdwtpResetState(KRDWTP_COLOR_DARK_PURPLE);
+        KrdwtpResetState(KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF));
 
+        KrdwtpOutText(g_KernelState.bMeltdownCatastrophic ? MDMSGCATASTROPHICPREFIX : MDMSGWARNPREFIX);
         if (pSnapshot)
         {
             QWORD CR0; KrReadCR0(CR0);
@@ -39,7 +59,7 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnaps
                 "CR0=0x%RX\nCR2=0x%RX\nCR3=0x%RX\nCR4=0x%RX\n"
                  MDMSGPOSTFIX,
 
-                mdCode, Krnlmddesc(mdCode), szDesc,
+                MdCode, Krnlmddesc(MdCode), MdDesc,
                 pSnapshot->R15, pSnapshot->R14, pSnapshot->R13, pSnapshot->R12,
                 pSnapshot->R11, pSnapshot->R10, pSnapshot->R9,  pSnapshot->R8,
                 pSnapshot->RDI, pSnapshot->RSI, pSnapshot->RBP, pSnapshot->RDX,
@@ -50,8 +70,15 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE mdCode, CSTR szDesc, const KrProcessorSnaps
         }
         else
         {
-            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, mdCode, Krnlmddesc(mdCode), szDesc);
+            KrdwtpOutFormatText(MDMSGPREFIX "\nIrregular call to Krnlmeltdown routine;\nNo processor snapshot was provided.\n" MDMSGPOSTFIX, MdCode, Krnlmddesc(MdCode), MdDesc);
         }
+    }
+
+    if (g_KernelState.bMeltdownCatastrophic)
+    {
+        KrdwtpOutFormatText("\nA total of %u logical processor(s) did not respond to nor acknowledged the meltdown nonmaskable interrupt!"
+        " It is advised that you reset the machine immediately in case that/those logical processor(s) try/tries to do things!\n"
+        "This is why this meltdown is classified as catastrophic!", g_KernelState.SmpInfo.ActiveProcessorCount - NrCpusComplied);
     }
 
     // Halt indefinitely.

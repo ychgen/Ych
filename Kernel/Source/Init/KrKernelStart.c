@@ -152,7 +152,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrInitMem();
 
     // Initialize APIC only AFTER initializing the interrupt subsystem via KrInitInt().
-    if (!KrApicInit())
+    if (!KrApicInit(TRUE))
     {
         MDCODE mdCode = KR_MDCODE_LOCAL_APIC_INIT_FAILURE;
         CSTR szMdDesc = "Local APIC initialization failure.";
@@ -195,9 +195,11 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Initialize & bring-up the Application Processors.
     KrInitSMP();
 
+    // ======= STOP HERE =========== //
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
     // ======= STOP HERE =========== //
     KrProcessorHalt();
+    // ======= STOP HERE =========== //
 
 #include "Krnlstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */
 }

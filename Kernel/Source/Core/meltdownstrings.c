@@ -29,6 +29,7 @@ CSTR Krnlmddesc(MDCODE mdCode)
         mkcase(KR_MDCODE_ISSUE_IPI_DEVCHECK);
         mkcase(KR_MDCODE_HIGH_CR3_RESIDENT_DEVCHECK);
         mkcase(KR_MDCODE_AP_BOOTSTRAP_LOW_ID_MAP_FAIL);
+        mkcase(KR_MDCODE_BOGUS_NMI_REASON);
         /** FIRMWARE */
         mkcase(KR_MDCODE_CORRUPT_ACPI_RSDP);
         mkcase(KR_MDCODE_ACPI_SDT_CHECKSUM_NV);

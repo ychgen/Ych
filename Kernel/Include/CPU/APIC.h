@@ -68,7 +68,7 @@ UINTPTR KrApicGetPhysicalBase(VOID);
 VOID KrApicSetPhysicalBase(UINTPTR PhysAddr);
 
 BOOL KrApicCheckSupport(VOID);
-BOOL KrApicInit(VOID);
+BOOL KrApicInit(BOOL bIsCallerBSP);
 
 VOID ApicIssueEndOfInt(VOID);
 

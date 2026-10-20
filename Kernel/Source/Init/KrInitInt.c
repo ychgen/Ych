@@ -12,6 +12,8 @@
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Intmgmt/NMI.h"
+
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 // If you are having #PF during early boot (before VMM can reassign #PF handler), set this to TRUE so you can see the error code.
@@ -80,6 +82,7 @@ VOID KrInitInt(VOID)
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt, FALSE);
 #endif // KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_BREAKPOINT, KrBreakpointInterrupt, FALSE);
+    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_NON_MASKABLE_INTERRUPT, IntmgmtNonmaskableInterrupt, FALSE);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
     // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,

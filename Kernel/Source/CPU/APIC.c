@@ -81,7 +81,7 @@ BOOL KrApicCheckSupport(VOID)
     return EDX & KR_CPUID_FEAT_EDX_APIC;
 }
 
-BOOL KrApicInit(VOID)
+BOOL KrApicInit(BOOL bIsCallerBSP)
 {
     if (!KrApicCheckSupport())
     {
@@ -93,17 +93,20 @@ BOOL KrApicInit(VOID)
     msrApicBase |= IA32_APIC_BASE_EN;
     KrWriteMSR(IA32_APIC_BASE, msrApicBase);
 
-    //KrApicSetPhysicalBase(LOCAL_APIC_BASE_ADDRESS); // we like this address
-    if (KrApicGetPhysicalBase() != LOCAL_APIC_BASE_ADDRESS)
+    if (bIsCallerBSP)
     {
-        return FALSE;
-    }
-    // Map Local APIC into virtual address space, 1 page is enough to cover all registers
-    g_KernelState.MmioInfo.VaddrApicBase = MmioMapDevice("Processor Local APIC", LOCAL_APIC_BASE_ADDRESS, 4096, MMIO_NF);
+        //KrApicSetPhysicalBase(LOCAL_APIC_BASE_ADDRESS); // we like this address
+        if (KrApicGetPhysicalBase() != LOCAL_APIC_BASE_ADDRESS)
+        {
+            return FALSE;
+        }
+        // Map Local APIC into virtual address space, 1 page is enough to cover all registers
+        g_KernelState.MmioInfo.VaddrApicBase = MmioMapDevice("Processor Local APIC", LOCAL_APIC_BASE_ADDRESS, 4096, MMIO_NF);
 
-    if (!g_KernelState.MmioInfo.VaddrApicBase)
-    {
-        return FALSE;
+        if (!g_KernelState.MmioInfo.VaddrApicBase)
+        {
+            return FALSE;
+        }
     }
     
     return TRUE;

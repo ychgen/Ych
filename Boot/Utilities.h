@@ -3,75 +3,64 @@
 
 #include "blstd.h"
 
-BOOLEAN YchCompareGuid(const EFI_GUID* a, const EFI_GUID* b)
+BOOLEAN YchbootCompareGuid(const EFI_GUID* LHS, const EFI_GUID* RHS)
 {
-    return a->Data1 == b->Data1 &&
-           a->Data2 == b->Data2 &&
-           a->Data3 == b->Data3 &&
-           a->Data4[0] == b->Data4[0] &&
-           a->Data4[1] == b->Data4[1] &&
-           a->Data4[2] == b->Data4[2] &&
-           a->Data4[3] == b->Data4[3] &&
-           a->Data4[4] == b->Data4[4] &&
-           a->Data4[5] == b->Data4[5] &&
-           a->Data4[6] == b->Data4[6] &&
-           a->Data4[7] == b->Data4[7];
+    return LHS->Data1    == RHS->Data1    &&
+           LHS->Data2    == RHS->Data2    &&
+           LHS->Data3    == RHS->Data3    &&
+           LHS->Data4[0] == RHS->Data4[0] &&
+           LHS->Data4[1] == RHS->Data4[1] &&
+           LHS->Data4[2] == RHS->Data4[2] &&
+           LHS->Data4[3] == RHS->Data4[3] &&
+           LHS->Data4[4] == RHS->Data4[4] &&
+           LHS->Data4[5] == RHS->Data4[5] &&
+           LHS->Data4[6] == RHS->Data4[6] &&
+           LHS->Data4[7] == RHS->Data4[7];
 }
 
-EFI_STATUS YchReadFile(EFI_FILE_PROTOCOL* root, const CHAR16* filepath, VOID* ldAddr, UINT64* pOutFileSize)
+EFI_STATUS YchbootReadFile(EFI_FILE_PROTOCOL* pRoot, const CHAR16* pFilepath, uintptr_t AddrLoad, UINT64* pOutFileSize)
 {
-    EFI_FILE_PROTOCOL* file;
-    EFI_STATUS status = uefi_call_wrapper(root->Open, 5, root, &file, filepath, EFI_FILE_MODE_READ, 0);
-    if (EFI_ERROR(status))
+    EFI_FILE_PROTOCOL* pFile;
+    EFI_STATUS Status = uefi_call_wrapper(pRoot->Open, 5, pRoot, &pFile, pFilepath, EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to open file `%s`: %r\n", filepath, status);
-        return status;
+        Print(L"Failed to open file `%s`: %r\n", pFilepath, Status);
+        return Status;
     }
 
-    EFI_FILE_INFO* fileInfo;
-    UINTN fileInfoSize = sizeof(EFI_FILE_INFO) + 1024;
-    fileInfo = (EFI_FILE_INFO*) uefi_call_wrapper(AllocatePool, 1, fileInfoSize);
-    status = uefi_call_wrapper(file->GetInfo, 4, file, &gEfiFileInfoGuid, &fileInfoSize, fileInfo);
-    if (EFI_ERROR(status))
+    EFI_FILE_INFO* pFileInfo;
+    UINTN FileInfoSize = sizeof(EFI_FILE_INFO) + 1024;
+    pFileInfo = (EFI_FILE_INFO*) uefi_call_wrapper(AllocatePool, 1, FileInfoSize);
+    Status = uefi_call_wrapper(pFile->GetInfo, 4, pFile, &gEfiFileInfoGuid, &FileInfoSize, pFileInfo);
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to get file size `%s`: %r\n", filepath, status);
-        return status;
+        Print(L"Failed to get file size `%s`: %r\n", pFilepath, Status);
+        return Status;
     }
-    UINTN szFile = (UINTN) fileInfo->FileSize;
-    uefi_call_wrapper(FreePool, 1, fileInfo);
+    UINTN FileSize = (UINTN) pFileInfo->FileSize;
+    uefi_call_wrapper(FreePool, 1, pFileInfo);
 
-    status = uefi_call_wrapper(file->Read, 3, file, &szFile, ldAddr);
-    if (EFI_ERROR(status))
+    Status = uefi_call_wrapper(pFile->Read, 3, pFile, &FileSize, (void*) AddrLoad);
+    if (EFI_ERROR(Status))
     {
-        Print(L"Failed to load file into memory `%s`: %r\n", filepath, status);
-        return status;
+        Print(L"Failed to load file into memory `%s`: %r\n", pFilepath, Status);
+        return Status;
     }
-    uefi_call_wrapper(file->Close, 1, file);
-    if(pOutFileSize)
+    uefi_call_wrapper(pFile->Close, 1, pFile);
+    if (pOutFileSize)
     {
-        *pOutFileSize = szFile;
+        *pOutFileSize = FileSize;
     }
-    return status;
+    return Status;
 }
 
-BOOLEAN IsOVMF(void)
-{
-    CHAR16 *fwVendor = ST->FirmwareVendor;
-    if (fwVendor == NULL) return FALSE;
-
-    if (StrStr(fwVendor, L"EDK II") != NULL) {
-        return TRUE;
-    }
-    return FALSE;
-}
-
-uintptr_t YchLocateRSDP(EFI_SYSTEM_TABLE* pSystemTable)
+uintptr_t YchbootLocateRSDP(EFI_SYSTEM_TABLE* pSystemTable)
 {   
     const EFI_GUID Acpi20 = ACPI_20_TABLE_GUID;
     for (UINTN i = 0; i < pSystemTable->NumberOfTableEntries; i++)
     {
         EFI_CONFIGURATION_TABLE* pConfigTable = pSystemTable->ConfigurationTable + i;
-        if (YchCompareGuid(&pConfigTable->VendorGuid, &Acpi20))
+        if (YchbootCompareGuid(&pConfigTable->VendorGuid, &Acpi20))
         {
             return (uintptr_t) pConfigTable->VendorTable;
         }
@@ -79,17 +68,18 @@ uintptr_t YchLocateRSDP(EFI_SYSTEM_TABLE* pSystemTable)
     return 0;
 }
 
-static inline int hypervisor_present(void)
+UINT32 YchbootIsHypervisorPresent(void)
 {
-    unsigned int ecx;
+    UINT32 ECX;
 
-    __asm__ volatile (
+    __asm__ __volatile__
+    (
         "cpuid"
-        : "=c"(ecx)
+        : "=c"(ECX)
         : "a"(1)
         : "ebx", "edx"
     );
 
-    return (ecx & (1u << 31)) != 0;
+    return (ECX & (1u << 31)) != 0;
 }
 

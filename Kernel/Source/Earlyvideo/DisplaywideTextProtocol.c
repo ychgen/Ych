@@ -157,9 +157,9 @@ VOID KrdwtpOutColoredCharacter_NoSpin(CHAR Char, DWORD ForegroundColor, DWORD Ba
                     UINT FramebufferOffsetY = dwStartY + Row * pFont->ScaleFactor + ScalarY;
                     UINT FramebufferOffsetX = dwStartX + bit   * pFont->ScaleFactor + ScalarX;
                     ((DWORD*) sg_ProtocolState.AddrFrameBuffer)[FramebufferOffsetY * sg_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
-                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
+                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_COLOR_DARK_PURPLE : BackgroundColor); // BIG HACK!
                     ((DWORD*) sg_ProtocolState.AddrRamFrameBuffer)[FramebufferOffsetY * sg_ProtocolState.PixelsPerScanLine + FramebufferOffsetX]
-                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_MAKE_COLOR(0x2E, 0x00, 0x45, 0xFF) : BackgroundColor); // BIG HACK!
+                        = pxlit ? (ForegroundColor) : (g_KernelState.bMeltdown ? KRDWTP_COLOR_DARK_PURPLE : BackgroundColor); // BIG HACK!
                 }
             }
         }

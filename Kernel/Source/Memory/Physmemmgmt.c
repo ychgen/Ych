@@ -3,6 +3,8 @@
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
+#include "CPU/Spinlock.h"
+
 #include "Memory/BootstrapArena.h"
 #include "Memory/Virtmemmgmt.h"
 
@@ -13,6 +15,7 @@
 
 // Current PMM state information.
 static KrPhysmemmgmtState g_StatePMM = {0};
+static Spinlock sg_PmSpinlock;
 
 // Starting from page idStart, it sets N pages to Status. An internal function, doesn't care about permissions, sets directly.
 static BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, SIZE N, BYTE Status);
@@ -152,7 +155,6 @@ BOOL KrInitPhysMetaArray(VOID)
 
                 pMeta->RefCount = 1;
                 pMeta->Type = PAGE_TYPE_RESERVED;
-                pMeta->Flags = PAGE_FLAG_PINNED;
             }
         }
     }
@@ -172,6 +174,9 @@ DWORD PmAcquirePages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAc
         return 0;
     }
 
+    // acquire specifically here
+    AcquireOrWaitSpinlock(&sg_PmSpinlock);
+
     // This is a bit of a lie until near the end of the function where they are actually claimed.
     // Until then it acts more like a counter.
     UINT uNoAcquired = 0;
@@ -182,6 +187,7 @@ DWORD PmAcquirePages(PAGEID* pOutIDs, UINT uToAcquire, BYTE PageType, DWORD dwAc
 
     if (!KrIsValidPageID(PageID))
     {
+        goto ErrorOut;
         return 0;
     }
     
@@ -234,6 +240,7 @@ Hunt:
 
     if (!uNoAcquired)
     {
+        goto ErrorOut;
         return 0; // Hunting flies!
     }
 
@@ -283,7 +290,11 @@ Hunt:
     g_StatePMM.AcquiredPages += uNoAcquired;
     g_StatePMM.AcquireHint = (dwAcquisitionMethod & PAGE_ACQ_BASE_OUT_ONLY) ? *pOutIDs + uNoAcquired : pOutIDs[uNoAcquired - 1] + 1;
 
+    RelinquishSpinlock(&sg_PmSpinlock);
     return uNoAcquired;
+ErrorOut:
+    RelinquishSpinlock(&sg_PmSpinlock);
+    return 0;
 }
 
 PAGEID PmAcquirePage(BYTE PageType, PAGEID HintID)
@@ -301,6 +312,9 @@ BOOL PmRelinquishPage(PAGEID PageID)
         return FALSE;
     }
 
+    BOOL ReturnValue = FALSE;
+    AcquireOrWaitSpinlock(&sg_PmSpinlock);
+
     KrPhysicalPageMeta* pMeta = NULLPTR;
     if (g_StatePMM.InitStage >= PMM_INIT_STAGE_BOOKKEEPING)
     {
@@ -315,11 +329,13 @@ BOOL PmRelinquishPage(PAGEID PageID)
 
         if (!pMeta->RefCount)
         {
-            return FALSE; // Page has no references, cannot relinquish
+            ReturnValue = FALSE; // Page has no references, cannot relinquish
+            goto Return;
         }
         if (--pMeta->RefCount)
         {
-            return TRUE; // This reference was relinquished successfully.
+            ReturnValue = TRUE; // This reference was relinquished successfully.
+            goto Return;
         }
         // falls through if RefCount - 1 resulted in 0
     }
@@ -327,7 +343,8 @@ BOOL PmRelinquishPage(PAGEID PageID)
     SIZE Index = PageID / 8;
     if (Index >= g_StatePMM.Private.BitmapSize)
     {
-        return FALSE;
+        ReturnValue = FALSE;
+        goto Return;
     }
     BYTE BitOffset = PageID % 8;
 
@@ -336,10 +353,14 @@ BOOL PmRelinquishPage(PAGEID PageID)
     {
         g_StatePMM.Private.pPrimaryBitmap[Index] &= ~(1 << BitOffset);
         g_StatePMM.AcquiredPages--;
-        return TRUE;
+        
+        ReturnValue = TRUE;
+        goto Return;
     }
 
-    return FALSE;
+Return:
+    PmRelinquishPage(&sg_PmSpinlock);
+    return ReturnValue;
 }
 
 static BOOL KrSetPhysicalPageStatus(BYTE* pBitmap, PAGEID idStart, SIZE N, BYTE Status)

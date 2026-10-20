@@ -1,10 +1,5 @@
 #include "CPU/Halt.h"
 
-VOID KrProcessorPause(VOID)
-{
-    __asm__ __volatile__ ("pause\n\t");
-}
-
 KR_NORETURN VOID KrProcessorHalt(VOID)
 {
     __asm__ __volatile__("cli\n\t"); // Clear maskable interrupts

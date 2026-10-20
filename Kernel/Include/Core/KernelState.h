@@ -3,6 +3,7 @@
 
 #include "Krnlych.h"
 #include "ACPI/ACPI.h"
+#include "Core/Krnlmeltdown.h"
 #include "BootContract/BootContract.h"
 
 #define MAX_SMP_PROCESSORS 256
@@ -60,6 +61,9 @@ typedef struct
 
 typedef struct
 {
+    // Ordered UINT array that contains all valid CPU IDs. Element count = ActiveProcessorCount
+    UINT* pCpuIDs;
+
     UINT IdealProcessorCount;  // Ideal amount of processors that should be active after AP bringup.
     UINT ActiveProcessorCount; // How many logical processors currently active.
 
@@ -93,6 +97,8 @@ typedef struct
 {
     /** If TRUE, kernel has entered Kernel Meltdown. Only God can help us. */
     BOOL bMeltdown;
+    /** Set to TRUE when meltdown was caused but not all cores complied and shut down. */
+    BOOL bMeltdownCatastrophic;
 
     /** Kernel Load Information, containing fields like load address and certain area sizes. */
     KrLoadInfo LoadInfo;

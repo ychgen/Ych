@@ -7,6 +7,7 @@
 #include "Core/Assert.h"
 
 #include "CPU/PerCpu.h"
+#include "CPU/Stall.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
 #include "CPU/GDT.h"
@@ -39,9 +40,6 @@ static UINTPTR sg_InitialStacks[MAX_SMP_PROCESSORS] = {0};
 
 extern char __KR_LINK_APBOOTSTRAP_START[];
 extern char __KR_LINK_APBOOTSTRAP_END[];
-
-static QWORD ReadTSC(VOID);
-static VOID Stall(ULONG ClockCycles);
 
 VOID KrInitSMP(VOID)
 {
@@ -113,7 +111,7 @@ VOID KrInitSMP(VOID)
     IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
     
     ApicIssueIpi(&IpiConfig);
-    Stall(50000000); // This guarantees a wait of around ~10 ms for a 5 GHz processor.
+    KrProcessorStall(50000000);
 
     IpiConfig.IntVector = KR_AP_START_ADDRESS >> 12;
     IpiConfig.eDeliveryMode = IPI_DELIVERY_SIPI;
@@ -123,7 +121,7 @@ VOID KrInitSMP(VOID)
     IpiConfig.eDestShorthand = IPI_SHORTHAND_ALL_XSLF;
 
     ApicIssueIpi(&IpiConfig);
-    Stall(1250000);
+    KrProcessorStall(1250000);
 
     UINT NrTimesAwaitedCPUs = 0;
 DoCpuInitCheck:
@@ -134,12 +132,12 @@ DoCpuInitCheck:
             "SMP initialization failure and timeout. Expected `%u` processors to report for duty, only `%u` did.",
             g_KernelState.SmpInfo.IdealProcessorCount,
             g_KernelState.SmpInfo.ActiveProcessorCount
-        );
+        ); KR_STATIC_UNREACHABLE();
     }
     if (g_KernelState.SmpInfo.ActiveProcessorCount != g_KernelState.SmpInfo.IdealProcessorCount)
     {
         NrTimesAwaitedCPUs++;
-        Stall(1250000);
+        KrProcessorStall(1250000);
         goto DoCpuInitCheck;
     }
 
@@ -147,31 +145,14 @@ DoCpuInitCheck:
         KR_MDCODE_SMP_BRINGUP_FAILURE,
         "One or more processors reinitialized!");
 
-    KrdwtpOutFormatText("All `%u` processors have reported for duty. SMP initialization successful.\n", g_KernelState.SmpInfo.ActiveProcessorCount);
-}
-
-static QWORD ReadTSC(VOID)
-{
-    DWORD Lodword;
-    DWORD Hidword;
-    
-    __asm__ __volatile__
-    (
-        "lfence\n\t"
-        "rdtsc\n\t"
-        : "=a"(Lodword), "=d"(Hidword)
-        :
-        : "memory"
-    );
-
-    return (((QWORD) Hidword) << 32) | Lodword;
-}
-
-static VOID Stall(ULONG ClockCycles)
-{
-    QWORD InitialTSC = ReadTSC();
-    while (ReadTSC() < InitialTSC + ClockCycles)
+    g_KernelState.SmpInfo.pCpuIDs = (UINT*) HeapAcquire(g_KernelState.SmpInfo.ActiveProcessorCount * sizeof(UINT));
+    for (UINT i = 0, vi = 0; i < MAX_SMP_PROCESSORS && vi < g_KernelState.SmpInfo.ActiveProcessorCount; i++)
     {
-        KrProcessorPause();
+        if (g_KernelState.SmpInfo.ProcInfo[i].RFD)
+        {
+            g_KernelState.SmpInfo.pCpuIDs[vi++] = g_KernelState.SmpInfo.ProcInfo[i].LocalApicID;
+        }
     }
+
+    KrdwtpOutFormatText("All `%u` processors have reported for duty. SMP initialization successful.\n", g_KernelState.SmpInfo.ActiveProcessorCount);
 }
