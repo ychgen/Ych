@@ -4,6 +4,7 @@
 #include "Core/Assert.h"
 
 #include "CPU/Spinlock.h"
+#include "CPU/Atomic.h"
 #include "CPU/PerCpu.h"
 #include "CPU/Stall.h"
 #include "CPU/APIC.h"
@@ -30,8 +31,8 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         for (UINT i = 0; i < g_KernelState.SmpInfo.ActiveProcessorCount; i++)
         {
             DWORD ID = g_KernelState.SmpInfo.pCpuIDs[i];
-            UINT Idx = ID / (MAX_SMP_PROCESSORS / 8);
-            UINT Off = ID % (MAX_SMP_PROCESSORS / 8);
+            UINT Idx = ID / 8;
+            UINT Off = ID % 8;
 
             sg_ExpectAck[Idx] |= (1 << Off);
         }
@@ -67,8 +68,8 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
     sg_NmiInfo.InvokingCPU = KrThisCpuID();
     // self-acknowledge, we do this so this cpu doesn't wait for ack from itself that won't come when bInterruptSelf = FALSE
     {
-        UINT Idx = sg_NmiInfo.InvokingCPU / (MAX_SMP_PROCESSORS / 8);
-        UINT Off = sg_NmiInfo.InvokingCPU % (MAX_SMP_PROCESSORS / 8);
+        UINT Idx = sg_NmiInfo.InvokingCPU / 8;
+        UINT Off = sg_NmiInfo.InvokingCPU % 8;
 
         sg_NmiInfo.Ack[Idx] |= (1 << Off);
     }
@@ -155,14 +156,8 @@ GlobalNmiInfo* GetGlobalNmiInfo(VOID)
 
 static VOID ThisCpuAcknowledgeNMI(VOID)
 {
-    static Spinlock sl_AckSpinlock = {0};
+    UINT Idx = KrThisCpuID() / 8;
+    UINT Off = KrThisCpuID() % 8;
 
-    UINT Idx = KrThisCpuID() / (MAX_SMP_PROCESSORS / 8);
-    UINT Off = KrThisCpuID() % (MAX_SMP_PROCESSORS / 8);
-
-    AcquireOrWaitSpinlock(&sl_AckSpinlock);
-    {
-        sg_NmiInfo.Ack[Idx] |= (1 << Off);
-    }
-    RelinquishSpinlock(&sl_AckSpinlock);
+    AtomicOr8(sg_NmiInfo.Ack + Idx, (1 << Off));
 }

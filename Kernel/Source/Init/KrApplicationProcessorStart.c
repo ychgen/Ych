@@ -8,6 +8,7 @@
 #include "CPU/Halt.h"
 #include "CPU/GDT.h"
 #include "CPU/IDT.h"
+#include "CPU/CR.h"
 
 #include "Memory/Virtmemmgmt.h"
 #include "Memory/Krnlheap.h"
@@ -47,12 +48,25 @@ VOID KrApplicationProcessorStart(VOID)
         KrEnableInterrupts();
     }
 
+    // Setup CRs
+    {
+        QWORD CR;
+
+        KrReadCR0(CR);
+            CR |= KR_CR0_NE | KR_CR0_MP;
+        KrWriteCR0(CR);
+
+        KrReadCR4(CR);
+            CR |= KR_CR4_DE | KR_CR4_MCE | KR_CR4_OSXMMEXCPT | KR_CR4_OSXSAVE;
+        KrWriteCR4(CR);
+    }
+
     if (!KrApicInit(FALSE))
     {
         KrProcessorHalt();
     }
 
-    AtomicExchangeAndAdd32(&g_KernelState.SmpInfo.ActiveProcessorCount, 1);
+    AtomicExchangeAdd32(&g_KernelState.SmpInfo.ActiveProcessorCount, 1);
     g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].RFD = TRUE; // Reported for duty!
 
     KrProcessorHalt();
