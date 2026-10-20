@@ -20,6 +20,7 @@ CSTR Krnlmddesc(MDCODE code);
 #define KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION          (KR_CATEGORY_MDCODE_PROCESSOR +    1) // CPU Exception
 #define KR_MDCODE_LOCAL_APIC_INIT_FAILURE               (KR_CATEGORY_MDCODE_PROCESSOR +    2) // Processor incapable of x2APIC.
 #define KR_MDCODE_SMP_BRINGUP_FAILURE                   (KR_CATEGORY_MDCODE_PROCESSOR +    3) // One or more cores couldn't be brought up
+#define KR_MDCODE_SMP_SANITY_CHECK_FAILURE              (KR_CATEGORY_MDCODE_PROCESSOR +    4)
 
 /** KR_CATEGORY_MDCODE_MEMORY */
 

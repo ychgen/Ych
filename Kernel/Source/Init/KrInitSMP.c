@@ -15,6 +15,7 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 #include "KRTL/Krnlmem.h"
+#include "Intmgmt/NMI.h"
 
 #include "Memory/Virtmemmgmt.h"
 #include "Memory/Krnlheap.h"
@@ -154,5 +155,22 @@ DoCpuInitCheck:
         }
     }
 
-    KrdwtpOutFormatText("All `%u` processors have reported for duty. SMP initialization successful.\n", g_KernelState.SmpInfo.ActiveProcessorCount);
+    KrdwtpOutFormatText("All `%u` processors have reported for duty.\n", g_KernelState.SmpInfo.ActiveProcessorCount);
+    UINT NrAck;
+    RaiseGlobalNonmaskableInterrupt(FALSE, NMI_REASON_HARMLESS_TEST, NULLPTR, &NrAck);
+
+    if (NrAck == g_KernelState.SmpInfo.ActiveProcessorCount - 1) // -1 because bInterruptSelf = FALSE for above call to RaiseGlobalNonmaskableInterrupt
+    {
+        KrdwtpOutFormatText("Sanitychk: %u application processors acknowledged the harmless test NMI.\n", NrAck);
+    }
+    else
+    {
+        RUNTIME_ENSURE(FALSE,
+            KR_MDCODE_SMP_SANITY_CHECK_FAILURE,
+            "Sanitychk: A total of %u application processors did not acknowledge the harmless test NMI!\n",
+            g_KernelState.SmpInfo.ActiveProcessorCount - NrAck
+        ); KR_STATIC_UNREACHABLE();
+    }
+
+    KrdwtpOutColoredText("SMP initialization successful!\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 }

@@ -33,7 +33,8 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, const KrProcessorSnaps
     UINT NrCpusComplied;
     RaiseGlobalNonmaskableInterrupt(FALSE, NMI_REASON_MELTDOWN, &NmiData, &NrCpusComplied);
 
-    g_KernelState.bMeltdownCatastrophic = NrCpusComplied != g_KernelState.SmpInfo.ActiveProcessorCount;
+    // -1 because we, the meltdown CPU, are excluded as we called RaiseGlobalNonmaskableInterrupt with bInterruptSelf=FALSE
+    g_KernelState.bMeltdownCatastrophic = NrCpusComplied != g_KernelState.SmpInfo.ActiveProcessorCount - 1;
 
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {

@@ -359,7 +359,7 @@ BOOL PmRelinquishPage(PAGEID PageID)
     }
 
 Return:
-    PmRelinquishPage(&sg_PmSpinlock);
+    RelinquishSpinlock(&sg_PmSpinlock);
     return ReturnValue;
 }
 

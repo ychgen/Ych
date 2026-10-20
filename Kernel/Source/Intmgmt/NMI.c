@@ -49,6 +49,10 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         sg_NmiInfo.Meltdown = *(NmiMeltdownData*) pData;
         break;
     }
+    case NMI_REASON_HARMLESS_TEST:
+    {
+        break;
+    }
     default:
     {
         RUNTIME_ENSURE(FALSE,
@@ -76,7 +80,7 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         .eDestMode = 0, // irrelevant
         .eDestShorthand = bInterruptSelf ? IPI_SHORTHAND_ALL_ISLF : IPI_SHORTHAND_ALL_XSLF,
         .eLevel = IPI_LEVEL_ASSERT,
-        .eTrigMode = IPI_TRIGGER_EDGE,
+        .eTrigMode = IPI_TRIGGER_EDGE
     };
 
     // Issue + wait ack ("I'm done" signal) from each CPU
@@ -95,6 +99,10 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         for (UINT i = 0; i < MAX_SMP_PROCESSORS / 8; i++)
         {
             *pOutNrCPUsAcknowledged += PopulationCount32((UINT) sg_NmiInfo.Ack[i]);
+        }
+        if (!bInterruptSelf)
+        {
+            *pOutNrCPUsAcknowledged = *pOutNrCPUsAcknowledged - 1;
         }
     }
 
@@ -123,6 +131,9 @@ VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
         KrProcessorHalt(); // indefinite halt
     }
     case NMI_REASON_HARMLESS_TEST:
+    {
+        break;
+    }
     default:
     {
         RUNTIME_ENSURE(FALSE,
