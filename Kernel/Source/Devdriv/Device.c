@@ -16,7 +16,6 @@ static DeviceNode g_RootDevice = {0};
 static DeviceNode g_PcieRoot = {0};
 static UINT g_DeviceCount = 0;
 
-static VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild);
 static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF);
 
 VOID InitDeviceTree(VOID)
@@ -53,17 +52,7 @@ BOOL InitDeviceTreeRoot(VOID)
     return TRUE;
 }
 
-DeviceNode* GetSystemRootDevice(VOID)
-{
-    return &g_RootDevice;
-}
-
-UINT GetSystemDeviceCount(VOID)
-{
-    return g_DeviceCount;
-}
-
-static VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild)
+VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild)
 {
     if (!(pParent && pChild))
     {
@@ -86,6 +75,16 @@ static VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild)
         }
         pSib->pNxtSib = pChild;
     }
+}
+
+DeviceNode* GetSystemRootDevice(VOID)
+{
+    return &g_RootDevice;
+}
+
+UINT GetSystemDeviceCount(VOID)
+{
+    return g_DeviceCount;
 }
 
 static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF)

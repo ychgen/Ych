@@ -30,7 +30,7 @@ static VOID GiveUp(CSTR szMdDesc, const KrInterruptFrame* pInterruptFrame)
 
 VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame)
 {
-    KrPerCpu* pThisCpu = KrThisCpu();
+    PerCpu* pThisCpu = GetThisCpu();
     if (pThisCpu->bInPageFault)
     {
         GiveUp("Recursive page fault occurrence detected. This means the page fault itself has resulted in a page fault. Unsafe to continue.", pInterruptFrame);

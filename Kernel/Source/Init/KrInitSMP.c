@@ -46,7 +46,7 @@ VOID KrInitSMP(VOID)
 {
     // The Bootstrap Processor is currently active
     g_KernelState.SmpInfo.ActiveProcessorCount = 1;
-    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].RFD = TRUE;
+    g_KernelState.SmpInfo.ProcInfo[GetThisCpuID()].RFD = TRUE;
 
     RUNTIME_ENSURE(                                                            // Kernel CR3 must be in lower 4 GiB range for APs to be able to write into CR3
         KrGetKernelAddressSpace()->PaddrRoot <= 0xFFFFFFFF,

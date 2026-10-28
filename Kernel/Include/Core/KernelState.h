@@ -57,6 +57,7 @@ typedef struct
 {
     KrAcpiRsdp* pRsdp;
     KrAcpiSdtHeader* pXsdt;
+    AcpiFadtHeader* pFadt;
 } KrAcpiInfo;
 
 typedef struct

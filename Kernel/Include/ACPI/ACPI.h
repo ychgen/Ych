@@ -13,6 +13,7 @@
 #define KR_ACPI_XSDT_SIGNATURE       "XSDT" // eXtended System Description Table
 #define KR_ACPI_MADT_SIGNATURE       "APIC" // Multiple APIC Description Table
 #define KR_ACPI_MCFG_SIGNATURE       "MCFG" // Enhanced Configuration Mechanism
+#define KR_ACPI_FADT_SIGNATURE       "FACP" // Fixed ACPI Description Table
 
 #define KR_ACPI_MADT_RECORD_TYPE_PROCESSOR_LOCAL_APIC   0 // Processor Local APIC
 #define KR_ACPI_MADT_RECORD_TYPE_IO_APIC                1 // I/O APIC
@@ -24,6 +25,15 @@
 
 #define KR_ACPI_LAPIC_FLAGS_PROCESSOR_ENABLED (1 << 0) // If this bit is set, this processor can be brought up online.
 #define KR_ACPI_LAPIC_FLAGS_ONLINE_CAPABLE    (1 << 1) // Who cares about this loserous bit. I ain't no server OS.
+
+#define ACPI_FADT_FLAG_PM_TIMER_CNTR_IS_32BITS (1 << 8)
+
+#define ACPI_ADDR_SPACE_MEMORY ((UCHAR) 0)
+#define ACPI_ADDR_SPACE_PORT   ((UCHAR) 1)
+#define ACPI_ADDR_ACCESS_BYTE  ((UCHAR) 1)
+#define ACPI_ADDR_ACCESS_WORD  ((UCHAR) 2)
+#define ACPI_ADDR_ACCESS_DWORD ((UCHAR) 3)
+#define ACPI_ADDR_ACCESS_QWORD ((UCHAR) 4)
 
 #include "Krnlych.h"
 
@@ -93,6 +103,72 @@ typedef struct KR_PACKED
     DWORD dwFlags;
     DWORD AcpiID;
 } KrAcpiMadtEntryLocalx2Apic;
+
+typedef struct KR_PACKED
+{
+    BYTE AddrSpace;
+    BYTE BitWidth;
+    BYTE BitOffset;
+    BYTE AccessSize;
+    QWORD Address;
+} AcpiAddrStruct;
+
+typedef struct KR_PACKED
+{
+    KrAcpiSdtHeader AcpiHeader;
+    DWORD FirmwareCtrl;
+    DWORD Dsdt;
+    BYTE Reserved0;
+    BYTE PreferredPowermgmtProfile;
+    WORD SCI;
+    DWORD SMI_Cmdport;
+    BYTE AcpiEnable;
+    BYTE AcpiDisable;
+    BYTE S4BIOS_REQ;
+    BYTE PState_Ctrl;
+    DWORD PM1aEventBlock;
+    DWORD PM1bEventBlock;
+    DWORD PM1aControlBlock;
+    DWORD PM1bControlBlock;
+    DWORD PM2ControlBlock;
+    DWORD PMTimerBlock;
+    DWORD GPE0Block;
+    DWORD GPE1Block;
+    BYTE PM1EventLength;
+    BYTE PM1ControlLength;
+    BYTE PM2ControlLength;
+    BYTE PMTimerLength;
+    BYTE GPE0Length;
+    BYTE GPE1Length;
+    BYTE GPE1Base;
+    BYTE CStateControl;
+    WORD WorstC2Latency;
+    WORD WorstC3Latency;
+    WORD FlushSize;
+    WORD FlushStride;
+    BYTE DutyOffset;
+    BYTE DutyWidth;
+    BYTE DayAlarm;
+    BYTE MonthAlarm;
+    BYTE Century;
+    WORD BootArchFlags;
+    BYTE Reserved1;
+    DWORD Flags;
+    AcpiAddrStruct ResetReg;
+    BYTE ResetValue;
+    BYTE Reserved2[3];
+    QWORD X_FwCtrl;
+    QWORD X_Dsdt;
+
+    AcpiAddrStruct X_PM1aEventBlock;
+    AcpiAddrStruct X_PM1bEventBlock;
+    AcpiAddrStruct X_PM1aControlBlock;
+    AcpiAddrStruct X_PM1bControlBlock;
+    AcpiAddrStruct X_PM2ControlBlock;
+    AcpiAddrStruct X_PMTimerBlock;
+    AcpiAddrStruct X_GPE0Block;
+    AcpiAddrStruct X_GPE1Block;
+} AcpiFadtHeader;
 
 UCHAR KrAcpiCalculateChecksum(const VOID* pAcpiStruct, DWORD dwStructLength);
 BOOL  KrAcpiIsChecksumValid(const VOID* pAcpiStruct, DWORD dwStructLength);

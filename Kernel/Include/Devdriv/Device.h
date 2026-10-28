@@ -27,6 +27,7 @@ typedef struct DeviceNode
 
 VOID InitDeviceTree(VOID);
 BOOL InitDeviceTreeRoot(VOID);
+VOID AddChildDevice(DeviceNode* pParent, DeviceNode* pChild);
 DeviceNode* GetSystemRootDevice(VOID);
 UINT GetSystemDeviceCount(VOID);
 

@@ -46,7 +46,7 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         RUNTIME_ENSURE(pData != NULLPTR,
             KR_MDCODE_NMI_NO_DATA_PROVIDED,
             "RaiseGlobalNonmaskableInterrupt was called by CPU %u with the reason ID '%u' that mandates a valid pData, but NULLPTR was provided.",
-            KrThisCpuID(), Reason);
+            GetThisCpuID(), Reason);
         sg_NmiInfo.Meltdown = *(NmiMeltdownData*) pData;
         break;
     }
@@ -59,13 +59,13 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
         RUNTIME_ENSURE(FALSE,
             KR_MDCODE_BOGUS_NMI_REASON,
             "RaiseGlobalNonmaskableInterrupt was called by CPU %u with the unknown reason ID '%u'.",
-            KrThisCpuID(), Reason
+            GetThisCpuID(), Reason
         ); KR_STATIC_UNREACHABLE();
     }
     }
     
     sg_NmiInfo.Reason = Reason;
-    sg_NmiInfo.InvokingCPU = KrThisCpuID();
+    sg_NmiInfo.InvokingCPU = GetThisCpuID();
     // self-acknowledge, we do this so this cpu doesn't wait for ack from itself that won't come when bInterruptSelf = FALSE
     {
         UINT Idx = sg_NmiInfo.InvokingCPU / 8;
@@ -130,7 +130,7 @@ VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
         // we have to ack here as we won't break out of the switch statement
         ThisCpuAcknowledgeNMI();
 
-        KrProcessorHalt(); // indefinite halt
+        ProcessorIndefiniteHalt(); // indefinite halt
     }
     case NMI_REASON_HARMLESS_TEST:
     {
@@ -141,7 +141,7 @@ VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
         RUNTIME_ENSURE(FALSE,
             KR_MDCODE_BOGUS_NMI_REASON,
             "IntmgmtNonmaskableInterrupt was received by CPU %u with the unknown reason ID '%u'.",
-            KrThisCpuID(), sg_NmiInfo.Reason
+            GetThisCpuID(), sg_NmiInfo.Reason
         ); KR_STATIC_UNREACHABLE();
     }
     }
@@ -157,8 +157,8 @@ GlobalNmiInfo* GetGlobalNmiInfo(VOID)
 
 static VOID ThisCpuAcknowledgeNMI(VOID)
 {
-    UINT Idx = KrThisCpuID() / 8;
-    UINT Off = KrThisCpuID() % 8;
+    UINT Idx = GetThisCpuID() / 8;
+    UINT Off = GetThisCpuID() % 8;
 
     AtomicOr8(sg_NmiInfo.Ack + Idx, (1 << Off));
 }

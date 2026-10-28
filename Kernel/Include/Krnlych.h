@@ -23,6 +23,8 @@
 // Ceiling divide
 #define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / (Divisor))
 
+#define MACROMIN(LHS,RHS) ((LHS) < (RHS) ? (LHS) : (RHS))
+
 /** Defined as macros just in case in the future we change compilers, we are not *completely* GCC dependent. */
 
 #define KR_NORETURN                 __attribute__((noreturn))
@@ -33,6 +35,9 @@
 #define KR_STATIC_UNREACHABLE()     __builtin_unreachable()
 #define KR_STATIC_ASSERT(Expr, Msg) _Static_assert((Expr), Msg) // Thank the C committee for this shitty naming convention that we need a macro to make it readable.
 
+#define CONST          const
+#define STATIC         static
+#define INLINE         inline
 #define VOID           void
 #define NULLPTR      ((VOID*) 0)
 #define KR_UNUSED(X) ((VOID)(X)) // for when you want to suppress an unused variable warning especially.

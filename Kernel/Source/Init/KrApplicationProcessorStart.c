@@ -2,6 +2,7 @@
 
 #include "Core/KernelState.h"
 #include "CPU/Interrupt.h"
+#include "CPU/Spinlock.h"
 #include "CPU/Atomic.h"
 #include "CPU/PerCpu.h"
 #include "CPU/APIC.h"
@@ -22,14 +23,14 @@ static UCHAR sg_ProcessorEntryBlacklist[MAX_SMP_PROCESSORS] = {0};
 VOID KrApplicationProcessorStart(VOID)
 {
     // Make sure the per-cpu is loaded
-    KrGrabThisCpuStruct();
+    GrabThisCpuStruct();
 
-    if (sg_ProcessorEntryBlacklist[KrThisCpuID()])
+    if (sg_ProcessorEntryBlacklist[GetThisCpuID()])
     {
         g_KernelState.SmpInfo.bProcessorReinitDetected = TRUE;
-        KrProcessorHalt();
+        ProcessorIndefiniteHalt();
     }
-    sg_ProcessorEntryBlacklist[KrThisCpuID()] = TRUE; // Make sure this CPU cannot be re-entrant
+    sg_ProcessorEntryBlacklist[GetThisCpuID()] = TRUE; // Make sure this CPU cannot be re-entrant
     
     // Load GDT
     {
@@ -37,7 +38,7 @@ VOID KrApplicationProcessorStart(VOID)
         GDTR.Base = g_KernelState.StateGDT.AddrDescriptorTable;
         GDTR.Limit = g_KernelState.StateGDT.NumberOfDescriptorEntries * GDT_SEGMENT_DESCRIPTOR_ENTRY_SIZE - 1;       
         KrLoadGlobalDescriptorTable(&GDTR, g_KernelState.StateGDT.KernelCodeSegmentSelector, g_KernelState.StateGDT.KernelDataSegmentSelector);
-        KrGrabThisCpuStruct(); // Must be called ONCE AGAIN because LGDT invalidates GS base!
+        GrabThisCpuStruct(); // Must be called ONCE AGAIN because LGDT invalidates GS base!
     }
     // Load IDT
     {
@@ -45,7 +46,6 @@ VOID KrApplicationProcessorStart(VOID)
         IDTR.Base = g_KernelState.AddrIDT;
         IDTR.Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1;
         KrLoadInterruptDescriptorTable(&IDTR);
-        KrEnableInterrupts();
     }
 
     // Setup CRs
@@ -61,13 +61,13 @@ VOID KrApplicationProcessorStart(VOID)
         KrWriteCR4(CR);
     }
 
+    AtomicExchangeAdd32(&g_KernelState.SmpInfo.ActiveProcessorCount, 1);
+    g_KernelState.SmpInfo.ProcInfo[GetThisCpuID()].RFD = TRUE; // Reported for duty!
+
     if (!KrApicInit(FALSE))
     {
-        KrProcessorHalt();
+        ProcessorIndefiniteHalt();
     }
 
-    AtomicExchangeAdd32(&g_KernelState.SmpInfo.ActiveProcessorCount, 1);
-    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].RFD = TRUE; // Reported for duty!
-
-    KrProcessorHalt();
+    while (1) { ProcessorHalt(); }
 }

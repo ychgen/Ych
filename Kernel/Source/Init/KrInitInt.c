@@ -12,6 +12,8 @@
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Intmgmt/Spurious.h"
+#include "Intmgmt/Timer.h"
 #include "Intmgmt/NMI.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
@@ -81,8 +83,10 @@ VOID KrInitInt(VOID)
 #if KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt, FALSE);
 #endif // KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
+    KrRegisterInterruptHandler(KERNEL_TIMER_INTERRUPT_VECTOR, IntmgmtTimerInterrupt, FALSE);
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_BREAKPOINT, KrBreakpointInterrupt, FALSE);
     KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_NON_MASKABLE_INTERRUPT, IntmgmtNonmaskableInterrupt, FALSE);
+    KrRegisterInterruptHandler(KERNEL_SPURIOUS_INTERRUPT_VECTOR, IntmgmtSpuriousInterrupt, FALSE);
 
     // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
     // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,
@@ -116,7 +120,7 @@ VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
     KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText(" -> Faulting Virtual Address: 0x%RX\n -> Processor Error Code: 0x%RX\n", CR2, pInterruptFrame->ErrorCode);
     KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    KrProcessorHalt();
+    ProcessorIndefiniteHalt();
 }
 
 VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
@@ -124,7 +128,7 @@ VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
     KrdwtpOutColoredText("!!!GENERAL PROTECTION FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
     KrdwtpOutFormatText(" -> Processor-Pushed Error Code: 0x%RX\n", pInterruptFrame->ErrorCode);
     KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    KrProcessorHalt();
+    ProcessorIndefiniteHalt();
 }
 
 VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)

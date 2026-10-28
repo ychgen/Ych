@@ -7,6 +7,8 @@
 #include "Core/KernelState.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Intmgmt/Spurious.h"
+
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
 {
 #define _fcpy(x) .x = pInterruptFrame->x
@@ -28,7 +30,7 @@ VOID KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
     // Exclude int $3, it is breakpoint, also normally handled by KrBreakpointInterrupt.
     if (pInterruptFrame->InterruptNo < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT || pInterruptFrame->InterruptNo == 3)
     {
-        KrProcessorHalt();
+        ProcessorIndefiniteHalt();
     }
     // After this point, we are sure this is IRS >31, so a non-CPU reserved IRQ.
 }
@@ -43,10 +45,10 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
 {
     if (pInterruptFrame->InterruptNo < KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES)
     {
-        KrInterruptHandler handler = g_pInterruptHandlers[pInterruptFrame->InterruptNo];
-        if (handler)
+        KrInterruptHandler Handler = g_pInterruptHandlers[pInterruptFrame->InterruptNo];
+        if (Handler)
         {
-            handler(pInterruptFrame);
+            Handler(pInterruptFrame);
         }
         else
         {
@@ -55,7 +57,7 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
     }
 
     // Is this an IRQ? If so, since handler's been called, send an EOI.
-    if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT)
+    if (pInterruptFrame->InterruptNo >= KR_PROCESSOR_RESERVED_INTERRUPT_COUNT && pInterruptFrame->InterruptNo != KERNEL_SPURIOUS_INTERRUPT_VECTOR)
     {
         // Send EOI signal to APIC, if we don't, it will go radio silent.
         ApicIssueEndOfInt();

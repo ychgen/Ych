@@ -13,7 +13,8 @@ typedef enum
     DRIVER_BLOCK_DEVICE,
     DRIVER_VIDEO,
     DRIVER_NETWORK,
-    DRIVER_INPUT
+    DRIVER_INPUT,
+    DRIVER_TIMER,
 } DriverType;
 
 typedef struct

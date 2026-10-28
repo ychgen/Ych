@@ -11,14 +11,18 @@
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
 
+#include "CPU/Timestamp.h"
+#include "CPU/Interrupt.h"
 #include "CPU/Identify.h"
 #include "CPU/PerCpu.h"
+#include "CPU/CPUID.h"
 #include "CPU/APIC.h"
 #include "CPU/Halt.h"
 
 #include "Devdriv/Device.h"
 #include "Devdriv/Driver.h"
 #include "Devdriv/Pair.h"
+#include "Devdriv/Timer/AcpiPmTimer.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "Earlyvideo/Dwtpfonts.h"
@@ -34,6 +38,11 @@
 extern CHAR __KR_LINK_BSS_START[];
 extern CHAR __KR_LINK_BSS_END[];
 
+VOID Timercallback_1() { KrdwtpOutText("TimerCallback1\n"); }
+VOID Timercallback_2() { KrdwtpOutText("TimerCallback2\n"); }
+VOID Timercallback_3() { KrdwtpOutText("TimerCallback3\n"); }
+VOID Timercallback_4() { KrdwtpOutText("TimerCallback4\n"); }
+
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 KR_SECTION(".text.KrKernelStart")
 KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
@@ -45,7 +54,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         // We can't really report errors as the integrity of the struct is compromised.
         // Framebuffer can also very well be invalid.
         // So we just halt... quietly.
-        KrProcessorHalt();
+        ProcessorIndefiniteHalt();
     }
 
     // Zero the BSS section.
@@ -116,7 +125,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 
     // Per CPU for the bootstrap processor. Must be done AFTER init GDT, because `lgdt` invalidates GS base.
-    KrGrabThisCpuStruct();
+    GrabThisCpuStruct();
 
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     // Bye bye Triple Fault!
@@ -138,7 +147,7 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
         KrdwtpOutFormatText
         (
             "Processor Information:\n"
-            " -> Processor : %s %s\n"
+            " -> Processor : %s, %s\n"
             " -> Stepping  : 0x%X\n"
             " -> Model     : 0x%X\n"
             " -> Family    : 0x%X\n",
@@ -151,24 +160,25 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Init Physmemmgmt & Virtmemmgmt. Must be done before APIC init as it needs MMIO which needs the VMM being alive.
     KrInitMem();
 
-    // Initialize APIC only AFTER initializing the interrupt subsystem via KrInitInt().
+    // Init ACPI
+    KrInitACPI(SysInfoPack.PhysAddrRSDP);
+    KrdwtpOutColoredText("ACPI initialization sucessful.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    
+    // Bring-up builtin drivers
+    InitBuiltinDrivers();
+    KrdwtpOutColoredText("Registered the built-in drivers.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    
+    // Initialize APIC only AFTER initializing the interrupt subsystem via KrInitInt() and also ACPI and also drivers.
+    // Quite the checklist I know but that is the order.
     if (!KrApicInit(TRUE))
     {
         MDCODE mdCode = KR_MDCODE_LOCAL_APIC_INIT_FAILURE;
         CSTR szMdDesc = "Local APIC initialization failure.";
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
-    KrdwtpOutColoredText("Initialized the local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+    KrdwtpOutColoredText("Initialized the BSP's local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
 
-    // Bring-up builtin drivers
-    InitBuiltinDrivers();
-    KrdwtpOutColoredText("Registered the built-in drivers.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-
-    // Init ACPI
-    KrInitACPI(SysInfoPack.PhysAddrRSDP);
-    KrdwtpOutColoredText("ACPI initialization sucessful.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-    
-    KrdwtpOutColoredText("Processor topology:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND); 
+    KrdwtpOutColoredText("Platform processor topology:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND); 
     for (UINT i = 0; i < MAX_SMP_PROCESSORS; i++)
     {
         if (!g_KernelState.SmpInfo.ProcInfo[i].E_V)
@@ -195,13 +205,15 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
     // Initialize & bring-up the Application Processors.
     KrInitSMP();
 
-    KrdwtpOutFormatText("TSC Frequency = %u MHz\n", KrThisCpu()->FreqTSC);
+    SetTimer(1000000, Timercallback_1, 0);
+    SetTimer(4000000, Timercallback_2, 0);
+    SetTimer(3000000, Timercallback_3, 0);
+    SetTimer(6000000, Timercallback_4, 0);
 
-    // ======= STOP HERE =========== //
+    // =======!> STOP HERE <!=========== //
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    // ======= STOP HERE =========== //
-    KrProcessorHalt();
-    // ======= STOP HERE =========== //
+    while (1) { ProcessorHalt(); }
+    // =======!> STOP HERE <!=========== //
 
 #include "Krnlstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */
 }

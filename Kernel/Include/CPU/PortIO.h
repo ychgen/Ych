@@ -4,10 +4,12 @@
 
 #include "Krnlych.h"
 
-BYTE KrInByteFromPort(WORD wPort);
-WORD KrInWordFromPort(WORD wPort);
+BYTE ByteInputFromPort(WORD wPort);
+WORD WordInputFromPort(WORD wPort);
+DWORD DwordInputFromPort(WORD wPort);
 
-VOID KrOutByteToPort(WORD wPort, BYTE Byte);
-VOID KrOutWordToPort(WORD wPort, WORD Word);
+VOID ByteOutputToPort(WORD wPort, BYTE Byte);
+VOID WordOutputToPort(WORD wPort, WORD Word);
+VOID DwordOutputToPort(WORD wPort, DWORD Doubleword);
 
 #endif // !YCH_KERNEL_CPU_PORT_IO_H

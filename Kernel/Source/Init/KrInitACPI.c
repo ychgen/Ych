@@ -2,6 +2,7 @@
 
 #include "Core/Krnlmeltdown.h"
 #include "Core/KernelState.h"
+#include "Core/Assert.h"
 
 #include "CPU/PerCpu.h"
 #include "CPU/Halt.h"
@@ -55,7 +56,15 @@ VOID KrInitACPI(UINTPTR PaddrRsdp)
     if (!pMcfg) FailInit(KR_MDCODE_ACPI_TABLE_NOT_FOUND, "System has no MCFG (Enhanced Configuration Mechanism) ACPI table present present (or exists in a malformed form)! Issue on firmware side");
     if (pMcfg->AcpiHeader.dwLength < sizeof(AcpiMcfgHeader) + sizeof(AcpiMcfgEntry)) FailInit(KR_MDCODE_ACPI_TABLE_CORRUPT, "ACPI MCFG table has its dwField lower than the size of the AcpiMcfgHeader struct.");
     
+    // PCI Enhanced Configuration Mechanism
     ProcessMCFG(pMcfg);
+
+    AcpiFadtHeader* pFadt = (AcpiFadtHeader*) KrAcpiLocateTable(pXsdt, KR_ACPI_FADT_SIGNATURE);
+    RUNTIME_ASSERT(pFadt != NULLPTR, KR_MDCODE_ACPI_TABLE_NOT_FOUND, "Firmware has provided no FADT table.\n");
+    //RUNTIME_ASSERT(pFadt->AcpiHeader.dwLength == sizeof(AcpiFadtHeader), KR_MDCODE_ACPI_TABLE_CORRUPT, "FADT table invalid dwLength.");
+    RUNTIME_ASSERT(KrAcpiIsChecksumValid(pFadt, pFadt->AcpiHeader.dwLength), KR_MDCODE_ACPI_SDT_CHECKSUM_NV, "FADT table checksum is invalid.");
+
+    g_KernelState.AcpiInfo.pFadt = pFadt;
 }
 
 static VOID ProcessMADT(KrAcpiMadtHeader* pMadt)
@@ -98,8 +107,8 @@ static VOID ProcessMADT(KrAcpiMadtHeader* pMadt)
     }
 
     g_KernelState.SmpInfo.ActiveProcessorCount = 1; // BSP is active
-    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].BSP = 1; // Mark BSP flag
-    g_KernelState.SmpInfo.ProcInfo[KrThisCpuID()].RFD = 1; // Mark reported for duty because well it's running as of now
+    g_KernelState.SmpInfo.ProcInfo[GetThisCpuID()].BSP = 1; // Mark BSP flag
+    g_KernelState.SmpInfo.ProcInfo[GetThisCpuID()].RFD = 1; // Mark reported for duty because well it's running as of now
 }
 
 static VOID ProcessMCFG(AcpiMcfgHeader* pMcfg)

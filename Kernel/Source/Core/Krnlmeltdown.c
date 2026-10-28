@@ -26,15 +26,22 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, const KrProcessorSnaps
     KrDisableInterrupts();
     g_KernelState.bMeltdown = TRUE;
 
-    // Make sure all other CPUs stop
-    NmiMeltdownData NmiData = {
-        .MdCode = MdCode
-    };
     UINT NrCpusComplied;
-    RaiseGlobalNonmaskableInterrupt(FALSE, NMI_REASON_MELTDOWN, &NmiData, &NrCpusComplied);
+    if (g_KernelState.SmpInfo.ActiveProcessorCount > 1)
+    {
+        // Make sure all other CPUs stop
+        NmiMeltdownData NmiData = {
+            .MdCode = MdCode
+        };
+        RaiseGlobalNonmaskableInterrupt(FALSE, NMI_REASON_MELTDOWN, &NmiData, &NrCpusComplied);
 
-    // -1 because we, the meltdown CPU, are excluded as we called RaiseGlobalNonmaskableInterrupt with bInterruptSelf=FALSE
-    g_KernelState.bMeltdownCatastrophic = NrCpusComplied != g_KernelState.SmpInfo.ActiveProcessorCount - 1;
+        // -1 because we, the meltdown CPU, are excluded as we called RaiseGlobalNonmaskableInterrupt with bInterruptSelf=FALSE
+        g_KernelState.bMeltdownCatastrophic = NrCpusComplied != g_KernelState.SmpInfo.ActiveProcessorCount - 1;
+    }
+    else
+    {
+        NrCpusComplied = 1;
+    }
 
     if (g_KernelState.VideoOutputProtocol == KR_VIDEO_OUTPUT_PROTOCOL_DISPLAYWIDE_TEXT)
     {
@@ -83,5 +90,5 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, const KrProcessorSnaps
     }
 
     // Halt indefinitely.
-    KrProcessorHalt();
+    ProcessorIndefiniteHalt();
 }

@@ -47,8 +47,9 @@
 #define APIC_REG_CURRCR 0x390 // Current Count Register 
 #define APIC_REG_DCR    0x3E0 // Divide Configuration Register 
 
-#define APIC_LTR_TIMER_INT_BLOCK (1 << 16)
-#define APIC_ICR_DELIVERY_STATUS (1 << 12)
+#define APIC_SIV_SOFTWARE_ENABLE (1U <<  8)
+#define APIC_LTR_TIMER_INT_BLOCK (1U << 16)
+#define APIC_ICR_DELIVERY_STATUS (1U << 12)
 
 typedef struct
 {
@@ -79,13 +80,16 @@ VOID KrApicSetPhysicalBase(UINTPTR PhysAddr);
 
 BOOL KrApicCheckSupport(VOID);
 BOOL KrApicInit(BOOL bIsCallerBSP);
-VOID ApicCalibrateTimer(VOID);
 
+VOID ApicSetEnabled(BOOL bEnabled);
 VOID ApicSetTimerInterruptsEnabled(BOOL bEnabled);
-VOID ApicIssueEndOfInt(VOID);
+
+DWORD ApicGetTimerInitialCount(VOID);
+DWORD ApicGetTimerCurrentCount(VOID);
+VOID  ApicSetTimerCount(DWORD dwInitCnt);
 
 VOID ApicWaitForIcrIdle(VOID);
-VOID ApicSetTimer(SIZE NanoSeconds);
 VOID ApicIssueIpi(const KrIpiConfig* pConfig);
+VOID ApicIssueEndOfInt(VOID);
 
 #endif // !YCH_KERNEL_CPU_APIC_H
