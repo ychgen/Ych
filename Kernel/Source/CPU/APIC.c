@@ -219,7 +219,7 @@ VOID ApicIssueEndOfInt(VOID)
 
 STATIC VOID ApicCalibrateTimer(VOID)
 {
-    KrDisableInterrupts();
+    ProcessorDisableInterrupts();
 
     const UINT NrTicksFor50ms = 178977; // Number of ACPI PM Timer ticks needed to elapse 50 ms (3579545 Hz * 0.05 sec ~= 178977)
     STATIC Spinlock sl_CalibSpinlock = { 0 };
@@ -254,7 +254,7 @@ STATIC VOID ApicCalibrateTimer(VOID)
     }
     RelinquishSpinlock(&sl_CalibSpinlock);
 
-    KrEnableInterrupts();
+    ProcessorEnableInterrupts();
 }
 
 INLINE DWORD ApicRead(SIZE RegOffset)

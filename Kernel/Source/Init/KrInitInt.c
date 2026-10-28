@@ -71,7 +71,7 @@ VOID KrInitInt(VOID)
     };
 
     KrLoadInterruptDescriptorTable(&IDTR); // LIDT
-    KrEnableInterrupts(); // STI
+    ProcessorEnableInterrupts(); // STI
 
     // Update kernel state
     g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;

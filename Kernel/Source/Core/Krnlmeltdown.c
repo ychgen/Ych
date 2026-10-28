@@ -4,6 +4,7 @@
 
 #include "CPU/Interrupt.h"
 #include "CPU/Spinlock.h"
+#include "CPU/APIC.h"
 #include "CPU/Halt.h"
 #include "CPU/CR.h"
 
@@ -17,16 +18,19 @@
 #define MDMSGPREFIX  "MDCODE=0x%RX(%s),MDDESC=`%s`\n"
 #define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, only God can resurrect the system as-is.\nHard reset your machine, the system is now halted.\n"
 
-static Spinlock sg_MeltdownSpinlock = {0};
+STATIC Spinlock sg_MeltdownSpinlock = {0};
 
-KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, const KrProcessorSnapshot* pSnapshot)
+KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, CONST KrProcessorSnapshot* pSnapshot)
 {
     AcquireOrWaitSpinlock(&sg_MeltdownSpinlock); // We won't let go of this
 
-    KrDisableInterrupts();
+    ProcessorDisableInterrupts();
+    ApicSetEnabled(FALSE);
+    ApicSetTimerInterruptsEnabled(FALSE);
+    
     g_KernelState.bMeltdown = TRUE;
-
     UINT NrCpusComplied;
+
     if (g_KernelState.SmpInfo.ActiveProcessorCount > 1)
     {
         // Make sure all other CPUs stop

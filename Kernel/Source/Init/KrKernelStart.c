@@ -38,16 +38,11 @@
 extern CHAR __KR_LINK_BSS_START[];
 extern CHAR __KR_LINK_BSS_END[];
 
-VOID Timercallback_1() { KrdwtpOutText("TimerCallback1\n"); }
-VOID Timercallback_2() { KrdwtpOutText("TimerCallback2\n"); }
-VOID Timercallback_3() { KrdwtpOutText("TimerCallback3\n"); }
-VOID Timercallback_4() { KrdwtpOutText("TimerCallback4\n"); }
-
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 KR_SECTION(".text.KrKernelStart")
-KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
+KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
 {
-    __asm__ __volatile__("cli"); // Just to be safe, clear interrupts (YchBoot does this anyway, but, still.)
+    ProcessorDisableInterrupts();
 
     if (pSystemInfoPack->Magic != SYSTEM_INFO_PACK_MAGIC)
     {
@@ -204,11 +199,6 @@ KR_NORETURN VOID KrKernelStart(const KrSystemInfoPack* pSystemInfoPack)
 
     // Initialize & bring-up the Application Processors.
     KrInitSMP();
-
-    SetTimer(1000000, Timercallback_1, 0);
-    SetTimer(4000000, Timercallback_2, 0);
-    SetTimer(3000000, Timercallback_3, 0);
-    SetTimer(6000000, Timercallback_4, 0);
 
     // =======!> STOP HERE <!=========== //
     KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);

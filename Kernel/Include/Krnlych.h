@@ -117,4 +117,11 @@ typedef          long  PTRDIFF; // The result of subtracting two pointers, i.e. 
 #define ARITH_MIN 0x8000000000000000
 #define ARITH_MAX 0x7FFFFFFFFFFFFFFF
 
+// Time
+
+// Seconds as microseconds
+#define SECS_AS_USECS(Seconds) ((Seconds) * 1000000)
+// Milliseconds as microseconds
+#define MS_AS_USECS(Seconds) ((Seconds) * 1000)
+
 #endif // !YCH_KERNEL_KRNLYCH_H

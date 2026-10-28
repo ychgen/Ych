@@ -29,9 +29,9 @@
 #define KR_INTERRUPT_VECTOR_CONTROL_PROTECTION_EXCEPTION     21
 
 // Disables maskable interrupts.
-#define KrDisableInterrupts() __asm__ __volatile__("cli\n\t")
+#define ProcessorDisableInterrupts() __asm__ __volatile__("cli\n\t")
 // Enables interrupts.
-#define KrEnableInterrupts()  __asm__ __volatile__("sti\n\t")
+#define ProcessorEnableInterrupts()  __asm__ __volatile__("sti\n\t")
 
 typedef struct
 {

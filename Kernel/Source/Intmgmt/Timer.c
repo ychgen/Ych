@@ -9,12 +9,14 @@
 
 VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr)
 {
-    KrDisableInterrupts(); // Disable interrupts so we can reorder and rearm timer asap to keep timer accuracy relatively okay
+    ProcessorDisableInterrupts(); // Disable interrupts so we can reorder and rearm timer asap to keep timer accuracy relatively okay
 
     PerCpu* CONST ThisCpu = GetThisCpu();
-    TimerEvent* Event = ThisCpu->TimerInf.TimerRoot;
+    ThisCpu->TimerInf.bInTimerInt = TRUE;
     
+    TimerEvent* Event = ThisCpu->TimerInf.TimerRoot;
     const DWORD dwInitialTicks = ApicGetTimerInitialCount();
+
     while (Event)
     {
         if (Event->LastTickCount <= dwInitialTicks)
@@ -26,7 +28,7 @@ VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr)
 
             if (Event->Callback)
             {
-                Event->Callback();
+                Event->Callback(Event->UserParam);
             }
             
             TimerEvent* Nxt = Event->Next;
@@ -46,9 +48,22 @@ VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr)
         Event = Event->Next;
     }
 
-    KrEnableInterrupts();
+    // Integrate deferred timers
+    ThisCpu->TimerInf.bInTimerInt = FALSE; // set to FALSE so SetTimer() inserts within regular queue, not defer
+    Event = ThisCpu->TimerInf.TimerDeferredRoot;
+    while (Event)
+    {
+        SetTimer(Event->LastTickCount, Event->Callback, Event->UserParam, Event->dwFlags | TIMER_EVENT_FLAGS_INTERNAL_TREAT_USECONDS_AS_TICKS);
+        TimerEvent* Nxt = Event->Next;
+        HeapRelinquish(Event);
+        Event = Nxt;
+    }
+    ThisCpu->TimerInf.TimerDeferredRoot = NULLPTR;
+
     if (ThisCpu->TimerInf.TimerRoot)
     {
         ApicSetTimerCount(MACROMIN(DWORD_MAX, ThisCpu->TimerInf.TimerRoot->LastTickCount));
     }
+
+    ProcessorEnableInterrupts();
 }

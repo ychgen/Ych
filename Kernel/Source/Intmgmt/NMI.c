@@ -124,7 +124,8 @@ VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
     // HARD STOP
     case NMI_REASON_MELTDOWN:
     {
-        KrDisableInterrupts();
+        ProcessorDisableInterrupts();
+        ApicSetEnabled(FALSE);
         ApicSetTimerInterruptsEnabled(FALSE);
 
         // we have to ack here as we won't break out of the switch statement
