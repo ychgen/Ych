@@ -98,6 +98,14 @@ typedef struct KR_PACKED
 
 typedef struct KR_PACKED
 {
+    BYTE ID; // I/O APIC ID
+    BYTE Reserved;
+    DWORD BaseAddress;
+    DWORD FirstIRQ;
+} AcpiMadtEntryIoApic;
+
+typedef struct KR_PACKED
+{
     UCHAR Reserved[2];
     DWORD LocalApicID;
     DWORD dwFlags;

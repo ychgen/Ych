@@ -23,7 +23,6 @@ typedef struct
 {
     SIZE    BinarySize;
     SIZE    ReserveSize;
-
     UINTPTR AddrPhysicalBase;
     UINTPTR AddrVirtualBase;
 } KrLoadInfo;
@@ -55,9 +54,9 @@ typedef struct
 
 typedef struct
 {
-    KrAcpiRsdp* pRsdp;
+    KrAcpiRsdp*      pRsdp;
     KrAcpiSdtHeader* pXsdt;
-    AcpiFadtHeader* pFadt;
+    AcpiFadtHeader*  pFadt;
 } KrAcpiInfo;
 
 typedef struct

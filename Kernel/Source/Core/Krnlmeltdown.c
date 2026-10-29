@@ -13,7 +13,7 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 #define MDMSGWARNPREFIX "\n!!!KERNEL MELTDOWN!!!\n"
-#define MDMSGCATASTROPHICPREFIX "\n!!!CATASTRPHIC KERNEL MELTDOWN!!!\n"
+#define MDMSGCATASTROPHICPREFIX "\n!!!CATASTROPHIC KERNEL MELTDOWN!!!\n"
 
 #define MDMSGPREFIX  "MDCODE=0x%RX(%s),MDDESC=`%s`\n"
 #define MDMSGPOSTFIX "\n!!!KERNEL MELTDOWN!!!\nKernel bailing out, only God can resurrect the system as-is.\nHard reset your machine, the system is now halted.\n"
@@ -90,7 +90,7 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, CONST KrProcessorSnaps
     {
         KrdwtpOutFormatText("\nA total of %u logical processor(s) did not respond to nor acknowledged the meltdown nonmaskable interrupt!"
         " It is advised that you reset the machine immediately in case that/those logical processor(s) try/tries to do things!\n"
-        "This is why this meltdown is classified as catastrophic!", g_KernelState.SmpInfo.ActiveProcessorCount - NrCpusComplied);
+        "This is why this meltdown is classified as catastrophic!", g_KernelState.SmpInfo.ActiveProcessorCount - NrCpusComplied - 1);
     }
 
     // Halt indefinitely.

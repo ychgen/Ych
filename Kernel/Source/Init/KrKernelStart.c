@@ -14,6 +14,7 @@
 #include "CPU/Timestamp.h"
 #include "CPU/Interrupt.h"
 #include "CPU/Identify.h"
+#include "CPU/PortIO.h"
 #include "CPU/PerCpu.h"
 #include "CPU/CPUID.h"
 #include "CPU/APIC.h"
@@ -31,6 +32,8 @@
 #include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
 #include "Memory/Krnlheap.h"
+
+#include "Intmgmt/IOAPIC.h"
 
 #include "KRTL/Krnlmem.h"
 
@@ -172,6 +175,13 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
     KrdwtpOutColoredText("Initialized the BSP's local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
+
+    if (!IoApicsInit())
+    {
+        MDCODE MdCode = KR_MDCODE_IO_APICS_INIT_FAILURE;
+        CSTR   MdDesc = "I/O APICs initialization failure.";
+        Krnlmeltdownimm(MdCode, MdDesc);
+    }
 
     KrdwtpOutColoredText("Platform processor topology:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND); 
     for (UINT i = 0; i < MAX_SMP_PROCESSORS; i++)

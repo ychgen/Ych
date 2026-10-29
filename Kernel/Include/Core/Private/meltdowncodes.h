@@ -38,6 +38,9 @@ CSTR Krnlmddesc(MDCODE code);
 #define KR_MDCODE_MMIO_DEVICE_MAP_FAILURE               (KR_CATEGORY_MDCODE_MEMORY +   12)
 #define KR_MDCODE_AP_STACK_ALLOC_FAILURE                (KR_CATEGORY_MDCODE_MEMORY +   13)
 
+/** KR_CATEGORY_MDCODE_IO */
+#define KR_MDCODE_IO_APICS_INIT_FAILURE                 (KR_CATEGORY_MDCODE_IO +        1)
+
 /** KR_CATEGORY_MDCODE_DEBUG */
 
 #define KR_MDCODE_GENERAL_DEBUG                         (KR_CATEGORY_MDCODE_DEBUG  +    1) // General Debug (use for debug meltdowns)

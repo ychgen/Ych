@@ -9,6 +9,8 @@
 
 #include "Intmgmt/Spurious.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
 KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
 {
 #define _fcpy(x) .x = pInterruptFrame->x

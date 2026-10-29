@@ -24,6 +24,8 @@ CSTR Krnlmddesc(MDCODE mdCode)
         mkcase(KR_MDCODE_KERNEL_HEAP_INITIALIZATION_FAILURE);
         mkcase(KR_MDCODE_MMIO_DEVICE_MAP_FAILURE);
         mkcase(KR_MDCODE_AP_STACK_ALLOC_FAILURE);
+        /** IO */
+        mkcase(KR_MDCODE_IO_APICS_INIT_FAILURE);
         /** DEBUG */
         mkcase(KR_MDCODE_GENERAL_DEBUG);
         mkcase(KR_MDCODE_KERNEL_START_RETURNS);

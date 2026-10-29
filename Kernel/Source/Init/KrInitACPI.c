@@ -15,7 +15,7 @@
 
 #include "ACPI/ACPI.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"
+#include "Intmgmt/IOAPIC.h"
 
 static VOID ProcessMADT(KrAcpiMadtHeader* pMadt);
 static VOID ProcessMCFG(AcpiMcfgHeader* pMcfg);
@@ -92,6 +92,21 @@ static VOID ProcessMADT(KrAcpiMadtHeader* pMadt)
             g_KernelState.SmpInfo.ProcInfo[pLocalApic->LocalApicID].BSP = 0;
             g_KernelState.SmpInfo.ProcInfo[pLocalApic->LocalApicID].AcpiID = pLocalApic->AcpiID;
             g_KernelState.SmpInfo.ProcInfo[pLocalApic->LocalApicID].LocalApicID = pLocalApic->LocalApicID;
+
+            break;
+        }
+        case KR_ACPI_MADT_RECORD_TYPE_IO_APIC:
+        {
+            CONST AcpiMadtEntryIoApic* CONST FwIoApicData = (CONST AcpiMadtEntryIoApic* CONST) pRecordsCur;
+
+            IoApicInfo* IoApicInfo = GetIoApics() + FwIoApicData->ID;
+            IoApicInfo->E_V = TRUE;
+            IoApicInfo->ID = FwIoApicData->ID;
+            IoApicInfo->FirstIRQ = FwIoApicData->FirstIRQ;
+            IoApicInfo->PaddrBase = FwIoApicData->BaseAddress;
+
+            GetIoApicIDs()[GetIoApicCount()] = IoApicInfo->ID;
+            _SetIoApicCount(GetIoApicCount() + 1);
 
             break;
         }
