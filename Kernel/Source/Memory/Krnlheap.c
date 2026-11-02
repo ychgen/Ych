@@ -3,6 +3,7 @@
 #include "Memory/Virtmemmgmt.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Core/KernelState.h"
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
 typedef WORD offset_to_meta_t;
@@ -18,10 +19,10 @@ typedef struct KR_PACKED HeapHeader
     UCHAR bFree;
 } HeapHeader;
 
-static KrVirtualMemoryRegion* sg_HeapVMR = NULLPTR;
-static HeapHeader* sg_RootHeader = NULLPTR;
-static UINTPTR sg_VaddrHeapSt = 0;
-static UINTPTR sg_VaddrHeapNd = 0;
+static KrVirtualMemoryRegion* HeapVMR = NULLPTR;
+static HeapHeader* RootHeader = NULLPTR;
+static UINTPTR VaddrHeapSt = 0;
+static UINTPTR VaddrHeapNd = 0;
 
 UINTPTR HeapHeaderPayloadAddress(HeapHeader* pHeader);
 
@@ -42,20 +43,20 @@ BOOL HeapInit(VOID)
     }
 
     // The kernel heap spans from PML4 first entry up to MMIO entry.
-    sg_VaddrHeapSt = KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_HEAP_PDPT_IDX, 0, 0, 0);
-    sg_VaddrHeapNd = sg_VaddrHeapSt + (KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_MMIO_PDPT_IDX, 0, 0, 0) - sg_VaddrHeapSt);
+    VaddrHeapSt = KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_HEAP_PDPT_IDX, 0, 0, 0);
+    VaddrHeapNd = VaddrHeapSt + (KR_MAKE_VIRTUAL(KRNL_PML4_IDX, KRNL_MMIO_PDPT_IDX, 0, 0, 0) - VaddrHeapSt);
 
-    sg_HeapVMR = VmAcquireRegion(KrGetKernelAddressSpace(), sg_VaddrHeapSt, sg_VaddrHeapNd, VMR_FLAG_READABLE | VMR_FLAG_WRITABLE);
-    if (!sg_HeapVMR)
+    HeapVMR = VmAcquireRegion(KrGetKernelAddressSpace(), VaddrHeapSt, VaddrHeapNd, VMR_FLAG_READABLE | VMR_FLAG_WRITABLE);
+    if (!HeapVMR)
     {
         return FALSE;
     }
-    VmTagRegion(sg_HeapVMR, "Kernel Heap");
+    VmTagRegion(HeapVMR, "Kernel Heap");
     
-    sg_RootHeader = (HeapHeader*) sg_VaddrHeapSt;
-    sg_RootHeader->pPrev = sg_RootHeader->pNext = NULLPTR;
-    sg_RootHeader->PayloadSize = sg_VaddrHeapNd - sg_VaddrHeapSt - sizeof(HeapHeader);
-    sg_RootHeader->bFree = TRUE;
+    RootHeader = (HeapHeader*) VaddrHeapSt;
+    RootHeader->pPrev = RootHeader->pNext = NULLPTR;
+    RootHeader->PayloadSize = VaddrHeapNd - VaddrHeapSt - sizeof(HeapHeader);
+    RootHeader->bFree = TRUE;
     
     s_HeapInitialized = TRUE;
     return TRUE;
@@ -80,7 +81,7 @@ VOID* HeapAlignedAcquire(SIZE N, UINT Alignment)
     N = KrtlAlignUpToPowerOfTwo(N, Alignment);
     
     UINTPTR AddrAlignedPayload;
-    HeapHeader* pHeader = HeapLocateAlignedFreeOfSizeFrom(sg_RootHeader, N, Alignment, &AddrAlignedPayload);
+    HeapHeader* pHeader = HeapLocateAlignedFreeOfSizeFrom(RootHeader, N, Alignment, &AddrAlignedPayload);
     
     if (!pHeader)
     {
@@ -113,7 +114,7 @@ VOID* HeapAcquire(SIZE N)
 BOOL HeapRelinquish(VOID* Ptr)
 {
     UINTPTR AddrPtr = (UINTPTR) Ptr;
-    if (AddrPtr < sg_VaddrHeapSt || AddrPtr >= sg_VaddrHeapNd) // This doesnt even come from possible heap space bro
+    if (AddrPtr < VaddrHeapSt || AddrPtr >= VaddrHeapNd) // This doesnt even come from possible heap space bro
     {
         return FALSE;
     }

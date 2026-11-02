@@ -76,7 +76,7 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
 
     KrIpiConfig IpiCfg = {
         .dwDestApic = 0, // Irrelevant because we use dst shorthand
-        .IntVector = KR_INTERRUPT_VECTOR_NON_MASKABLE_INTERRUPT,
+        .IntVector = INT_VECTOR_NON_MASKABLE_INTERRUPT,
         .eDeliveryMode = IPI_DELIVERY_NMI,
         .eDestMode = 0, // irrelevant
         .eDestShorthand = bInterruptSelf ? IPI_SHORTHAND_ALL_ISLF : IPI_SHORTHAND_ALL_XSLF,
@@ -113,7 +113,7 @@ VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason
     RelinquishSpinlock(&sg_NmiSpinlock);
 }
 
-VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr)
+VOID IntmgmtNonmaskableInterrupt(const InterruptFrame* pIntfr)
 {
     switch (sg_NmiInfo.Reason)
     {

@@ -4,6 +4,7 @@
 #include "Core/KernelState.h"
 
 #include "CPU/Interrupt.h"
+#include "CPU/PerCpu.h"
 #include "CPU/CPUID.h"
 #include "CPU/MSR.h"
 #include "CPU/PAT.h"
@@ -11,7 +12,7 @@
 
 #include "Memory/BootstrapArena.h"
 #include "Memory/Physmemmgmt.h"
-#include "Memory/PageFault.h"
+#include "Intmgmt/PageFault.h"
 
 #include "KRTL/Krnlmem.h"
 
@@ -19,7 +20,7 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "CPU/Halt.h"
 
-KrVirtmemmgmtState g_StateVMM = {0};
+KrVirtmemmgmtState g_StateVMM = { 0 };
 
 // Include these here (they depend on stuff from above)
 #include "PrivateVMM/BSmapInit.h" // for KrInitBootstrapStaticPages()
@@ -79,13 +80,6 @@ BOOL KrInitVirtmemmgmt(VOID)
         MDCODE MdCode = KR_MDCODE_KERNEL_ADDRESS_SPACE_CREATION_FAILURE;
         CSTR MdDesc = "Failed to create the kernel address space and its initial VMRs.";
         Krnlmeltdownimm(MdCode, MdDesc);
-    }
-
-    // NOTE: Only and only after all initialization steps should we assign the Page Fault handler.
-    // Parameter `bOverwrite`=TRUE for overwrite! You must provide it as TRUE to overwrite the basic KrCriticalProcessorInterrupt handler.
-    if (!KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrGlobalPageFaultHandler, TRUE))
-    {
-        return FALSE;
     }
 
     g_StateVMM.bInitialized = TRUE;

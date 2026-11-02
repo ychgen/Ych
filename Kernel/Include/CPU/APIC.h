@@ -81,6 +81,7 @@ VOID KrApicSetPhysicalBase(UINTPTR PhysAddr);
 BOOL KrApicCheckSupport(VOID);
 BOOL KrApicInit(BOOL bIsCallerBSP);
 
+BOOL ApicIsEnabled(VOID);
 VOID ApicSetEnabled(BOOL bEnabled);
 VOID ApicSetTimerInterruptsEnabled(BOOL bEnabled);
 

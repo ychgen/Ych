@@ -1,6 +1,7 @@
 #include "Devdriv/Timer/AcpiPmTimer.h"
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
+#include "Core/KernelState.h"
 
 #include "Devdriv/Device.h"
 #include "KRTL/Krnlmem.h"
@@ -8,82 +9,93 @@
 #include "CPU/PortIO.h"
 #include "ACPI/ACPI.h"
 
-static UINTPTR sg_AcpiPmTimerAddr = 0;
-static UINT sg_AcpiPmTimerBitWidth = 0;
-static BYTE sg_AcpiPmTimerAddrSpace = -1;
+CONST CHAR AcpiPmTimerDeviceName[] = "ACPI Power Management Timer";
 
-DriverMatchMethod g_AcpiPmTimerDriverMatchMethods[] = {
-    { .OnBus = BUS_IVLD } // terminator
-};
+STATIC DeviceNode AcpiPmTimerDevice = { 0 };
+STATIC BOOL       AcpiPmTimerDeviceInitialized = FALSE;
+STATIC UINTPTR    AcpiPmTimerAddr = 0;
+STATIC UINT       AcpiPmTimerBitWidth = 0;
+STATIC BYTE       AcpiPmTimerAddrSpace = -1;
+
+STATIC BOOL AcpiPmTimerDriverRegister(VOID);
+STATIC VOID AcpiPmTimerDriverUnregister(VOID);
+
 TimerDeviceDriver g_AcpiPmTimerDriver = {
     .Object = {
         .Name = "ACPI Power Management Timer Driver",
         .Type = DRIVER_TIMER,
         .pInterface = &g_AcpiPmTimerDriver,
-        .pMatchMethods = g_AcpiPmTimerDriverMatchMethods,
-        .DevProbe = AcpiPmTimerDevProbe,
-        .DevInit = AcpiPmTimerDevInit,
-        .DevShutdown = AcpiPmTimerDevShutdown
+        .pMatchMethods = NULLPTR,
+        .DevProbe = NULLPTR,
+        .DevInit = NULLPTR,
+        .DevShutdown = NULLPTR,
+        .Register = AcpiPmTimerDriverRegister
     },
     .GetTicks = AcpiPmTimerGetTicks,
     .GetTimerBitWidth = AcpiPmTimerGetTimerBitWidth,
     .GetTimerFrequency = AcpiPmTimerGetTimerFrequency
 };
 
-BOOL AcpiPmTimerDevProbe(struct DeviceNode* pDev, DriverMatchMethod* pClamationMethodRef)
+STATIC BOOL AcpiPmTimerDriverRegister(VOID)
 {
-    return KrtlBufferEqual(pDev->Name, "ACPI Power Management Timer", 28) && pDev->OnBus == BUS_PLATFORM;
-}
+    AcpiPmTimerDevice.pDriver = &g_AcpiPmTimerDriver.Object;
 
-BOOL AcpiPmTimerDevInit(struct DeviceNode* pDev)
-{
-    AcpiFadtHeader* pFadtHeader = (AcpiFadtHeader*) pDev->pDriverData;
-    if (pFadtHeader->PMTimerLength != 4)
+    if (!AcpiPmTimerDeviceInitialized)
+    {
+        KrtlContiguousCopyBuffer(AcpiPmTimerDevice.Name, AcpiPmTimerDeviceName, sizeof(AcpiPmTimerDeviceName));
+        AcpiPmTimerDevice.pDriverData = g_KernelState.AcpiInfo.pFadt;
+        AcpiPmTimerDevice.OnBus = BUS_PLATFORM;
+
+        AddChildDevice(GetSystemRootDevice(), &AcpiPmTimerDevice);
+        AcpiPmTimerDeviceInitialized = TRUE;
+    }
+
+    if (g_KernelState.AcpiInfo.pFadt->PMTimerLength != 4)
     {
         return FALSE;
     }
-    sg_AcpiPmTimerBitWidth = (pFadtHeader->Flags & ACPI_FADT_FLAG_PM_TIMER_CNTR_IS_32BITS) ? 32 : 24;
+    AcpiPmTimerBitWidth = (g_KernelState.AcpiInfo.pFadt->Flags & ACPI_FADT_FLAG_PM_TIMER_CNTR_IS_32BITS) ? 32 : 24;
     
-    if (pFadtHeader->X_PMTimerBlock.AddrSpace == ACPI_ADDR_SPACE_MEMORY)
+    if (g_KernelState.AcpiInfo.pFadt->X_PMTimerBlock.AddrSpace == ACPI_ADDR_SPACE_MEMORY)
     {
-        sg_AcpiPmTimerAddr = MmioMapDevice("ACPI PM Timer Tick", pFadtHeader->X_PMTimerBlock.Address, 4096, MMIO_NF);
-        if (!sg_AcpiPmTimerAddr)
+        AcpiPmTimerAddr = MmioMapDevice("ACPI PM Timer Tick", g_KernelState.AcpiInfo.pFadt->X_PMTimerBlock.Address, 4096, MMIO_NF);
+        if (!AcpiPmTimerAddr)
         {
             return FALSE;
         }
-        sg_AcpiPmTimerAddrSpace = ACPI_ADDR_SPACE_MEMORY;
+        AcpiPmTimerAddrSpace = ACPI_ADDR_SPACE_MEMORY;
     }
     else
     {
-        sg_AcpiPmTimerAddr = pFadtHeader->X_PMTimerBlock.Address;
-        sg_AcpiPmTimerAddrSpace = ACPI_ADDR_SPACE_PORT;
+        AcpiPmTimerAddr = g_KernelState.AcpiInfo.pFadt->X_PMTimerBlock.Address;
+        AcpiPmTimerAddrSpace = ACPI_ADDR_SPACE_PORT;
     }
 
     return TRUE;
 }
 
-VOID AcpiPmTimerDevShutdown(struct DeviceNode* pDev)
+STATIC VOID AcpiPmTimerDriverUnregister(VOID)
 {
-    sg_AcpiPmTimerAddr = 0;
-    sg_AcpiPmTimerAddrSpace = -1;
-    sg_AcpiPmTimerBitWidth = 0;
+    AcpiPmTimerAddr = 0;
+    AcpiPmTimerAddrSpace = -1;
+    AcpiPmTimerBitWidth = 0;
 }
 
 VOID AcpiPmTimerGetTicks(VOID* pOutData)
 {
-    if (sg_AcpiPmTimerAddrSpace == ACPI_ADDR_SPACE_MEMORY)
+    if (AcpiPmTimerAddrSpace == ACPI_ADDR_SPACE_MEMORY)
     {
-        *(volatile DWORD*) pOutData = *(volatile DWORD*) sg_AcpiPmTimerAddr;
+        *(volatile DWORD*) pOutData = *(volatile DWORD*) AcpiPmTimerAddr;
     }
     else
     {
-        *(volatile DWORD*) pOutData = DwordInputFromPort((WORD) sg_AcpiPmTimerAddr);
+        *(volatile DWORD*) pOutData = DwordInputFromPort((WORD) AcpiPmTimerAddr);
     }
 }
 
 UINT AcpiPmTimerGetTimerBitWidth(VOID)
 {
-    return sg_AcpiPmTimerBitWidth;
+    return AcpiPmTimerBitWidth;
 }
 
 UINT AcpiPmTimerGetTimerFrequency(VOID)

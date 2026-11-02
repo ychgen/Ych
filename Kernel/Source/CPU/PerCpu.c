@@ -21,20 +21,78 @@ STATIC TimerEvent* FindTimerEventInsertPoint(TimerEvent* Root, ULONG NrTicks);
 
 STATIC VOID SleepDoneCallback(VOID* Aux);
 
+VOID SetInterrupt(DWORD CpuID, PerCpuInterrupt Data)
+{
+    PerCpu* Cpu = GetThatCpu(CpuID);
+    
+    AcquireOrWaitSpinlock(&Cpu->IntmodSpinlock);
+    {
+        Cpu->Interrupt[Data.Vector] = Data;
+    }
+    RelinquishSpinlock(&Cpu->IntmodSpinlock);
+}
+
+VOID SetHardwareInterrupt(DWORD CpuID, UCHAR IntVector, struct DeviceNode* HwDevice, DWORD IRQ, VOID (*Handler)(CONST InterruptFrame*))
+{
+    SetInterrupt(CpuID, (PerCpuInterrupt) {
+        .Handler = Handler,
+        .HwDevice = HwDevice,
+        .IRQ = IRQ,
+        .Vector = IntVector
+    });
+}
+
+VOID SetExceptionInterrupt(DWORD CpuID, UCHAR IntVector, VOID (*Handler)(CONST InterruptFrame*))
+{
+    SetInterrupt(CpuID, (PerCpuInterrupt) {
+        .Handler = Handler,
+        .HwDevice = NULLPTR,
+        .IRQ = DWORD_MAX,
+        .Vector = IntVector
+    });
+}
+
+VOID SetInterruptHandler(DWORD CpuID, UCHAR Vector, VOID (*Handler)(CONST InterruptFrame*))
+{
+    PerCpu* Cpu = GetThatCpu(CpuID);
+    
+    AcquireOrWaitSpinlock(&Cpu->IntmodSpinlock);
+    {
+        Cpu->Interrupt[Vector].Handler = Handler;
+    }
+    RelinquishSpinlock(&Cpu->IntmodSpinlock);
+}
+
+VOID UnsetInterrupt(DWORD CpuID, UCHAR IntVector)
+{
+    PerCpu* Cpu = GetThatCpu(CpuID);
+    
+    AcquireOrWaitSpinlock(&Cpu->IntmodSpinlock);
+    {
+        Cpu->Interrupt[IntVector] = (PerCpuInterrupt) {
+            .Handler = NULLPTR,
+            .HwDevice = NULLPTR,
+            .IRQ = DWORD_MAX,
+            .Vector = 0x00
+        };
+    }
+    RelinquishSpinlock(&Cpu->IntmodSpinlock);
+}
+
 BOOL SetTimer(ULONG uSeconds, VOID (*Callback)(VOID*), VOID* UserParam, DWORD dwFlags)
 {
     ApicSetTimerCount(0); // Stop APIC counter from ticking
 
     PerCpu* ThisCpu = GetThisCpu();
     ULONG NrTicks = uSeconds;
-    if (!(dwFlags & TIMER_EVENT_FLAGS_INTERNAL_TREAT_USECONDS_AS_TICKS))
+    if (!(dwFlags & TIMER_EVENT_FLAGS_USECONDS_AS_TICKS))
     {
         NrTicks *= ThisCpu->TimerInf.CalibrationValue;
     }
     else
     {
         // Function-input, not metadata for the node, so remove if present
-        dwFlags &= ~(TIMER_EVENT_FLAGS_INTERNAL_TREAT_USECONDS_AS_TICKS);
+        dwFlags &= ~(TIMER_EVENT_FLAGS_USECONDS_AS_TICKS);
     }
 
     TimerEvent* Event = HeapAcquire(sizeof(TimerEvent));
@@ -111,6 +169,11 @@ VOID GrabThisCpuStruct(VOID)
 
     KrWriteMSR(IA32_GS_BASE, (UINTPTR) pPerCpu); // write active base
     KrWriteMSR(IA32_KERNEL_GS_BASE, (UINTPTR) pPerCpu); // write inactive base
+}
+
+PerCpu* GetThatCpu(DWORD CpuID)
+{
+    return sg_PerCpu + CpuID;
 }
 
 DWORD GetThisCpuID(VOID)

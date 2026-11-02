@@ -1,4 +1,5 @@
 #include "Core/Assert.h"
+#include "Core/KernelState.h"
 
 #include "KRTL/Krnlstring.h"
 
@@ -11,6 +12,7 @@ VOID ImplKernelAssert(BOOL Expr, MDCODE MdCode, CSTR MdDesc, ...)
         return;
     }
     CHAR MdFmtDesc[MAX_MDDESC_SIZE];
+
 
     if (MdDesc)
     {

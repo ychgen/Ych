@@ -3,6 +3,10 @@
 GLOBAL AcquireOrWaitSpinlock
 GLOBAL RelinquishSpinlock
 
+EXTERN KrnldeadlockDetected ; KR_NORETURN VOID KrnldeadlockDetected(CONST Spinlock* pSpinlock, DWORD CpuID)
+EXTERN UnownedSpinUnlock ; KR_NORETURN VOID UnownedSpinUnlock(CONST Spinlock* pSpinlock, DWORD CpuID)
+EXTERN GetThisCpuID
+
 ; VOID AcquireOrWaitSpinlock(Spinlock* /*rdi*/ pSpinlock)
 AcquireOrWaitSpinlock:
     CLI ; Do not acknowledge interrupts during spinning (deadlocks highly plausible otherwise)

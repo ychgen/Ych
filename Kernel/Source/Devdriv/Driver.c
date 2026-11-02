@@ -34,7 +34,12 @@ BOOL RegisterDriver(Driver* pDriver)
     }
 
     g_KernelState.DriverInfo.pTable[g_KernelState.DriverInfo.NrLoaded++] = pDriver;
-    pDriver->bRegistered = TRUE;
+    pDriver->bRegistered = pDriver->Register ? pDriver->Register() : TRUE;
+
+    if (!pDriver->bRegistered)
+    {
+        g_KernelState.DriverInfo.NrLoaded--;
+    }
 
     return TRUE;
 }

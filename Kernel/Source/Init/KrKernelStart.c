@@ -28,6 +28,8 @@
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 #include "Earlyvideo/Dwtpfonts.h"
 
+#include "HumanInterface/KeyboardHub.h"
+
 #include "Memory/BootstrapArena.h"
 #include "Memory/Physmemmgmt.h"
 #include "Memory/Virtmemmgmt.h"
@@ -35,11 +37,14 @@
 
 #include "Intmgmt/IOAPIC.h"
 
+#include "KRTL/Krnlchar.h"
 #include "KRTL/Krnlmem.h"
 
 /** Defined by the linker (see `Kernel.ld` linker script used to link the kernel). */
 extern CHAR __KR_LINK_BSS_START[];
 extern CHAR __KR_LINK_BSS_END[];
+
+STATIC DWORD dwBSPID = 0;
 
 /** Entry point of the kernel. The bootloader will jump to this function upon control transfer. */
 KR_SECTION(".text.KrKernelStart")
@@ -73,6 +78,15 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
     // Initialize Bootstrap Arena Allocator & the Canonical Memory Map (which depends on the Barena, so init after that)
     KrInitBootstrapArena((VOID*) SysInfoPack.KernelBootstrapArenaBase, SysInfoPack.KernelBootstrapArenaSize);
     KrInitMemmap(&SysInfoPack.MemoryMapInfo);
+
+    // Initialize flat Global Descriptor Table.
+    KrInitGDT();
+
+    // Per CPU for the bootstrap processor. Must be done AFTER init GDT, because segment registers reload invalidates GS base.
+    GrabThisCpuStruct();
+    g_KernelState.SmpInfo.ActiveProcessorCount = 1;
+    dwBSPID = GetThisCpuID();
+    g_KernelState.SmpInfo.pCpuIDs = &dwBSPID; // 1 entry only for now
 
     // Init FrameBufferInfo & DisplaywideTextProtocol
     {
@@ -118,13 +132,6 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
     KrdwtpOutFormatText("Frame Buffer lives at physical 0x%RX ; virtual 0x%RX\n", SysInfoPack.GraphicsInfo.PhysicalFramebufferAddress, FRAMEBUFFER_VIRTUAL_ADDR);
     KrdwtpOutFormatText("Framebuffer resolution is %ux%u.\n", SysInfoPack.GraphicsInfo.FramebufferWidth, SysInfoPack.GraphicsInfo.FramebufferHeight);
 
-    // Initialize flat Global Descriptor Table.
-    KrInitGDT();
-    KrdwtpOutColoredText("Initialized and loaded the Global Descriptor Table.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-
-    // Per CPU for the bootstrap processor. Must be done AFTER init GDT, because `lgdt` invalidates GS base.
-    GrabThisCpuStruct();
-
     // Initialize IDT and ISRs. Overall initializing interrupt handling.
     // Bye bye Triple Fault!
     KrInitInt();
@@ -162,6 +169,13 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
     KrInitACPI(SysInfoPack.PhysAddrRSDP);
     KrdwtpOutColoredText("ACPI initialization sucessful.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
     
+    if (!IoApicsInit())
+    {
+        MDCODE MdCode = KR_MDCODE_IO_APICS_INIT_FAILURE;
+        CSTR   MdDesc = "I/O APICs initialization failure.";
+        Krnlmeltdownimm(MdCode, MdDesc);
+    }
+
     // Bring-up builtin drivers
     InitBuiltinDrivers();
     KrdwtpOutColoredText("Registered the built-in drivers.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
@@ -175,13 +189,6 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
         Krnlmeltdownimm(mdCode, szMdDesc);
     }
     KrdwtpOutColoredText("Initialized the BSP's local APIC.\n", KRDWTP_COLOR_GREEN, KRDWTP_BACKGROUND);
-
-    if (!IoApicsInit())
-    {
-        MDCODE MdCode = KR_MDCODE_IO_APICS_INIT_FAILURE;
-        CSTR   MdDesc = "I/O APICs initialization failure.";
-        Krnlmeltdownimm(MdCode, MdDesc);
-    }
 
     KrdwtpOutColoredText("Platform processor topology:\n", KRDWTP_COLOR_YELLOW, KRDWTP_BACKGROUND); 
     for (UINT i = 0; i < MAX_SMP_PROCESSORS; i++)
@@ -210,9 +217,33 @@ KR_NORETURN VOID KrKernelStart(CONST KrSystemInfoPack* pSystemInfoPack)
     // Initialize & bring-up the Application Processors.
     KrInitSMP();
 
+    while (TRUE)
+    {
+        if (!HiGetKeyboardEventQueueNum())
+        {
+            ProcessorHalt();
+        }
+
+        while (HiGetKeyboardEventQueueNum())
+        {
+            HiKeyboardEvent Event = HiPopKeyboardEvent();
+            KrdwtpOutFormatText
+            (
+                "HI Keyboard Event:\n"
+                " -> Device  = %s\n"
+                " -> Keycode = %s (`%u`)\n"
+                " -> Keyact  = %s\n"
+                " -> CTRL:%u,ALT:%u,SHIFT:%u\n",
+                Event.Source->Name, KeycodeToString(Event.Keycode), Event.Keycode, KeyStateToString(Event.NewState),
+                (Event.Keymod & KM_CTRL) ? 1 : 0, (Event.Keymod & KM_ALT) ? 1 : 0, (Event.Keymod & KM_SHIFT) ? 1 : 0
+            );
+        }
+    }
+
+
+
     // =======!> STOP HERE <!=========== //
-    KrdwtpOutColoredText("KrKernelStart() finished, the processor is now halted.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    while (1) { ProcessorHalt(); }
+    // =======!> STOP HERE <!=========== //
     // =======!> STOP HERE <!=========== //
 
 #include "Krnlstend.h" /* ! Always keep this at the very end of the function ! Invokes a special Kernel Meltdown. */

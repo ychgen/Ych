@@ -24,6 +24,7 @@
 #define KR_CEILDIV(Dividend, Divisor) (((Dividend) + (Divisor) - 1) / (Divisor))
 
 #define MACROMIN(LHS,RHS) ((LHS) < (RHS) ? (LHS) : (RHS))
+#define MACROMAX(LHS,RHS) ((LHS) < (RHS) ? (RHS) : (LHS))
 
 /** Defined as macros just in case in the future we change compilers, we are not *completely* GCC dependent. */
 
@@ -38,6 +39,7 @@
 #define CONST          const
 #define STATIC         static
 #define INLINE         inline
+#define EXTERN         extern
 #define VOID           void
 #define NULLPTR      ((VOID*) 0)
 #define KR_UNUSED(X) ((VOID)(X)) // for when you want to suppress an unused variable warning especially.

@@ -1,32 +1,40 @@
-[bits 64]
+[BITS 64]
 
 ; C handler
-extern KrDispatchInterrupt
+EXTERN KrDispatchInterrupt
+EXTERN KrnlISRs
 
-%macro ISR_WITHOUT_EC 1
-global KrInterruptServiceRoutine_%1
+%MACRO ISR_WITHOUT_EC 1
+GLOBAL KrInterruptServiceRoutine_%1
 KrInterruptServiceRoutine_%1:
-    PUSH 0  ; Push dummy error code for uniform KrInterruptFrame struct
+    PUSH 0  ; Push dummy error code for uniform InterruptFrame struct
     PUSH %1 ; IntNo
     JMP KrInterruptServiceRoutineWrapperCommon
-%endmacro
+%ENDMACRO
 
-%macro ISR_WITH_EC 1
-global KrInterruptServiceRoutine_%1
+%MACRO ISR_WITH_EC 1
+GLOBAL KrInterruptServiceRoutine_%1
 KrInterruptServiceRoutine_%1:
     PUSH %1 ; IntNo
     JMP KrInterruptServiceRoutineWrapperCommon
-%endmacro
+%ENDMACRO
 
-%assign i 0
-%rep 256
-    %if i = 8 || i = 10 || i = 11 || i = 12 || i = 13 || i = 14 || i = 17
+%ASSIGN i 0
+%REP 256
+    %IF i = 8 || i = 10 || i = 11 || i = 12 || i = 13 || i = 14 || i = 17
         ISR_WITH_EC i
-    %else
+    %ELSE
         ISR_WITHOUT_EC i
-    %endif
-    %assign i i+1
-%endrep
+    %ENDIF
+    %ASSIGN i i+1
+%ENDREP
+
+KrnlISRs:
+    %ASSIGN i 0
+    %REP 256
+        DQ KrInterruptServiceRoutine_%+i
+        %ASSIGN i i+1
+    %ENDREP
 
 KrInterruptServiceRoutineWrapperCommon:
     PUSH RAX

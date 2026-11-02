@@ -1,5 +1,5 @@
-#ifndef YCH_KERNEL_MEMORY_PAGE_FAULT_H
-#define YCH_KERNEL_MEMORY_PAGE_FAULT_H
+#ifndef YCH_KERNEL_INTMGMT_PAGE_FAULT_H
+#define YCH_KERNEL_INTMGMT_PAGE_FAULT_H
 
 #include "CPU/Interrupt.h"
 
@@ -9,6 +9,6 @@
  * 
  * @param pInterruptFrame The interrupt frame from the interrupt dispatcher.
  */
-VOID KrGlobalPageFaultHandler(const KrInterruptFrame* pInterruptFrame);
+VOID IntmgmtPageFault(const InterruptFrame* pInterruptFrame);
 
-#endif // !YCH_KERNEL_MEMORY_PAGE_FAULT_H
+#endif // !YCH_KERNEL_INTMGMT_PAGE_FAULT_H

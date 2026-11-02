@@ -1,6 +1,6 @@
 #include "Intmgmt/Spurious.h"
 
-VOID IntmgmtSpuriousInterrupt(const KrInterruptFrame* pIntfr)
+VOID IntmgmtSpuriousInterrupt(const InterruptFrame* pIntfr)
 {
     return;
 }

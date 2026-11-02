@@ -1,5 +1,6 @@
 #include "CPU/Interrupt.h"
 
+#include "CPU/PerCpu.h"
 #include "CPU/Halt.h"
 #include "CPU/APIC.h"
 #include "CPU/IDT.h"
@@ -9,9 +10,7 @@
 
 #include "Intmgmt/Spurious.h"
 
-#include "Earlyvideo/DisplaywideTextProtocol.h"
-
-KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* pInterruptFrame)
+KrProcessorSnapshot InterruptFrameToProcessorSnapshot(CONST InterruptFrame* pInterruptFrame)
 {
 #define _fcpy(x) .x = pInterruptFrame->x
     KrProcessorSnapshot snapshot = {
@@ -23,9 +22,7 @@ KrProcessorSnapshot KrInterruptFrameToProcessorSnapshot(const KrInterruptFrame* 
     return snapshot;
 }
 
-KrInterruptHandler g_pInterruptHandlers[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
-
-VOID KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
+STATIC VOID KrUnhandledInterrupt(CONST InterruptFrame* pInterruptFrame)
 {
     // First 32 are reserved by CPU
     // KrInitInt normally registers these to KrCriticalProcessorInterrupt, but just in case, HLT.
@@ -37,17 +34,12 @@ VOID KrUnhandledInterrupt(const KrInterruptFrame* pInterruptFrame)
     // After this point, we are sure this is IRS >31, so a non-CPU reserved IRQ.
 }
 
-VOID KrInitializeInterruptSystem(VOID)
+VOID KrDispatchInterrupt(CONST InterruptFrame* pInterruptFrame)
 {
-    // Zero array
-    KrtlContiguousZeroBuffer(g_pInterruptHandlers, KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES * sizeof(KrInterruptHandler));
-}
-
-VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
+    static uint16_t cnt = 0;
     if (pInterruptFrame->InterruptNo < KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES)
     {
-        KrInterruptHandler Handler = g_pInterruptHandlers[pInterruptFrame->InterruptNo];
+        VOID (*Handler)(CONST InterruptFrame*) = GetThisCpu()->Interrupt[pInterruptFrame->InterruptNo].Handler;
         if (Handler)
         {
             Handler(pInterruptFrame);
@@ -64,32 +56,4 @@ VOID KrDispatchInterrupt(const KrInterruptFrame* pInterruptFrame)
         // Send EOI signal to APIC, if we don't, it will go radio silent.
         ApicIssueEndOfInt();
     }
-}
-
-BOOL KrRegisterInterruptHandler(ULONG IntNo, KrInterruptHandler pHandler, BOOL bOverwrite)
-{
-    if (IntNo > 0xFF)
-    {
-        return FALSE;
-    }
-    if (g_pInterruptHandlers[IntNo] && !bOverwrite)
-    {
-        return FALSE;
-    }
-    g_pInterruptHandlers[IntNo] = pHandler;
-    return TRUE;
-}
-
-BOOL KrUnregisterInterruptHandler(ULONG IntNo)
-{
-    if (IntNo > 0xFF)
-    {
-        return FALSE;
-    }
-    if (g_pInterruptHandlers[IntNo])
-    {
-        g_pInterruptHandlers[IntNo] = NULLPTR;
-        return TRUE;
-    }
-    return FALSE;
 }

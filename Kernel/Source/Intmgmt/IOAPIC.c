@@ -3,6 +3,8 @@
 #include "Core/KernelState.h"
 #include "Memory/MMIO.h"
 
+#include "Earlyvideo/DisplaywideTextProtocol.h"
+
 #define IOREGSEL 0x00 // I/O Register Select
 #define IOREGWIN 0x10 // I/O Register Window
 
@@ -42,6 +44,8 @@ BOOL IoApicsInit(VOID)
         IoApic->MaxRedirEntry = (dwVerReg >> 16) & 0xFF;
 
         IoApic->INIT = TRUE;
+        KrdwtpOutFormatText(" -> I/O APIC `%u` initialized; VER=0x%X, GSI=0x%X, REDIR=%u, PHYS=%p, VIRT=%p\n",
+            IoApic->ID, IoApic->Version, IoApic->FirstIRQ, IoApic->MaxRedirEntry, IoApic->PaddrBase, IoApic->VaddrBase);
     }
 
     return TRUE;

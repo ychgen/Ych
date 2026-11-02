@@ -5,6 +5,6 @@
 
 #define KERNEL_SPURIOUS_INTERRUPT_VECTOR 0xFF
 
-VOID IntmgmtSpuriousInterrupt(const KrInterruptFrame* pIntfr);
+VOID IntmgmtSpuriousInterrupt(const InterruptFrame* pIntfr);
 
 #endif // !YCH_KERNEL_INTMGMT_SPURIOUS_H

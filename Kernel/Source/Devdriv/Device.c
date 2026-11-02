@@ -10,13 +10,13 @@
 
 #include "ACPI/PCIe.h"
 
-static const CHAR c_RootDeviceName[] = "System Host";
-static const CHAR c_PcieDeviceName[] = "ACPI PCIe Root 0";
-static DeviceNode g_RootDevice = {0};
-static DeviceNode g_PcieRoot = {0};
-static UINT g_DeviceCount = 0;
+STATIC CONST CHAR c_RootDeviceName[] = "System Host";
+STATIC CONST CHAR c_PcieDeviceName[] = "ACPI PCIe Root 0";
+STATIC DeviceNode g_RootDevice       = {0};
+STATIC DeviceNode g_PcieRoot         = {0};
+STATIC UINT       g_DeviceCount      =  0 ;
 
-static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF);
+STATIC VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF);
 
 VOID InitDeviceTree(VOID)
 {
@@ -87,7 +87,7 @@ UINT GetSystemDeviceCount(VOID)
     return g_DeviceCount;
 }
 
-static VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF)
+STATIC VOID DevTreeInitPCIeDeviceFound(UINTPTR VaddrCfgSpace, WORD VendorID, WORD DeviceID, UCHAR Class, UCHAR SubClass, UCHAR Bus, UCHAR Device, UCHAR Function, UCHAR ProgIF)
 {
     DeviceNode* pDevice = (DeviceNode*) HeapAcquire(sizeof(DeviceNode));
     if (!pDevice)

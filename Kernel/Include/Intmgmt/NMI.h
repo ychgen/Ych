@@ -28,7 +28,7 @@ typedef struct
 } GlobalNmiInfo;
 
 VOID RaiseGlobalNonmaskableInterrupt(BOOL bInterruptSelf, GlobalNmiReason Reason, VOID* pData, UINT* pOutNrCPUsAcknowledged);
-VOID IntmgmtNonmaskableInterrupt(const KrInterruptFrame* pIntfr);
+VOID IntmgmtNonmaskableInterrupt(const InterruptFrame* pIntfr);
 
 GlobalNmiInfo* GetGlobalNmiInfo(VOID);
 

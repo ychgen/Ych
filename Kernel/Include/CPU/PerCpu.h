@@ -1,11 +1,12 @@
 #ifndef YCH_KERNEL_CPU_PER_CPU_H
 #define YCH_KERNEL_CPU_PER_CPU_H
 
-#include "Krnlych.h"
+#include "CPU/Interrupt.h"
+#include "CPU/Spinlock.h"
 
 #define MAX_CONCURRENT_SLEEPS 8
 
-#define TIMER_EVENT_FLAGS_INTERNAL_TREAT_USECONDS_AS_TICKS (1U << 31)
+#define TIMER_EVENT_FLAGS_USECONDS_AS_TICKS (1U << 31)
 
 typedef struct TimerEvent
 {
@@ -30,13 +31,30 @@ typedef struct
     UCHAR SleepCounter;
 } TimerInfo;
 
+typedef struct
+{
+    VOID (*Handler)(CONST InterruptFrame*);
+    struct DeviceNode* HwDevice; // If this interrupt is device-sourced, must be valid. Otherwise set to NULLPTR
+    DWORD IRQ;                   // If this interrupt is device-sourced, must be valid. Otherwise set to DWORD_MAX
+    UCHAR Vector; // Int vector #. If set to 0x00 (except for actual 0x00 interrupt vector), you must assume empty vector and all rules for other fields invalid.
+} PerCpuInterrupt;
+
 typedef struct PerCpu
 {
     struct PerCpu* pSelf; // Pointer to self structure
     DWORD ID;             // Processor Local APIC ID
     BOOL bInPageFault;    // Currently in #PF ? Used to detect recursive page faults, i.e. page fault during a page fault.
     TimerInfo TimerInf;   // APIC Timer & per-CPU timer management data
+
+    Spinlock IntmodSpinlock; // Interrupt Modification Spinlock
+    PerCpuInterrupt Interrupt[NUM_INT_VECTORS];
 } PerCpu;
+
+VOID SetInterrupt(DWORD CpuID, PerCpuInterrupt Data);
+VOID SetHardwareInterrupt(DWORD CpuID, UCHAR IntVector, struct DeviceNode* HwDevice, DWORD IRQ, VOID (*Handler)(CONST InterruptFrame*));
+VOID SetExceptionInterrupt(DWORD CpuID, UCHAR IntVector, VOID (*Handler)(CONST InterruptFrame*));
+VOID SetInterruptHandler(DWORD CpuID, UCHAR Vector, VOID (*Handler)(CONST InterruptFrame*));
+VOID UnsetInterrupt(DWORD CpuID, UCHAR IntVector);
 
 /**
  * @brief Sets a timer event on this processor.
@@ -52,6 +70,7 @@ BOOL SetTimer(ULONG uSeconds, VOID (*Callback)(VOID*), VOID* UserParam, DWORD dw
 VOID Sleep(ULONG uSeconds);
 
 VOID GrabThisCpuStruct(VOID);
+PerCpu* GetThatCpu(DWORD CpuID);
 PerCpu* GetThisCpu(VOID);
 DWORD GetThisCpuID(VOID);
 

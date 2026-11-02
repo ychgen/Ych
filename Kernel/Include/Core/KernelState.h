@@ -143,6 +143,8 @@ typedef struct
         UINT NrLoaded, __NrCap;
         struct Driver** pTable;
     } DriverInfo;
+
+    DWORD Tricksteroo;
 } KrKernelState;
 
 extern KrKernelState g_KernelState;

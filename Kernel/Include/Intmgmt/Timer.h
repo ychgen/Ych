@@ -5,6 +5,6 @@
 
 #define KERNEL_TIMER_INTERRUPT_VECTOR 0x20
 
-VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr);
+VOID IntmgmtTimerInterrupt(const InterruptFrame* pIntfr);
 
 #endif // !YCH_KERNEL_INTMGMT_TIMER_H

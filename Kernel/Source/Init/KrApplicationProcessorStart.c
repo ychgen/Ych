@@ -1,5 +1,7 @@
 #include "Init/KrApplicationProcessorStart.h"
 
+#include "Init/KrInitInt.h"
+
 #include "Core/KernelState.h"
 #include "CPU/Interrupt.h"
 #include "CPU/Spinlock.h"
@@ -18,19 +20,19 @@
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
-static UCHAR sg_ProcessorEntryBlacklist[MAX_SMP_PROCESSORS] = {0};
+STATIC UCHAR ProcessorEntryBlacklist[MAX_SMP_PROCESSORS] = {0};
 
 VOID KrApplicationProcessorStart(VOID)
 {
     // Make sure the per-cpu is loaded
     GrabThisCpuStruct();
 
-    if (sg_ProcessorEntryBlacklist[GetThisCpuID()])
+    if (ProcessorEntryBlacklist[GetThisCpuID()])
     {
         g_KernelState.SmpInfo.bProcessorReinitDetected = TRUE;
         ProcessorIndefiniteHalt();
     }
-    sg_ProcessorEntryBlacklist[GetThisCpuID()] = TRUE; // Make sure this CPU cannot be re-entrant
+    ProcessorEntryBlacklist[GetThisCpuID()] = TRUE; // Make sure this CPU cannot be re-entrant
     
     // Load GDT
     {
@@ -40,13 +42,7 @@ VOID KrApplicationProcessorStart(VOID)
         KrLoadGlobalDescriptorTable(&GDTR, g_KernelState.StateGDT.KernelCodeSegmentSelector, g_KernelState.StateGDT.KernelDataSegmentSelector);
         GrabThisCpuStruct(); // Must be called ONCE AGAIN because LGDT invalidates GS base!
     }
-    // Load IDT
-    {
-        KrInterruptDescriptorTableRegister IDTR;
-        IDTR.Base = g_KernelState.AddrIDT;
-        IDTR.Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1;
-        KrLoadInterruptDescriptorTable(&IDTR);
-    }
+    KrInitInt();
 
     // Setup CRs
     {

@@ -20,6 +20,7 @@ typedef struct
 
 BOOL IoApicsInit(VOID);
 
+// SetRedirectIRQ auto-enables the IRQ as well, call SetEnableIRQ with FALSE if you wish to mask it off
 BOOL SetRedirectIRQ(DWORD IRQ, DWORD ProcessorID, UCHAR IntVector);
 BOOL SetEnableIRQ(DWORD IRQ, BOOL bEnable);
 IoApicInfo* FindIoApicForIRQ(DWORD IRQ);

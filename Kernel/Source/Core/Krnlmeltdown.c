@@ -25,9 +25,12 @@ KR_NORETURN VOID Krnlmeltdown(MDCODE MdCode, CSTR MdDesc, CONST KrProcessorSnaps
     AcquireOrWaitSpinlock(&sg_MeltdownSpinlock); // We won't let go of this
 
     ProcessorDisableInterrupts();
-    ApicSetEnabled(FALSE);
-    ApicSetTimerInterruptsEnabled(FALSE);
-    
+    if (ApicIsEnabled())
+    {
+        ApicSetEnabled(FALSE);
+        ApicSetTimerInterruptsEnabled(FALSE);
+    }
+
     g_KernelState.bMeltdown = TRUE;
     UINT NrCpusComplied;
 

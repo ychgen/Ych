@@ -7,7 +7,7 @@
 
 #include "Earlyvideo/DisplaywideTextProtocol.h"
 
-VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr)
+VOID IntmgmtTimerInterrupt(const InterruptFrame* pIntfr)
 {
     ProcessorDisableInterrupts(); // Disable interrupts so we can reorder and rearm timer asap to keep timer accuracy relatively okay
 
@@ -53,7 +53,7 @@ VOID IntmgmtTimerInterrupt(const KrInterruptFrame* pIntfr)
     Event = ThisCpu->TimerInf.TimerDeferredRoot;
     while (Event)
     {
-        SetTimer(Event->LastTickCount, Event->Callback, Event->UserParam, Event->dwFlags | TIMER_EVENT_FLAGS_INTERNAL_TREAT_USECONDS_AS_TICKS);
+        SetTimer(Event->LastTickCount, Event->Callback, Event->UserParam, Event->dwFlags | TIMER_EVENT_FLAGS_USECONDS_AS_TICKS);
         TimerEvent* Nxt = Event->Next;
         HeapRelinquish(Event);
         Event = Nxt;

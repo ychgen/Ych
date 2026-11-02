@@ -134,6 +134,19 @@ BOOL KrApicInit(BOOL bIsCallerBSP)
     return TRUE;
 }
 
+BOOL ApicIsEnabled(VOID)
+{
+    if (!(KrReadMSR(IA32_APIC_BASE) & IA32_APIC_BASE_EN))
+    {
+        return FALSE;
+    }
+    if (!g_KernelState.MmioInfo.VaddrApicBase)
+    {
+        return FALSE;
+    }
+    return ApicRead(APIC_REG_SIV) & APIC_SIV_SOFTWARE_ENABLE;
+}
+
 VOID ApicSetEnabled(BOOL bEnabled)
 {
     DWORD SIVR = ApicRead(APIC_REG_SIV);

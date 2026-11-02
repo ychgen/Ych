@@ -5,10 +5,13 @@
 
 typedef struct
 {
-    BOOL State;
+    DWORD dwState; // Bit 0 : Locked
 } Spinlock;
 
 VOID AcquireOrWaitSpinlock(Spinlock* pSpinlock);
 VOID RelinquishSpinlock(Spinlock* pSpinlock);
+
+KR_NORETURN VOID KrnldeadlockDetected(CONST Spinlock* pSpinlock, DWORD CpuID);
+KR_NORETURN VOID UnownedSpinUnlock(CONST Spinlock* pSpinlock, DWORD CpuID);
 
 #endif // !YCH_KERNEL_CORE_CPU_H

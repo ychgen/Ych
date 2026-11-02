@@ -2,6 +2,7 @@
 #include "ISRs.h"
 
 #include "CPU/Interrupt.h"
+#include "CPU/PerCpu.h"
 #include "CPU/Halt.h"
 #include "CPU/IDT.h"
 #include "CPU/CR.h"
@@ -12,6 +13,8 @@
 #include "KRTL/Krnlstring.h"
 #include "KRTL/Krnlmem.h"
 
+#include "Intmgmt/Dfltexcept.h"
+#include "Intmgmt/PageFault.h"
 #include "Intmgmt/Spurious.h"
 #include "Intmgmt/Timer.h"
 #include "Intmgmt/NMI.h"
@@ -24,115 +27,41 @@
 // Same story but for #GP
 #define KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT FALSE
 
-KR_ALIGNED(16) KrInterruptDescriptor g_krInterruptDescriptorTable[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
+// The IDT. Every processor shares the IDT, but not handlers, which are tracked within the PerCpu structure
+KR_ALIGNED(16) KrInterruptDescriptor IDT[KR_NUMBER_OF_INTERRUPT_DESCRIPTOR_ENTRIES];
 
-static CSTR g_pCriticalProcessorExceptionNames[KR_PROCESSOR_RESERVED_INTERRUPT_COUNT] =
-{
-    "Divide-by-Zero",
-    "Debug Exception",
-    "Non-Maskable Interrupt",
-    "Breakpoint",
-    "Overflow",
-    "BOUND Range Exceeded",
-    "Invalid Opcode",
-    "Device Not Available",
-    "Double Fault",
-    "Coprocessor Segment Overrun",
-    "Invalid TSS",
-    "Segment Not Present",
-    "Stack-Segment Fault",
-    "General Protection Fault",
-    "Page Fault",
-    "Reserved",
-    "x87 FPU Floating-Point Error",
-    "Alignment Check",
-    "Machine Check",
-    "SIMD Floating-Point Exception",
-    "Virtualization Exception",
-    "Control Protection Exception",
-    // complete up to 32, these are reserved for possible future use by architecture
-    "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved", "Reserved"
-};
-
-VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame);
-VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame);
-VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame);
-VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame);
+// ISR function pointer array (element at i encodes ISR i)
+EXTERN VOID (*KrnlISRs[NUM_INT_VECTORS])(VOID);
 
 VOID KrInitInt(VOID)
 {
-    EncodeAllISRs(); // 0 to 2 and 4 to 255
-    KrEncodeInterruptDescriptor(g_krInterruptDescriptorTable + 3, (uint64_t) KrInterruptServiceRoutine_3, g_KernelState.StateGDT.KernelCodeSegmentSelector, 0, KR_GATE_TYPE_TRAP, 0);
+    STATIC BOOL IdtInit = FALSE;
+    if (!IdtInit)
+    {
+        // Punch IDT entries into memory
+        for (UINT i = 0; i < NUM_INT_VECTORS; i++)
+        {
+            KrEncodeInterruptDescriptor(IDT + i, (UINTPTR) KrnlISRs[i], g_KernelState.StateGDT.KernelCodeSegmentSelector, 0, i != 3 ? KR_GATE_TYPE_INTERRUPT : KR_GATE_TYPE_TRAP, 0);
+        }
+        g_KernelState.AddrIDT = (UINTPTR) IDT;
+        IdtInit = TRUE;
+    }
 
-    KrInterruptDescriptorTableRegister IDTR =
+    STATIC KrInterruptDescriptorTableRegister IDTR =
     {
         .Limit = KR_INTERRUPT_DESCRIPTOR_TABLE_SIZE - 1,
-        .Base  = (uint64_t) g_krInterruptDescriptorTable
+        .Base  = (UINTPTR) IDT
     };
-
     KrLoadInterruptDescriptorTable(&IDTR); // LIDT
     ProcessorEnableInterrupts(); // STI
 
-    // Update kernel state
-    g_KernelState.AddrIDT = (uintptr_t) g_krInterruptDescriptorTable;
-
-    KrInitializeInterruptSystem();
-#if KR_INITINT_USE_DEBUG_PAGE_FAULT
-    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_PAGE_FAULT, KrPageFaultInterrupt, FALSE);
-#endif // KR_INITINT_USE_DEBUG_PAGE_FAULT
-#if KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
-    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_GENERAL_PROTECTION_FAULT, KrGeneralProtectionFaultInterrupt, FALSE);
-#endif // KR_INITINT_USE_DEBUG_GENERAL_PROTECTION_FAULT
-    KrRegisterInterruptHandler(KERNEL_TIMER_INTERRUPT_VECTOR, IntmgmtTimerInterrupt, FALSE);
-    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_BREAKPOINT, KrBreakpointInterrupt, FALSE);
-    KrRegisterInterruptHandler(KR_INTERRUPT_VECTOR_NON_MASKABLE_INTERRUPT, IntmgmtNonmaskableInterrupt, FALSE);
-    KrRegisterInterruptHandler(KERNEL_SPURIOUS_INTERRUPT_VECTOR, IntmgmtSpuriousInterrupt, FALSE);
-
-    // Interrupts 0-31 are reserved by the CPU itself and almost all are critical errors.
-    // We register special interrupts above and KrRegisterInterruptHandler will just return false for them,
-    // so our original ones are intact.
     for (BYTE i = 0; i < KR_PROCESSOR_RESERVED_INTERRUPT_COUNT; i++)
     {
-        KrRegisterInterruptHandler(i, KrCriticalProcessorInterrupt, FALSE);
+        SetExceptionInterrupt(GetThisCpuID(), i, IntmgmtProcessorException);
     }
-}
 
-VOID KrCriticalProcessorInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    CHAR  pDescMsg[] = "Unhandled critical processor exception: ";
-    CSTR  pDescKod   = g_pCriticalProcessorExceptionNames[pInterruptFrame->InterruptNo];
-    
-    const SIZE szMsg = sizeof(pDescMsg) - 1;
-    const SIZE szKod = KrtlStringSize(pDescKod);
-    
-    char pDesc[128];
-    KrtlContiguousCopyBuffer(pDesc, pDescMsg, szMsg);
-    KrtlContiguousCopyBuffer(pDesc + szMsg, pDescKod, szKod+1); // copy null terminator too
-    
-    // Kernel meltdown (panic)
-    KrProcessorSnapshot snapshot = KrInterruptFrameToProcessorSnapshot(pInterruptFrame);
-    Krnlmeltdown(KR_MDCODE_CRITICAL_PROCESSOR_EXCEPTION, pDesc, &snapshot);
-}
-
-VOID KrPageFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    QWORD CR2; KrReadCR2(CR2);
-    KrdwtpOutColoredText("!!!PAGE FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText(" -> Faulting Virtual Address: 0x%RX\n -> Processor Error Code: 0x%RX\n", CR2, pInterruptFrame->ErrorCode);
-    KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    ProcessorIndefiniteHalt();
-}
-
-VOID KrGeneralProtectionFaultInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    KrdwtpOutColoredText("!!!GENERAL PROTECTION FAULT!!!\n", KRDWTP_COLOR_RED, KRDWTP_BACKGROUND);
-    KrdwtpOutFormatText(" -> Processor-Pushed Error Code: 0x%RX\n", pInterruptFrame->ErrorCode);
-    KrdwtpOutColoredText("Processor halted indefinitely.\n", KRDWTP_COLOR_PURPLE, KRDWTP_BACKGROUND);
-    ProcessorIndefiniteHalt();
-}
-
-VOID KrBreakpointInterrupt(const KrInterruptFrame* pInterruptFrame)
-{
-    // TODO: Log
-    (VOID)(pInterruptFrame);
+    SetExceptionInterrupt(GetThisCpuID(), INT_VECTOR_NON_MASKABLE_INTERRUPT, IntmgmtNonmaskableInterrupt);
+    SetExceptionInterrupt(GetThisCpuID(), INT_VECTOR_PAGE_FAULT,             IntmgmtPageFault);
+    SetExceptionInterrupt(GetThisCpuID(), KERNEL_TIMER_INTERRUPT_VECTOR,     IntmgmtTimerInterrupt);
+    SetExceptionInterrupt(GetThisCpuID(), KERNEL_SPURIOUS_INTERRUPT_VECTOR,  IntmgmtSpuriousInterrupt);
 }

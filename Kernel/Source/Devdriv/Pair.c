@@ -9,6 +9,10 @@ static UINT LocalDevdrivPairAttempt(DeviceNode* pRootNode);
 
 BOOL IsDriverCompatibleWithDevice(Driver* pDriver, DeviceNode* pDevice, DriverMatchMethod* pOutMatchMethod)
 {
+    if (!pDriver->pMatchMethods)
+    {
+        return FALSE;
+    }
     for (DriverMatchMethod* pMethod = pDriver->pMatchMethods; pMethod->OnBus != BUS_IVLD; pMethod++)
     {
         if (pDevice->OnBus != pMethod->OnBus)
@@ -44,7 +48,7 @@ BOOL IsDriverCompatibleWithDevice(Driver* pDriver, DeviceNode* pDevice, DriverMa
 
 BOOL TryPairDriverWithDevice(Driver* pDriver, DeviceNode* pDevice)
 {
-    if (!(pDriver && pDevice && !pDevice->pDriver))
+    if (!(pDriver && pDevice && !pDevice->pDriver && pDriver->DevInit && pDriver->DevProbe))
     {
         return FALSE;
     }

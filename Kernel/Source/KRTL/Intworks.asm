@@ -6,7 +6,7 @@ GLOBAL PopulationCount32
 ; DWORD /*eax*/ PopulationCount8(BYTE /*dil*/ ByteInput)
 PopulationCount8:
     XOR EAX, EAX
-    MOVZX EDI, DIL
+    MOVZX DI, DIL
     POPCNT AX, DI
     RET
 
